@@ -29,7 +29,8 @@ export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, o
     categories,
     budgets,
     savingsGoals,
-    accounts
+    accounts,
+    isDemoMode
   } = useFinance();
   const { user } = useAuth();
 
@@ -69,6 +70,34 @@ export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, o
         }}>
           <Sparkles size={16} color="var(--primary)" />
           <span>Motto: <strong style={{ color: 'var(--text-main)' }}>"{user.bio}"</strong></span>
+        </div>
+      )}
+
+      {/* Helpful Empty State Call to Action when starting fresh with 0 real transactions */}
+      {transactions.length === 0 && !isDemoMode && (
+        <div style={{
+          padding: '1.75rem 1.5rem',
+          marginBottom: '1.5rem',
+          background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.4) 0%, rgba(30, 20, 45, 0.7) 100%)',
+          border: '1px solid rgba(192, 132, 252, 0.35)',
+          borderRadius: 'var(--radius-lg, 12px)',
+          textAlign: 'center',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)'
+        }}>
+          <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+            Welcome to your real account! 🎓
+          </h3>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '520px', margin: '0 auto 1.25rem' }}>
+            Your tutorial is complete and your finances start fresh. Add your first everyday expense, allowance, or linked campus e-wallet to get started!
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={onOpenAddTransaction} className="btn btn-primary">
+              <PlusCircle size={16} /> + Add Your First Transaction
+            </button>
+            <button onClick={onOpenAddAccount} className="btn btn-secondary">
+              <Landmark size={16} /> + Link Account / eWallet
+            </button>
+          </div>
         </div>
       )}
 
@@ -158,8 +187,23 @@ export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, o
                 <div key={acc.accountId} className="account-card-item">
                   <span style={{ fontSize: '1.35rem', flexShrink: 0 }}>{icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {acc.accountName}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {acc.accountName}
+                      </span>
+                      {acc.isDemo && (
+                        <span style={{
+                          fontSize: '0.62rem',
+                          padding: '0.1rem 0.35rem',
+                          borderRadius: '3px',
+                          background: 'rgba(245, 158, 11, 0.2)',
+                          color: '#FBBF24',
+                          fontWeight: 700,
+                          flexShrink: 0
+                        }}>
+                          Sample
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       fontFamily: 'Plus Jakarta Sans',
@@ -223,7 +267,24 @@ export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, o
                     transition: 'background var(--transition-fast)'
                   }}>
                     <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.title}
+                        </span>
+                        {t.isDemo && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            background: 'rgba(167, 139, 250, 0.2)',
+                            color: '#C084FC',
+                            fontWeight: 700,
+                            flexShrink: 0
+                          }}>
+                            Sample
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                         {t.date} · {cat ? cat.name : 'Uncategorized'}
                       </div>

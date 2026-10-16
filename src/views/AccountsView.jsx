@@ -90,8 +90,22 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                       {icon}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-main)' }}>
-                        {account.accountName}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-main)' }}>
+                          {account.accountName}
+                        </span>
+                        {account.isDemo && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            background: 'rgba(245, 158, 11, 0.2)',
+                            color: '#FBBF24',
+                            fontWeight: 700
+                          }}>
+                            Sample
+                          </span>
+                        )}
                       </div>
                       {account.institution && (
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>

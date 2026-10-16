@@ -238,6 +238,18 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                         <td>
                           <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                             <span>{t.title}</span>
+                            {t.isDemo && (
+                              <span style={{
+                                fontSize: '0.62rem',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '3px',
+                                background: 'rgba(167, 139, 250, 0.2)',
+                                color: '#C084FC',
+                                fontWeight: 700
+                              }}>
+                                Sample
+                              </span>
+                            )}
                             {t.isRecurring && (
                               <span className="badge badge-recurring" title="Recurring Monthly">
                                 <Repeat size={12} /> Recurring
@@ -326,7 +338,19 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {t.title}
+                        <span>{t.title}</span>
+                        {t.isDemo && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '3px',
+                            background: 'rgba(167, 139, 250, 0.2)',
+                            color: '#C084FC',
+                            fontWeight: 700
+                          }}>
+                            Sample
+                          </span>
+                        )}
                         {t.isRecurring && <Repeat size={12} color="var(--primary)" />}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>

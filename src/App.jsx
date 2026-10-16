@@ -28,6 +28,8 @@ import CategoryModal from './components/CategoryModal';
 import AccountModal from './components/AccountModal';
 import ProfileModal from './components/ProfileModal';
 import OnboardingWizard from './components/OnboardingWizard';
+import { DemoModeProvider } from './context/DemoModeProvider';
+import TutorialDemoBanner from './components/TutorialDemoBanner';
 
 function getInitialTabFromUrl() {
   try {
@@ -44,41 +46,22 @@ function getInitialTabFromUrl() {
   return 'dashboard';
 }
 
-function AppContent() {
-  const {
-    completeTutorial,
-    onboardingCompleted,
-    onboardingStep,
-    updateOnboardingStep,
-    completeOnboarding,
-    isLoading,
-    loadError
-  } = useFinance();
-  const [activeTab, setActiveTab] = useState(getInitialTabFromUrl);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isReplayingTutorial, setIsReplayingTutorial] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-
-  // Synchronize on browser history popstate / back-forward navigation
-  useEffect(() => {
-    const handlePopState = () => {
-      const currentTab = getInitialTabFromUrl();
-      setActiveTab(currentTab);
-    };
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
-    };
-  }, []);
-
-  // Mandatory Onboarding Flow:
-  // Step A: Profile setup (required first, blocks app routes)
-  // Step B: Guided interactive tutorial on Dashboard
-  const isOnboardingActive = !onboardingCompleted;
-  const isTourActive = (isOnboardingActive && onboardingStep === 'tutorial') || isReplayingTutorial;
-
+function AppLayout({
+  activeTab,
+  setActiveTab,
+  isMobileOpen,
+  setIsMobileOpen,
+  isProfileModalOpen,
+  setIsProfileModalOpen,
+  isOnboardingActive,
+  onboardingStep,
+  updateOnboardingStep,
+  isTourActive,
+  onExitTour,
+  onReplayTutorial,
+  isLoading,
+  loadError
+}) {
   // Block route navigation during Step A profile setup
   const handleTabChange = (newTab) => {
     if (isOnboardingActive && onboardingStep === 'profile') {
@@ -222,7 +205,7 @@ function AppContent() {
         return (
           <SettingsView
             onOpenAddCategory={handleOpenAddCategory}
-            onReplayTutorial={() => setIsReplayingTutorial(true)}
+            onReplayTutorial={onReplayTutorial}
             onOpenProfileModal={handleOpenProfileModal}
           />
         );
@@ -230,7 +213,7 @@ function AppContent() {
         return (
           <SettingsView
             onOpenAddCategory={handleOpenAddCategory}
-            onReplayTutorial={() => setIsReplayingTutorial(true)}
+            onReplayTutorial={onReplayTutorial}
             onOpenProfileModal={handleOpenProfileModal}
           />
         );
@@ -283,6 +266,8 @@ function AppContent() {
         />
 
         <main className="content-area">
+          <TutorialDemoBanner onExitTour={onExitTour} />
+
           {isLoading ? (
             <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
               <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
@@ -365,14 +350,7 @@ function AppContent() {
       {/* Step B / Replay: Modern Contextual Product Tour */}
       {isTourActive && (
         <Tutorial
-          onComplete={() => {
-            if (isOnboardingActive) {
-              completeOnboarding();
-            } else {
-              completeTutorial();
-            }
-            setIsReplayingTutorial(false);
-          }}
+          onComplete={onExitTour}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           isTransactionModalOpen={isTransactionModalOpen}
@@ -383,6 +361,82 @@ function AppContent() {
         />
       )}
     </div>
+  );
+}
+
+function AppContent() {
+  const {
+    completeTutorial,
+    onboardingCompleted,
+    onboardingStep,
+    updateOnboardingStep,
+    completeOnboarding,
+    isLoading,
+    loadError
+  } = useFinance();
+  const [activeTab, setActiveTab] = useState(getInitialTabFromUrl);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isReplayingTutorial, setIsReplayingTutorial] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Synchronize on browser history popstate / back-forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const currentTab = getInitialTabFromUrl();
+      setActiveTab(currentTab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, []);
+
+  // Mandatory Onboarding Flow:
+  // Step A: Profile setup (required first, blocks app routes)
+  // Step B: Guided interactive tutorial on Dashboard
+  const isOnboardingActive = !onboardingCompleted;
+  const isTourActive = (isOnboardingActive && onboardingStep === 'tutorial') || isReplayingTutorial;
+
+  const handleExitTour = () => {
+    try {
+      localStorage.removeItem('kirokash_tutorial_current_step');
+    } catch {}
+    if (isOnboardingActive) {
+      completeOnboarding();
+    } else {
+      completeTutorial();
+    }
+    setIsReplayingTutorial(false);
+    setActiveTab('dashboard');
+  };
+
+  return (
+    <DemoModeProvider isTourActive={isTourActive} onExitTour={handleExitTour}>
+      <AppLayout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
+        isProfileModalOpen={isProfileModalOpen}
+        setIsProfileModalOpen={setIsProfileModalOpen}
+        isOnboardingActive={isOnboardingActive}
+        onboardingStep={onboardingStep}
+        updateOnboardingStep={updateOnboardingStep}
+        isTourActive={isTourActive}
+        onExitTour={handleExitTour}
+        onReplayTutorial={() => {
+          try {
+            localStorage.setItem('kirokash_tutorial_current_step', '0');
+          } catch {}
+          setIsReplayingTutorial(true);
+          setActiveTab('dashboard');
+        }}
+        isLoading={isLoading}
+        loadError={loadError}
+      />
+    </DemoModeProvider>
   );
 }
 
