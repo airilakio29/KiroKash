@@ -3,7 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { calculateBudgetStatus } from '../services/budgetService';
 import {
-  getCafes,
+  getExplorePlaces,
   getVouchers,
   getSavedVoucherIds,
   toggleSaveVoucherId,
@@ -15,7 +15,7 @@ import CafeCard from '../components/explore/CafeCard';
 import CafeDetailsModal from '../components/explore/CafeDetailsModal';
 import VouchersSection from '../components/explore/VouchersSection';
 import MapView from '../components/explore/MapView';
-import { USE_STATIC_MAP } from '../config/mapConfig';
+import { USE_STATIC_MAP, DEFAULT_LOCATION } from '../config/mapConfig';
 import { MapPin, Sparkles, CheckCircle2, RotateCcw, AlertTriangle, Coffee } from 'lucide-react';
 
 // Lazy load Map component to preserve initial page load performance
@@ -25,7 +25,7 @@ function MapLoadingSkeleton() {
   return (
     <div className="explore-map-skeleton">
       <div className="skeleton-spinner"></div>
-      <div className="skeleton-text">Loading interactive Ipoh map...</div>
+      <div className="skeleton-text">Loading OpenStreetMap tiles and venues...</div>
     </div>
   );
 }
@@ -34,6 +34,10 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
   const { user } = useAuth();
   const userId = user?.id;
   const { budgets, categories, transactions } = useFinance();
+
+  // Active Search Location
+  const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
+  const [isLocating, setIsLocating] = useState(false);
 
   // Async data states
   const [cafes, setCafes] = useState([]);
@@ -65,7 +69,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
     }, 2800);
   };
 
-  // Fetch initial mock data
+  // Fetch real OSM merchants and partner vouchers for active location
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
@@ -73,7 +77,10 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         setIsLoading(true);
         setFetchError(null);
         const [loadedCafes, loadedVouchers] = await Promise.all([
-          getCafes(),
+          getExplorePlaces({
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude
+          }),
           getVouchers()
         ]);
         if (isMounted) {
@@ -85,7 +92,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         }
       } catch (err) {
         if (isMounted) {
-          setFetchError('Unable to load explore data. Please try again.');
+          setFetchError('Unable to load nearby places. Please try again.');
           console.error('Explore load error', err);
         }
       } finally {
@@ -98,9 +105,39 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, [userId, currentLocation]);
 
-  // Food Budget Calculation (Requirement 7.1)
+  // GPS Device Geolocation
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported on this browser.');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude } = pos.coords;
+        setCurrentLocation({
+          id: 'custom',
+          name: 'My Device Location',
+          area: 'Nearby',
+          latitude,
+          longitude,
+          zoom: 15
+        });
+        showToast('Updated location to your current GPS coordinates 📍');
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation error', err);
+        showToast('Could not access device location. Using default location.');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  // Food Budget Calculation (Requirement 4 & 7.1)
   const foodCategory = useMemo(() => {
     return categories.find((c) =>
       c.name.toLowerCase().includes('food') ||
@@ -125,7 +162,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
     };
   }, [foodBudget, transactions]);
 
-  // Filtered & Sorted Cafes
+  // Filtered & Sorted Venues
   const filteredCafes = useMemo(() => {
     return filterAndSortCafes(
       cafes,
@@ -135,11 +172,13 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         budgetPreset,
         hasVoucher,
         studyFriendly,
-        sortBy
+        sortBy,
+        userLat: currentLocation.latitude,
+        userLng: currentLocation.longitude
       },
       vouchers
     );
-  }, [cafes, vouchers, searchQuery, category, budgetPreset, hasVoucher, studyFriendly, sortBy]);
+  }, [cafes, vouchers, searchQuery, category, budgetPreset, hasVoucher, studyFriendly, sortBy, currentLocation]);
 
   // Reset Filters Handler
   const handleResetFilters = () => {
@@ -149,9 +188,10 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
     setHasVoucher(false);
     setStudyFriendly(false);
     setSortBy('rating');
+    setCurrentLocation(DEFAULT_LOCATION);
   };
 
-  // Toggle Save Voucher (Requirement 6.3)
+  // Toggle Save Voucher (Requirement 6.3 & 7)
   const handleToggleSaveVoucher = async (voucherId) => {
     if (!userId) {
       showToast('Please sign in to save vouchers to your wallet.');
@@ -172,7 +212,6 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(code);
       } else {
-        // Fallback for older browsers
         const el = document.createElement('textarea');
         el.value = code;
         document.body.appendChild(el);
@@ -188,7 +227,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
     }
   };
 
-  // Add to Expenses Flow (Requirement 7.2)
+  // Add to Expenses Flow (Requirement 4 & 7.2)
   const handleAddToExpenses = (cafe) => {
     if (!onOpenAddTransaction) return;
 
@@ -202,7 +241,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
       amount: typicalAmount,
       categoryId: expenseCatId,
       type: 'expense',
-      note: `Visited ${cafe.name} (${cafe.area})`
+      note: `Visited ${cafe.name} (${cafe.area || 'Ipoh'})`
     });
   };
 
@@ -216,35 +255,43 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         </div>
       )}
 
-      {/* Header Banner with Title, Subtitle, and "Sample data" disclaimer (Requirement 2.1 & 4.2) */}
+      {/* Header Banner with Title, Subtitle, and Live OpenStreetMap badge */}
       <div className="explore-header-card card" style={{ marginBottom: '1.5rem' }}>
         <div className="explore-header-flex">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
               <h2 className="explore-main-title">
-                Explore Ipoh
+                Explore {currentLocation?.area || 'Nearby'}
               </h2>
-              <span className="explore-sample-badge" title="Fictional mock data for demonstration">
-                Sample data
+              <span
+                className="explore-sample-badge"
+                style={{
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  color: '#34D399',
+                  border: '1px solid rgba(16, 185, 129, 0.3)'
+                }}
+                title="Live places powered by OpenStreetMap & Overpass API"
+              >
+                📍 OpenStreetMap Live
               </span>
             </div>
             <p className="explore-subtitle">
-              Student friendly cafes, quiet study spots, and campus vouchers near you in Ipoh, Perak.
+              Real nearby student cafes, restaurants, bakeries, and campus partner discounts near {currentLocation?.name || 'Ipoh, Perak'}.
             </p>
           </div>
 
           {/* Quick Stats Pill */}
           <div className="explore-header-badge">
             <Sparkles size={16} color="var(--gold-sparkle)" />
-            <span>Discover student deals & sync directly with your Food budget</span>
+            <span>Discover real places & sync directly with your Food budget</span>
           </div>
         </div>
       </div>
 
-      {/* Top 4 Summary Cards (Requirement 2.2) */}
+      {/* Top 4 Summary Cards */}
       <ExploreSummaryCards cafes={cafes} vouchers={vouchers} />
 
-      {/* Filters & Search Controls */}
+      {/* Filters & Location Controls */}
       <ExploreFilters
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -260,9 +307,13 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         onSortByChange={setSortBy}
         onResetFilters={handleResetFilters}
         totalResults={filteredCafes.length}
+        currentLocation={currentLocation}
+        onLocationChange={setCurrentLocation}
+        onUseCurrentLocation={handleUseCurrentLocation}
+        isLocating={isLocating}
       />
 
-      {/* Main Split Area: Interactive Map on one side, Scrollable Cafe List on the other (Requirement 2.3) */}
+      {/* Main Split Area: Interactive Map on one side, Scrollable Venue List on the other */}
       <div className="explore-split-layout">
         {/* Map Column */}
         <div className="explore-map-column">
@@ -271,7 +322,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <MapPin size={17} color="var(--primary-light)" />
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  Interactive Ipoh Cafe Map
+                  Interactive OpenStreetMap
                 </h3>
               </div>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -283,37 +334,31 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
               <MapView
                 cafes={filteredCafes}
                 selectedCafeId={selectedCafeId}
-                onSelectCafe={(cafeId) => {
-                  setSelectedCafeId(cafeId);
-                }}
-                onOpenDetailsModal={(cafe) => {
-                  setDetailsModalCafe(cafe);
-                }}
+                onSelectCafe={(cafeId) => setSelectedCafeId(cafeId)}
+                onOpenDetailsModal={(cafe) => setDetailsModalCafe(cafe)}
               />
             ) : (
               <Suspense fallback={<MapLoadingSkeleton />}>
                 <ExploreMap
                   cafes={filteredCafes}
                   selectedCafeId={selectedCafeId}
-                  onSelectCafe={(cafeId) => {
-                    setSelectedCafeId(cafeId);
-                  }}
-                  onOpenDetailsModal={(cafe) => {
-                    setDetailsModalCafe(cafe);
-                  }}
+                  onSelectCafe={(cafeId) => setSelectedCafeId(cafeId)}
+                  onOpenDetailsModal={(cafe) => setDetailsModalCafe(cafe)}
+                  onAddToExpenses={handleAddToExpenses}
+                  currentLocation={currentLocation}
                 />
               </Suspense>
             )}
           </div>
         </div>
 
-        {/* Cafe List Column */}
+        {/* Venue List Column */}
         <div className="explore-list-column">
           <div className="card cafe-list-card">
             <div className="cafe-list-header">
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                 <Coffee size={17} color="var(--primary-light)" />
-                <span>Student Friendly Cafes</span>
+                <span>Nearby Food & Dining</span>
               </h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 {filteredCafes.length} results
@@ -325,7 +370,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
               {isLoading ? (
                 <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div className="skeleton-spinner" style={{ margin: '0 auto 1rem' }}></div>
-                  <div>Loading cafes and deals...</div>
+                  <div>Retrieving OpenStreetMap businesses...</div>
                 </div>
               ) : fetchError ? (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--expense)' }}>
@@ -333,12 +378,11 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
                   <div>{fetchError}</div>
                 </div>
               ) : filteredCafes.length === 0 ? (
-                /* Friendly Empty State (Requirement 5.4) */
                 <div className="explore-empty-state">
                   <Coffee size={40} color="var(--primary-light)" style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
-                  <h4>No Cafes Found</h4>
+                  <h4>No Places Found</h4>
                   <p>
-                    No venues matched your current search and filter settings. Try relaxing your filters or search keywords.
+                    No venues matched your current search and filter settings. Try relaxing your filters or choosing another location.
                   </p>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={handleResetFilters}>
                     <RotateCcw size={13} /> Reset Filters
@@ -364,7 +408,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         </div>
       </div>
 
-      {/* Vouchers and Deals Section Below the Map (Requirement 2.4 & 6) */}
+      {/* Vouchers and Deals Section Below the Map (Requirement 7) */}
       <VouchersSection
         vouchers={vouchers}
         savedVoucherIds={savedVoucherIds}
@@ -372,7 +416,6 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         onToggleSave={handleToggleSaveVoucher}
         onSelectCafe={(cafeId) => {
           setSelectedCafeId(cafeId);
-          // Scroll up to map smoothly
           window.scrollTo({ top: 380, behavior: 'smooth' });
         }}
         copiedCode={copiedCode}
