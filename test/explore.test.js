@@ -3,12 +3,24 @@ import assert from 'node:assert/strict';
 
 import {
   getCafes,
+  getExplorePlaces,
   getVouchers,
   calculateDistanceKm,
   filterAndSortCafes,
   evaluateBudgetFit,
   IPOH_CENTER
 } from '../src/services/exploreService.js';
+import {
+  buildOverpassQuery,
+  normalizeOsmElement,
+  VERIFIED_OSM_FALLBACK_DATA
+} from '../src/services/osmOverpassService.js';
+import {
+  LOCATION_PRESETS,
+  DEFAULT_LOCATION,
+  OVERPASS_ENDPOINTS,
+  TILE_LAYER_URL
+} from '../src/config/mapConfig.js';
 
 describe('Explore Service & Cafe Logic', () => {
   it('should fetch at least 12 cafes asynchronously with all required fields', async () => {
@@ -103,5 +115,94 @@ describe('Explore Service & Cafe Logic', () => {
     // Case 4: Over budget (remaining < minBudget)
     const over = evaluateBudgetFit(cafe, { hasBudget: true, remaining: 5 });
     assert.equal(over.status, 'over');
+
+    // Case 5: OpenStreetMap venue with unlisted budget
+    const osmCafe = { minBudget: null, maxBudget: null };
+    const unlisted = evaluateBudgetFit(osmCafe, { hasBudget: true, remaining: 25 });
+    assert.equal(unlisted.status, 'unspecified');
+    assert.equal(unlisted.label, 'Budget not listed');
+  });
+
+  describe('Real OpenStreetMap Integration & Overpass API', () => {
+    it('should configure valid OpenStreetMap tile and Overpass endpoints', () => {
+      assert.ok(TILE_LAYER_URL.includes('{z}/{x}/{y}'), 'Must have standard tile template');
+      assert.ok(OVERPASS_ENDPOINTS.length >= 2, 'Must have at least 2 fallback Overpass endpoints');
+      assert.ok(LOCATION_PRESETS.length >= 4, 'Must include location presets');
+      assert.ok(DEFAULT_LOCATION.latitude && DEFAULT_LOCATION.longitude, 'Default location set');
+    });
+
+    it('should build an Overpass QL query covering all required student merchant categories', () => {
+      const q = buildOverpassQuery(4.5975, 101.0901, 5000);
+      assert.ok(q.includes('amenity"="cafe"'), 'Must query cafes');
+      assert.ok(q.includes('amenity"="restaurant"'), 'Must query restaurants');
+      assert.ok(q.includes('shop"="bakery"'), 'Must query bakeries');
+      assert.ok(q.includes('amenity"="ice_cream"'), 'Must query dessert/ice cream');
+      assert.ok(q.includes('amenity"="fast_food"'), 'Must query fast-food outlets');
+      assert.ok(q.includes('shop"="convenience"'), 'Must query convenience stores');
+      assert.ok(q.includes('shop"="supermarket"'), 'Must query supermarkets');
+      assert.ok(q.includes('out center 60 tags;'), 'Must query center coordinates and tags');
+    });
+
+    it('should normalize raw OpenStreetMap elements without inventing fake ratings or prices', () => {
+      const rawNode = {
+        type: 'node',
+        id: 10066724691,
+        lat: 4.5936701,
+        lon: 101.0846702,
+        tags: {
+          name: 'Ipoh Bean Bar',
+          amenity: 'cafe',
+          cuisine: 'coffee_shop',
+          internet_access: 'wlan',
+          'addr:street': 'Jalan Yau Tet Shin',
+          'addr:city': 'Ipoh'
+        }
+      };
+
+      const normalized = normalizeOsmElement(rawNode, 4.5975, 101.0901);
+      assert.ok(normalized, 'Should normalize element');
+      assert.equal(normalized.id, 'osm-node-10066724691');
+      assert.equal(normalized.name, 'Ipoh Bean Bar');
+      assert.equal(normalized.category, 'Study Cafe');
+      assert.equal(normalized.hasWifi, true);
+      assert.equal(normalized.source, 'openstreetmap');
+      assert.equal(normalized.isPartner, false);
+      // Data integrity constraints:
+      assert.equal(normalized.rating, null, 'Must NOT invent fake rating');
+      assert.equal(normalized.minBudget, null, 'Must NOT invent fake min budget');
+      assert.equal(normalized.maxBudget, null, 'Must NOT invent fake max budget');
+      assert.ok(normalized.distanceKm >= 0, 'Must calculate real distance');
+    });
+
+    it('should fetch combined places distinguishing partners from OpenStreetMap businesses', async () => {
+      const places = await getExplorePlaces();
+      assert.ok(places.length >= 15, 'Combined places must include partner and OSM businesses');
+
+      const partnerPlaces = places.filter((p) => p.isPartner);
+      const osmPlaces = places.filter((p) => !p.isPartner && p.source === 'openstreetmap');
+
+      assert.ok(partnerPlaces.length > 0, 'Must contain verified partner venues');
+      assert.ok(osmPlaces.length > 0, 'Must contain real OpenStreetMap community venues');
+
+      // Vouchers are only linked to verified partner venues, never automatically given to ordinary OSM places
+      const vouchers = await getVouchers();
+      const voucherCafeIds = new Set(vouchers.map((v) => v.cafeId));
+      for (const osm of osmPlaces) {
+        assert.ok(!voucherCafeIds.has(osm.id), 'Ordinary OSM places must not be given vouchers');
+      }
+    });
+
+    it('should have authentic verified OpenStreetMap fallback places with accurate coordinates', () => {
+      assert.ok(VERIFIED_OSM_FALLBACK_DATA.length >= 10, 'Must have at least 10 verified fallback places');
+      for (const place of VERIFIED_OSM_FALLBACK_DATA) {
+        assert.ok(place.osmId, 'Must have authentic OSM ID');
+        assert.equal(place.source, 'openstreetmap');
+        assert.equal(place.isPartner, false);
+        assert.equal(place.rating, null);
+        assert.equal(place.minBudget, null);
+        assert.ok(place.latitude > 4.0 && place.latitude < 5.0, 'Must be in Perak region');
+        assert.ok(place.longitude > 100.5 && place.longitude < 101.5, 'Must be in Perak region');
+      }
+    });
   });
 });
