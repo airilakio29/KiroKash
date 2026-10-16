@@ -12,7 +12,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "lint": "oxlint",
-    "test": "node --test test/phase1.test.js test/explore.test.js",
+    "test": "node --test test/phase1.test.js test/explore.test.js test/demo.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
