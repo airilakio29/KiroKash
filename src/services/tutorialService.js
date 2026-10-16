@@ -9,7 +9,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="dashboard-metrics"]',
     tab: 'dashboard',
     title: 'Welcome to KiroKash',
-    description: 'Your all-in-one student financial command center. Track your total balance across accounts, monitor allowance and loan income, keep expenses in check, and view your goal savings at a glance.',
+    description: 'Your all-in-one student financial command center. These are sample student numbers to show how your metrics look. Yours will fill up as you add everyday transactions.',
     iconName: 'LayoutDashboard',
     preferredPosition: 'bottom'
   },
@@ -27,7 +27,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="accounts"], [data-tour="nav-accounts"]',
     tab: 'dashboard',
     title: 'My Accounts & Balances',
-    description: 'Keep tabs on all your funds across CIMB, MAE/Maybank, Bank Islam, cash reserves, and Touch \'n Go e-wallets. Add accounts anytime with instant automatic balance synchronization.',
+    description: 'Keep tabs on all your funds across CIMB, MAE/Maybank, Bank Islam, cash reserves, and Touch \'n Go e-wallets. These sample cards demonstrate automatic balance updates across multiple accounts.',
     iconName: 'Landmark',
     preferredPosition: 'top'
   },
@@ -36,7 +36,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="category-chart"]',
     tab: 'dashboard',
     title: 'Category Spending Breakdown',
-    description: 'See exactly where your money goes in real-time. Interactive color-coded charts categorize your living costs — from food and campus transport to study materials.',
+    description: 'See exactly where your money goes in real-time. This interactive color-coded chart categorizes sample student living costs — from food and campus transport to study materials.',
     iconName: 'PieChart',
     preferredPosition: 'top'
   },
@@ -45,7 +45,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="export-pdf-btn"]',
     tab: 'dashboard',
     title: 'One-Click PDF Statement',
-    description: 'Generate a clean, printable PDF financial report on demand — perfect for sharing with parents, scholarship administrators, or monthly budget auditing.',
+    description: 'Generate a clean, printable PDF financial report on demand — perfect for sharing with parents or scholarship sponsors. (Export is paused during tutorial mode).',
     iconName: 'FileText',
     preferredPosition: 'bottom'
   },
@@ -54,7 +54,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="nav-transactions"]',
     tab: 'transactions',
     title: 'Transaction Records & Smart Search',
-    description: 'Explore your complete transaction ledger. Search instantly by title, notes, or merchant, and filter expenses or income with responsive one-click sorting.',
+    description: 'Explore your complete transaction ledger. Notice how search and filters work with sample entries. You can filter expenses, income, or specific accounts with one click.',
     iconName: 'ReceiptText',
     preferredPosition: 'right'
   },
@@ -63,7 +63,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="transactions-add-btn"], [data-tour="add-transaction"]',
     tab: 'transactions',
     title: 'Record Income & Expenses',
-    description: 'Quickly log everyday spending, part-time wages, or allowance payouts. Link entries to specific accounts (Maybank, CIMB, Cash) for automatic balance deduction.',
+    description: 'Quickly log campus expenses, part-time wages, or allowance. Feel free to try adding a transaction now — in tutorial mode it writes safely to sample memory and disappears after.',
     iconName: 'PlusCircle',
     preferredPosition: 'bottom'
   },
@@ -72,7 +72,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="nav-budgets"]',
     tab: 'budgets',
     title: 'Category Budgets & Limit Warnings',
-    description: 'Set monthly spending limits for food, groceries, or entertainment. Visual alert indicators notify you when you approach 80% or exceed your target budget.',
+    description: 'Set monthly spending caps for food, transport, or leisure. Sample budgets illustrate active limits, approaching warnings (yellow 80%+), and over-budget alerts (red).',
     iconName: 'Target',
     preferredPosition: 'right'
   },
@@ -81,7 +81,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="nav-savings"]',
     tab: 'savings',
     title: 'Student Savings Goals',
-    description: 'Save towards what matters most — emergency funds, semester tuition, or a new laptop. Deposit funds toward goals and track percentage completion in real-time.',
+    description: 'Save towards what matters most — a new laptop, emergency fund, or trip. Try depositing sample funds to see progress percentages and remaining targets update live.',
     iconName: 'PiggyBank',
     preferredPosition: 'right'
   },
@@ -90,7 +90,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="nav-reports"]',
     tab: 'reports',
     title: 'Reports & Trend Analytics',
-    description: 'Gain deep financial insights with multi-month cashflow bar charts, net savings calculations, and spending breakdown across all your linked accounts.',
+    description: 'Gain deep financial insights with multi-month cashflow bar charts, net savings calculations, and spending breakdown across all your linked student accounts.',
     iconName: 'BarChart3',
     preferredPosition: 'right'
   },
@@ -99,7 +99,7 @@ export const TOUR_STEPS = [
     targetSelector: '[data-tour="settings-profile-card"], [data-tour="sidebar-profile-card"], [data-tour="profile-btn"]',
     tab: 'settings',
     title: 'Student Profile & Avatar Customizer',
-    description: 'Express your campus persona! Pick from 8 modern preset avatars (Scholar, Techie, Smart Saver, Creative, etc.) or upload your personal photo (<2MB) with circular live preview. Customize your name, campus, motto, and currency target.',
+    description: 'Express your campus persona! Pick from 8 modern preset avatars (Scholar, Techie, Smart Saver, Creative, etc.) or upload your photo (<2MB). Your profile stays 100% real.',
     iconName: 'User',
     preferredPosition: 'top'
   },
@@ -126,7 +126,7 @@ export const TOUR_STEPS = [
     targetSelector: null,
     tab: 'dashboard',
     title: "You're all set! 🎓",
-    description: "You're ready to master your student finances! Start tracking everyday spending, managing campus budgets, and hitting your savings goals with KiroKash.",
+    description: "Tutorial finished. We're switching you back to your real account, which starts empty. Add your first transaction to get started.",
     iconName: 'Check',
     preferredPosition: 'center'
   }

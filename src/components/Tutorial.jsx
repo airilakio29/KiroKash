@@ -50,7 +50,16 @@ export default function Tutorial({
 }) {
   const { completeTutorial } = useFinance();
 
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [currentStepIndex, setCurrentStepIndex] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kirokash_tutorial_current_step');
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed < TOUR_STEPS.length) {
+        return parsed;
+      }
+    } catch {}
+    return 0;
+  });
   const [targetRect, setTargetRect] = useState(null);
   const [cardPlacement, setCardPlacement] = useState({ top: 100, left: 100, placement: 'bottom' });
   const [isElementVisible, setIsElementVisible] = useState(false);
@@ -62,8 +71,19 @@ export default function Tutorial({
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === TOUR_STEPS.length - 1;
 
+  // On initial mount, sync activeTab if resumed at a non-dashboard step
+  useEffect(() => {
+    const initialStep = TOUR_STEPS[currentStepIndex];
+    if (initialStep?.tab && setActiveTab && activeTab !== initialStep.tab) {
+      setActiveTab(initialStep.tab);
+    }
+  }, []);
+
   // Complete tour handler
   const handleFinish = useCallback(() => {
+    try {
+      localStorage.removeItem('kirokash_tutorial_current_step');
+    } catch {}
     if (completeTutorial) {
       completeTutorial();
     }
@@ -97,6 +117,9 @@ export default function Tutorial({
       onCloseProfileModal();
     }
 
+    try {
+      localStorage.setItem('kirokash_tutorial_current_step', String(index));
+    } catch {}
     setCurrentStepIndex(index);
   }, [
     activeTab, 
