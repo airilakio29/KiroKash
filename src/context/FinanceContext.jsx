@@ -17,7 +17,7 @@ import {
   ONBOARDING_STEP_PREFIX
 } from '../services/settingsService';
 
-const FinanceContext = createContext();
+export const FinanceContext = createContext();
 
 const STORAGE_KEYS = {
   TRANSACTIONS: 'student_tracker_transactions',
