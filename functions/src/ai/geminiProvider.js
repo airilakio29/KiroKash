@@ -1,103 +1,216 @@
 /**
- * KampusKash Modular AI Provider
- * Handles interaction with Google Gemini API (with abstraction for Amazon Bedrock in Phase 2)
- * Includes robust error handling, quota detection, and grounded Malaysian student fallback reasoning.
+ * KampusKash Real Gemini AI Provider
+ * Official Google GenAI SDK (@google/genai) integration.
+ * Real-time, dynamic AI processing with zero hardcoded fake replies.
  */
 
+import { GoogleGenAI } from '@google/genai';
 import { extractActionIntent } from './actionService.js';
 
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+export const SUPPORTED_MODELS = ['gemini-3.5-flash', 'gemini-3.8-flash'];
 
 /**
- * Call Google Gemini REST endpoint securely
+ * Format message array into valid Gemini multi-turn contents format
+ * [{ role: 'user' | 'model', parts: [{ text }] }]
  */
-export async function callGeminiAPI({
-  systemPrompt,
-  financialContext,
-  messages = [],
-  apiKey,
-  model = 'gemini-1.5-flash'
-}) {
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  // Format conversational history for Gemini
-  // Gemini expects: { role: 'user' | 'model', parts: [{ text }] }
+export function formatGeminiContents(messages = []) {
   const contents = [];
 
-  // Filter and map prior messages
-  messages.forEach(msg => {
-    if (!msg.content || typeof msg.content !== 'string') return;
+  for (const msg of messages) {
+    if (!msg || !msg.content || typeof msg.content !== 'string') continue;
+    const text = msg.content.trim();
+    if (!text) continue;
+
+    // Map role: assistant -> model
     const role = (msg.role === 'assistant' || msg.role === 'model') ? 'model' : 'user';
-    contents.push({
-      role,
-      parts: [{ text: msg.content.trim() }]
-    });
-  });
+
+    // Collapse consecutive same-role turns to ensure valid schema
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts.push({ text });
+    } else {
+      contents.push({
+        role,
+        parts: [{ text }]
+      });
+    }
+  }
 
   // Ensure there is at least one message
   if (contents.length === 0) {
     throw new Error('Chat history is empty.');
   }
 
-  // Ensure the last message is from user
+  // Gemini API requires the last turn in multi-turn contents to be from 'user'
   if (contents[contents.length - 1].role !== 'user') {
-    contents.push({ role: 'user', parts: [{ text: 'Please provide a helpful summary based on my financial data.' }] });
+    contents.push({
+      role: 'user',
+      parts: [{ text: 'Please assist me based on my financial data.' }]
+    });
   }
 
-  const combinedSystemPrompt = `${systemPrompt}\n\n=== USER FINANCIAL CONTEXT ===\n${financialContext}\n=== END USER FINANCIAL CONTEXT ===`;
-
-  const requestBody = {
-    systemInstruction: {
-      parts: [{ text: combinedSystemPrompt }]
-    },
-    contents,
-    generationConfig: {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 1024
-    }
-  };
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    let parsedErr = errorText;
-    try {
-      const errObj = JSON.parse(errorText);
-      parsedErr = errObj.error?.message || errorText;
-    } catch {}
-    throw new Error(`Gemini API Error (${res.status}): ${parsedErr}`);
-  }
-
-  const data = await res.json();
-  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!replyText) {
-    throw new Error('Gemini API returned an empty response candidate.');
-  }
-
-  return {
-    reply: replyText.trim(),
-    provider: 'gemini',
-    model,
-    usage: data.usageMetadata || null
-  };
+  return contents;
 }
 
 /**
- * Intelligent Local Deterministic Fallback
- * Used when GEMINI_API_KEY is not configured yet or network is offline.
- * Directly answers the 5 prompt categories accurately using actual financial data.
+ * Call Google Gemini API using official @google/genai SDK
+ */
+export async function callGeminiAPI({
+  systemPrompt,
+  financialContext,
+  messages = [],
+  apiKey,
+  model = 'gemini-3.8-flash'
+}) {
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+    const err = new Error('Backend AI configuration error: GEMINI_API_KEY is not configured on the server. Please configure your Gemini API key in backend environment variables or secrets.');
+    err.code = 'CONFIG_MISSING';
+    err.status = 503;
+    throw err;
+  }
+
+  const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+  const contents = formatGeminiContents(messages);
+
+  const combinedSystemPrompt = financialContext && financialContext.trim()
+    ? `${systemPrompt}\n\n=== USER FINANCIAL CONTEXT ===\n${financialContext}\n=== END USER FINANCIAL CONTEXT ===`
+    : systemPrompt;
+
+  const candidateModels = [model, ...SUPPORTED_MODELS.filter(m => m !== model)];
+  let lastError = null;
+
+  for (const targetModel of candidateModels) {
+    try {
+      const response = await ai.models.generateContent({
+        model: targetModel,
+        contents,
+        config: {
+          systemInstruction: combinedSystemPrompt,
+          temperature: 0.7,
+          maxOutputTokens: 1024
+        }
+      });
+
+      const replyText = response.text;
+      if (!replyText || !replyText.trim()) {
+        throw new Error('Gemini API returned an empty response.');
+      }
+
+      return {
+        reply: replyText.trim(),
+        provider: 'gemini',
+        model: targetModel,
+        usage: response.usageMetadata || null
+      };
+    } catch (err) {
+      lastError = err;
+      const isRecoverable = err.status === 404 || err.status === 429 || err.status === 503 ||
+        (err.message && (err.message.includes('404') || err.message.includes('429') || err.message.includes('503') || err.message.includes('high demand') || err.message.includes('UNAVAILABLE') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED') || err.message.includes('not found')));
+      // Retry with another candidate model if 404, 429 (rate/quota), or 503 (high demand)
+      if (!isRecoverable) {
+        break;
+      }
+    }
+  }
+
+  // If we reach here, throw the actual Gemini failure
+  throw lastError || new Error('Failed to connect to Google Gemini API.');
+}
+
+/**
+ * Main AI Execution Controller
+ * Dispatches to real Gemini API, parses proposed actions, and handles errors honestly.
+ * NEVER returns hardcoded, fake, or simulated responses.
+ */
+export async function executeAIChat({
+  systemPrompt,
+  financialContext,
+  summary,
+  messages = [],
+  apiKey,
+  model = 'gemini-3.8-flash'
+}) {
+  const cleanKey = apiKey !== undefined ? apiKey : (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+
+  if (!cleanKey || cleanKey === 'your_gemini_api_key_here') {
+    const configErr = new Error('Backend AI configuration error: GEMINI_API_KEY is not configured on the server. Please add GEMINI_API_KEY to your environment variables or secret configuration.');
+    configErr.code = 'CONFIG_MISSING';
+    configErr.status = 503;
+    throw configErr;
+  }
+
+  const lastUserMessage = messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'user')?.content || '';
+
+  try {
+    const geminiResult = await callGeminiAPI({
+      systemPrompt,
+      financialContext,
+      messages,
+      apiKey: cleanKey,
+      model
+    });
+
+    let cleanReply = geminiResult.reply;
+    let proposedAction = null;
+
+    // Check if Gemini generated an action block
+    const actionMatch = cleanReply.match(/```action\s*([\s\S]*?)\s*```/);
+    if (actionMatch) {
+      try {
+        proposedAction = JSON.parse(actionMatch[1]);
+        cleanReply = cleanReply.replace(/```action\s*[\s\S]*?\s*```/, '').trim();
+      } catch (jsonErr) {
+        console.warn('[Gemini Action Parser] Failed to parse action json:', jsonErr.message);
+      }
+    }
+
+    // Secondary fallback action intent detection for natural student inputs
+    if (!proposedAction && summary) {
+      const intent = extractActionIntent(lastUserMessage, summary);
+      if (intent.hasAction) {
+        proposedAction = {
+          type: intent.actionType,
+          payload: intent.payload,
+          summary: intent.summary
+        };
+      }
+    }
+
+    return {
+      reply: cleanReply,
+      proposedAction,
+      provider: 'gemini',
+      model: geminiResult.model,
+      usage: geminiResult.usage
+    };
+  } catch (err) {
+    console.error('[KampusKash Gemini Provider Error]', err);
+
+    // If it's a configuration error, pass through the clear configuration message
+    if (err.code === 'CONFIG_MISSING') {
+      throw err;
+    }
+
+    // Honest error reporting — no simulated fake text
+    const honestError = new Error("I'm having trouble connecting to my AI service. Please try again.");
+    honestError.originalError = err.message;
+    honestError.status = err.status || 503;
+    throw honestError;
+  }
+}
+
+/**
+ * Deterministic Rules Calculation Helper
+ * Preserved for offline test verification.
+ * NOT called by executeAIChat (which strictly uses the real Gemini API).
+ */
+
+/**
+ * Deterministic Rules Calculation Helper
+ * Preserved for offline test verification.
+ * NOT called by executeAIChat (which strictly uses the real Gemini API).
  */
 export function generateLocalFallbackResponse({ userQuery, summary }) {
   const query = (userQuery || '').toLowerCase();
@@ -354,92 +467,3 @@ export function generateLocalFallbackResponse({ userQuery, summary }) {
  * Reusable AI Service Entrypoint
  * Pluggable provider layer: handles Gemini and switches to Bedrock in Phase 2
  */
-export async function executeAIChat({
-  systemPrompt,
-  financialContext,
-  summary,
-  messages,
-  apiKey,
-  model = 'gemini-1.5-flash',
-  provider = 'gemini'
-}) {
-  const lastUserMessage = messages
-    .slice()
-    .reverse()
-    .find(m => m.role === 'user')?.content || '';
-
-  // Helper to extract action from text or intent
-  const resolveActionProposal = (replyText) => {
-    let proposedAction = null;
-    const actionMatch = replyText.match(/```action\s*([\s\S]*?)\s*```/);
-    let cleanReply = replyText;
-    if (actionMatch) {
-      try {
-        proposedAction = JSON.parse(actionMatch[1]);
-        cleanReply = replyText.replace(/```action\s*[\s\S]*?\s*```/, '').trim();
-      } catch (e) {
-        console.warn('Failed to parse action json from reply:', e);
-      }
-    }
-    if (!proposedAction) {
-      const intent = extractActionIntent(lastUserMessage, summary);
-      if (intent.hasAction) {
-        proposedAction = {
-          type: intent.actionType,
-          payload: intent.payload,
-          summary: intent.summary
-        };
-      }
-    }
-    return { cleanReply, proposedAction };
-  };
-
-  // If Gemini API Key is provided, call real Gemini API
-  if (apiKey && apiKey !== 'your_gemini_api_key_here') {
-    try {
-      const response = await callGeminiAPI({
-        systemPrompt,
-        financialContext,
-        messages,
-        apiKey,
-        model
-      });
-      const { cleanReply, proposedAction } = resolveActionProposal(response.reply);
-      return {
-        reply: cleanReply,
-        proposedAction,
-        provider: response.provider || 'gemini',
-        model: response.model || model,
-        usage: response.usage || null
-      };
-    } catch (err) {
-      console.warn('[KampusKash AI] Gemini API call failed, falling back to local reasoning:', err.message);
-      // Fallback gracefully so student experience is uninterrupted
-      const fallbackReply = generateLocalFallbackResponse({
-        userQuery: lastUserMessage,
-        summary
-      });
-      const { cleanReply, proposedAction } = resolveActionProposal(fallbackReply);
-      return {
-        reply: cleanReply + `\n\n*(Note: Gemini API temporarily unavailable: ${err.message})*`,
-        proposedAction,
-        provider: 'fallback',
-        model: 'local-rules-engine'
-      };
-    }
-  }
-
-  // If no API key configured, use local grounded reasoning
-  const localReply = generateLocalFallbackResponse({
-    userQuery: lastUserMessage,
-    summary
-  });
-  const { cleanReply, proposedAction } = resolveActionProposal(localReply);
-
-  return {
-    reply: cleanReply,
-    proposedAction,
-    provider: 'local-grounded',
-    model: 'grounded-financial-engine'
-  };
-}

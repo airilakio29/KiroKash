@@ -14,9 +14,11 @@
     "deploy": "gh-pages -d dist",
     "lint": "oxlint",
     "test": "node --test test/phase1.test.js test/explore.test.js test/demo.test.js test/ai.test.js test/ai_intelligence.test.js test/ai_actions.test.js",
+    "test:real-ai": "node --test test/real_gemini.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^2.30.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "firebase": "^12.19.0",

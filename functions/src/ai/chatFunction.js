@@ -172,7 +172,7 @@ export async function handleAIChatRequest(req, res, options = {}) {
       summary,
       messages: formattedHistory,
       apiKey,
-      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
     });
 
     // 6. Validate & Register Proposed Action (if any)
@@ -205,9 +205,9 @@ export async function handleAIChatRequest(req, res, options = {}) {
 
   } catch (error) {
     console.error('[KampusKash AI Error]', error);
-    return res.status(500).json({
-      error: 'An unexpected error occurred while processing your request. Please try again.',
-      details: error.message
+    const statusCode = error.status || (error.code === 'CONFIG_MISSING' ? 503 : 500);
+    return res.status(statusCode).json({
+      error: error.message || "I'm having trouble connecting to my AI service. Please try again."
     });
   }
 }
