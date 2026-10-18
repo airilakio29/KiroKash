@@ -1,0 +1,85 @@
+<svg viewBox="0 0 1000 650" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mapBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#140D20" />
+      <stop offset="50%" stop-color="#1A1128" />
+      <stop offset="100%" stop-color="#120A1C" />
+    </linearGradient>
+    <linearGradient id="riverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#254B62" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#1E3A5F" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#172B48" stop-opacity="0.85" />
+    </linearGradient>
+    <radialGradient id="hillGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3B264E" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#1E122B" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="parkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#059669" stop-opacity="0.08" />
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(168, 85, 247, 0.04)" stroke-width="1" />
+    </pattern>
+  </defs>
+
+  <rect width="1000" height="650" fill="url(#mapBg)" />
+  <rect width="1000" height="650" fill="url(#grid)" />
+
+  <ellipse cx="140" cy="180" rx="90" ry="60" fill="url(#hillGrad)" />
+  <ellipse cx="880" cy="480" rx="100" ry="70" fill="url(#hillGrad)" />
+  <ellipse cx="850" cy="140" rx="90" ry="60" fill="url(#hillGrad)" />
+  <ellipse cx="160" cy="520" rx="80" ry="50" fill="url(#hillGrad)" />
+
+  <path d="M 380,80 Q 420,70 450,110 T 420,160 Q 370,140 380,80 Z" fill="url(#parkGrad)" stroke="rgba(16, 185, 129, 0.2)" stroke-width="1" />
+  <rect x="420" y="300" width="45" height="30" rx="4" fill="url(#parkGrad)" stroke="rgba(16, 185, 129, 0.25)" stroke-width="1" />
+  <rect x="620" y="270" width="70" height="45" rx="6" fill="url(#parkGrad)" stroke="rgba(16, 185, 129, 0.2)" stroke-width="1" />
+  <path d="M 460,250 Q 480,290 470,350 Q 455,320 460,250 Z" fill="url(#parkGrad)" />
+
+  <path d="M 480,-20 Q 460,60 480,120 T 470,220 Q 460,270 475,320 T 490,400 Q 500,480 485,540 T 510,670" fill="none" stroke="url(#riverGrad)" stroke-width="18" stroke-linecap="round" />
+  <path d="M 480,-20 Q 460,60 480,120 T 470,220 Q 460,270 475,320 T 490,400 Q 500,480 485,540 T 510,670" fill="none" stroke="#38BDF8" stroke-width="2" stroke-opacity="0.4" />
+  <path d="M 480,380 Q 560,400 640,430 T 780,480" fill="none" stroke="url(#riverGrad)" stroke-width="6" stroke-opacity="0.6" />
+
+  <path d="M 520,-20 L 680,140 Q 780,240 820,380 L 860,670" fill="none" stroke="rgba(168, 85, 247, 0.35)" stroke-width="5" stroke-dasharray="8 4" />
+  <path d="M -20,340 Q 300,330 460,325 T 600,310 T 800,280 L 1020,260" fill="none" stroke="rgba(255, 255, 255, 0.22)" stroke-width="4" />
+  <path d="M 460,-20 Q 450,140 440,250 L 430,340 Q 420,440 380,560 L 340,670" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="4" />
+  <path d="M 540,330 Q 560,420 590,520 L 640,670" fill="none" stroke="rgba(255, 255, 255, 0.22)" stroke-width="4" />
+  <path d="M 680,180 Q 750,170 850,160 L 1020,150" fill="none" stroke="rgba(255, 255, 255, 0.16)" stroke-width="3" />
+  <path d="M 600,310 Q 720,260 840,240 L 1020,220" fill="none" stroke="rgba(255, 255, 255, 0.16)" stroke-width="3" />
+  <path d="M 430,340 Q 320,390 220,440 L -20,500" fill="none" stroke="rgba(255, 255, 255, 0.16)" stroke-width="3" />
+
+  <line x1="390" y1="280" x2="460" y2="280" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="390" y1="305" x2="460" y2="305" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="390" y1="330" x2="460" y2="330" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="410" y1="260" x2="410" y2="350" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="435" y1="260" x2="435" y2="350" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+
+  <line x1="490" y1="290" x2="560" y2="290" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="490" y1="315" x2="560" y2="315" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="490" y1="340" x2="560" y2="340" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="490" y1="365" x2="560" y2="365" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="510" y1="275" x2="510" y2="380" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+  <line x1="535" y1="275" x2="535" y2="380" stroke="rgba(255, 255, 255, 0.1)" stroke-width="2" />
+
+  <path d="M 390,-20 L 400,240 Q 405,300 400,360 L 370,670" fill="none" stroke="rgba(245, 158, 11, 0.4)" stroke-width="2" stroke-dasharray="4 4" />
+
+  <text x="390" y="270" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">OLD TOWN</text>
+  <text x="390" y="284" fill="#A78BFA" font-size="8" font-weight="600" letter-spacing="1">(PEKAN LAMA)</text>
+
+  <text x="500" y="275" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">NEW TOWN</text>
+  <text x="500" y="289" fill="#A78BFA" font-size="8" font-weight="600" letter-spacing="1">(PEKAN BARU)</text>
+
+  <text x="660" y="260" fill="#E8DEF5" font-size="12" font-weight="700" letter-spacing="1.5">TAMAN CANNING</text>
+
+  <text x="730" y="220" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">IPOH GARDEN</text>
+  <text x="730" y="234" fill="#A78BFA" font-size="8" font-weight="600" letter-spacing="1">(MEDAN IPOH)</text>
+
+  <text x="810" y="140" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">BERCHAM</text>
+  <text x="140" y="440" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">MENGLEMBU</text>
+
+  <text x="440" y="75" fill="#E8DEF5" font-size="13" font-weight="800" letter-spacing="2">BANDAR MERU RAYA</text>
+  <text x="440" y="90" fill="#A78BFA" font-size="8" font-weight="600" letter-spacing="1">CAMPUS &amp; TERMINAL HUB</text>
+
+  <text x="560" y="240" fill="#C4B5D4" font-size="11" font-weight="700" letter-spacing="1">GREENTOWN</text>
+  <text x="520" y="450" fill="#C4B5D4" font-size="11" font-weight="700" letter-spacing="1">PASIR PINJI</text>
+</svg>
