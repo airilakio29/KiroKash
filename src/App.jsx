@@ -20,6 +20,8 @@ import AccountsView from './views/AccountsView';
 import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
+import AIChatView from './views/AIChatView';
+import FloatingChatButton from './components/AIChat/FloatingChatButton';
 
 import TransactionModal from './components/TransactionModal';
 import BudgetModal from './components/BudgetModal';
@@ -35,6 +37,7 @@ function getInitialTabFromUrl() {
   try {
     const pathname = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
+    if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) return 'ai-chat';
     if (pathname.includes('/explore') || hash === '#explore') return 'explore';
     if (pathname.includes('/transactions') || hash === '#transactions') return 'transactions';
     if (pathname.includes('/budgets') || hash === '#budgets') return 'budgets';
@@ -96,6 +99,9 @@ function AppLayout({
 
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+
+  // Floating AI Assistant State
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
 
   const handleOpenAddTransaction = (prefill = null) => {
     setEditingTransaction(prefill);
@@ -161,6 +167,7 @@ function AppLayout({
             onOpenAddBudget={handleOpenAddBudget}
             onOpenAddSavings={handleOpenAddSavings}
             onOpenAddAccount={handleOpenAddAccount}
+            onOpenAIChat={() => setIsAiChatOpen(true)}
           />
         );
       case 'transactions':
@@ -199,6 +206,8 @@ function AppLayout({
             onNavigateToBudgets={() => handleTabChange('budgets')}
           />
         );
+      case 'ai-chat':
+        return <AIChatView />;
       case 'reports':
         return <ReportsView />;
       case 'settings':
@@ -224,6 +233,7 @@ function AppLayout({
             onOpenAddBudget={handleOpenAddBudget}
             onOpenAddSavings={handleOpenAddSavings}
             onOpenAddAccount={handleOpenAddAccount}
+            onOpenAIChat={() => setIsAiChatOpen(true)}
           />
         );
     }
@@ -232,6 +242,7 @@ function AppLayout({
   const getPageTitle = () => {
     switch (activeTab) {
       case 'dashboard': return 'Financial Dashboard';
+      case 'ai-chat': return 'KampusKash AI Assistant';
       case 'transactions': return 'Transaction Records';
       case 'budgets': return 'Category Budgets';
       case 'savings': return 'Student Savings Goals';
@@ -335,6 +346,12 @@ function AppLayout({
       <ProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      {/* Floating KampusKash AI Assistant Button & Popup Panel */}
+      <FloatingChatButton
+        isOpen={isAiChatOpen}
+        onToggle={setIsAiChatOpen}
       />
 
       {/* Step A: Profile Setup Wizard (shown immediately on first login before reaching Dashboard) */}

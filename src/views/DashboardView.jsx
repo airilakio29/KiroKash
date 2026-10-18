@@ -17,7 +17,13 @@ import {
   Sparkles
 } from 'lucide-react';
 
-export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, onOpenAddSavings, onOpenAddAccount }) {
+export default function DashboardView({
+  onOpenAddTransaction,
+  onOpenAddBudget,
+  onOpenAddSavings,
+  onOpenAddAccount,
+  onOpenAIChat
+}) {
   const {
     totalBalance,
     totalIncome,
@@ -72,6 +78,63 @@ export default function DashboardView({ onOpenAddTransaction, onOpenAddBudget, o
           <span>Motto: <strong style={{ color: 'var(--text-main)' }}>"{user.bio}"</strong></span>
         </div>
       )}
+
+      {/* KampusKash AI Assistant Quick Banner */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.85rem',
+        padding: '0.9rem 1.25rem',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 18%, transparent) 0%, var(--bg-card-subtle) 100%)',
+        border: '1px solid var(--border-light)',
+        borderRadius: 'var(--radius-lg, 12px)',
+        marginBottom: '1.25rem',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: '240px' }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFFFFF',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            flexShrink: 0
+          }}>
+            <Sparkles size={18} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>KampusKash AI Assistant</span>
+              <span style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--income, #10B981)', fontWeight: 700 }}>
+                ONLINE
+              </span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              Ask me to analyse your spending, check your budget limits, or plan savings in RM.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={onOpenAIChat}
+          className="btn btn-primary"
+          style={{
+            padding: '0.45rem 0.95rem',
+            fontSize: '0.82rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            borderRadius: '8px'
+          }}
+        >
+          <Sparkles size={14} /> Ask AI Assistant
+        </button>
+      </div>
 
       {/* Helpful Empty State Call to Action when starting fresh with 0 real transactions */}
       {transactions.length === 0 && !isDemoMode && (

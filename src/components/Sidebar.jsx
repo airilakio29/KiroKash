@@ -12,7 +12,8 @@ import {
   Landmark,
   BarChart3,
   User as UserIcon,
-  Compass
+  Compass,
+  Sparkles
 } from 'lucide-react';
 import logoImg from '../assets/kiro-logo.png';
 import UserAvatar from './UserAvatar';
@@ -42,6 +43,7 @@ export default function Sidebar({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'ai-chat', label: 'KampusKash AI', icon: Sparkles, badge: 'AI' },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
     { id: 'accounts', label: 'Accounts', icon: Landmark },
     { id: 'budgets', label: 'Budgets', icon: Target },
@@ -144,6 +146,22 @@ export default function Sidebar({
                 >
                   <Icon size={20} color={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} />
                   <span>{item.label}</span>
+                  {item.badge && (
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '0.12rem 0.45rem',
+                        borderRadius: '6px',
+                        background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-badge, #A855F7) 100%)',
+                        color: '#FFFFFF',
+                        letterSpacing: '0.05em'
+                      }}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
