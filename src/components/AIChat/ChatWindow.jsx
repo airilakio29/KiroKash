@@ -7,7 +7,8 @@ import {
   Maximize2,
   Minimize2,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useFinance } from '../../context/FinanceContext';
@@ -18,7 +19,9 @@ import {
   saveConversation,
   deleteConversation,
   clearAllConversations,
-  sendMessageToAI
+  sendMessageToAI,
+  executeAIAction,
+  cancelAIAction
 } from '../../services/aiService';
 
 import ChatMessage from './ChatMessage';
@@ -26,6 +29,7 @@ import ChatInput from './ChatInput';
 import SuggestedQuestions from './SuggestedQuestions';
 import TypingIndicator from './TypingIndicator';
 import ConversationDrawer from './ConversationDrawer';
+import ActionHistoryDrawer from './ActionHistoryDrawer';
 
 export default function ChatWindow({
   onClose,
@@ -40,6 +44,7 @@ export default function ChatWindow({
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -137,6 +142,7 @@ export default function ChatWindow({
       const aiMessageObj = {
         role: 'assistant',
         content: response.reply,
+        proposedAction: response.proposedAction || null,
         timestamp: response.timestamp || new Date().toISOString()
       };
 
@@ -178,6 +184,162 @@ export default function ChatWindow({
     }
   };
 
+  // Confirm and Execute an AI Action Proposal (Feature 2 & 6)
+  const handleConfirmAction = async (action) => {
+    if (!action || !action.actionId) return;
+    const getIdTokenFn = auth?.currentUser
+      ? () => auth.currentUser.getIdToken(false)
+      : null;
+
+    // 1. Call execution backend with token
+    const res = await executeAIAction(action.actionId, getIdTokenFn);
+    if (!res || !res.success) {
+      throw new Error(res?.error || 'Execution failed on server.');
+    }
+
+    // 2. Mark action as approved in message list
+    setMessages(prev => prev.map(msg => {
+      if (msg.proposedAction && msg.proposedAction.actionId === action.actionId) {
+        return {
+          ...msg,
+          proposedAction: { ...msg.proposedAction, status: 'approved' }
+        };
+      }
+      return msg;
+    }));
+
+    // 3. Immediately synchronize local FinanceContext state so the dashboard updates
+    const details = action.details || {};
+    try {
+      switch (action.actionType) {
+        case 'CREATE_BUDGET':
+        case 'UPDATE_BUDGET':
+          if (details.categoryId && details.monthlyLimit !== undefined && financeData?.upsertBudget) {
+            financeData.upsertBudget(details.categoryId, details.monthlyLimit);
+          }
+          break;
+        case 'CREATE_SAVINGS_GOAL':
+          if (financeData?.addSavingsGoal) {
+            financeData.addSavingsGoal({
+              title: details.title,
+              targetAmount: details.targetAmount,
+              targetDate: details.targetDate,
+              currentAmount: details.currentAmount || 0
+            });
+          }
+          break;
+        case 'UPDATE_SAVINGS_GOAL':
+          if (details.goalId && financeData?.updateSavingsGoal) {
+            financeData.updateSavingsGoal(details.goalId, details);
+          }
+          break;
+        case 'CREATE_TRANSACTION':
+          if (financeData?.addTransaction) {
+            financeData.addTransaction({
+              title: details.title,
+              amount: details.amount,
+              type: details.type || 'expense',
+              categoryId: details.categoryId,
+              accountId: details.accountId || null,
+              date: details.date,
+              note: details.note || 'Created via KampusKash AI'
+            });
+          }
+          break;
+        case 'GENERATE_FINANCIAL_REPORT':
+          if (financeData?.exportToPDF) {
+            financeData.exportToPDF();
+          }
+          break;
+        default:
+          break;
+      }
+    } catch (syncErr) {
+      console.warn('[FinanceContext Sync Warning]', syncErr);
+    }
+
+    // 4. Formulate verified natural language confirmation message per Feature 8
+    let confirmText = 'Action executed and saved successfully.';
+    if (action.actionType === 'CREATE_BUDGET') {
+      confirmText = `Your monthly ${action.category || 'selected'} budget has been created successfully.`;
+    } else if (action.actionType === 'UPDATE_BUDGET') {
+      confirmText = `Your budget for ${action.category || 'selected category'} has been updated successfully to RM${Number(action.amount || details.monthlyLimit || 0).toFixed(2)}.`;
+    } else if (action.actionType === 'CREATE_SAVINGS_GOAL') {
+      confirmText = `Your savings goal "${details.title || 'Savings Goal'}" has been created successfully.`;
+    } else if (action.actionType === 'UPDATE_SAVINGS_GOAL') {
+      confirmText = `Your savings goal "${details.title || 'Savings Goal'}" has been updated successfully.`;
+    } else if (action.actionType === 'CREATE_TRANSACTION') {
+      confirmText = `${details.type === 'income' ? 'Income' : 'Expense'} transaction of RM${Number(action.amount || 0).toFixed(2)} for "${details.title || 'Transaction'}" has been recorded successfully.`;
+    } else if (action.actionType === 'GENERATE_FINANCIAL_REPORT') {
+      confirmText = 'Your financial summary report has been generated successfully and exported.';
+    }
+
+    const followUpMsg = {
+      role: 'assistant',
+      content: confirmText,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => {
+      const updated = [...prev, followUpMsg];
+      if (userId) {
+        saveConversation(userId, {
+          conversationId,
+          title: conversations.find(c => c.conversationId === conversationId)?.title || 'Conversation',
+          createdAt: messages[0]?.timestamp || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: updated
+        }).catch(() => {});
+      }
+      return updated;
+    });
+  };
+
+  // Cancel an AI Action Proposal (Feature 2 & 9)
+  const handleCancelAction = async (action) => {
+    if (!action || !action.actionId) return;
+    const getIdTokenFn = auth?.currentUser
+      ? () => auth.currentUser.getIdToken(false)
+      : null;
+
+    try {
+      await cancelAIAction(action.actionId, getIdTokenFn);
+    } catch (e) {
+      console.warn('Failed to register cancellation on backend:', e);
+    }
+
+    setMessages(prev => prev.map(msg => {
+      if (msg.proposedAction && msg.proposedAction.actionId === action.actionId) {
+        return {
+          ...msg,
+          proposedAction: { ...msg.proposedAction, status: 'cancelled' }
+        };
+      }
+      return msg;
+    }));
+
+    const followUpMsg = {
+      role: 'assistant',
+      content: 'The proposed action has been cancelled.',
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => {
+      const updated = [...prev, followUpMsg];
+      if (userId) {
+        saveConversation(userId, {
+          conversationId,
+          title: conversations.find(c => c.conversationId === conversationId)?.title || 'Conversation',
+          createdAt: messages[0]?.timestamp || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: updated
+        }).catch(() => {});
+      }
+      return updated;
+    });
+  };
+
+
   const showSuggestedQuestions = messages.length <= 1;
 
   return (
@@ -208,6 +370,13 @@ export default function ChatWindow({
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
         onClearAllConversations={handleClearAll}
+      />
+
+      {/* Slide-over Action History Drawer (Feature 7) */}
+      <ActionHistoryDrawer
+        isOpen={isActionDrawerOpen}
+        onClose={() => setIsActionDrawerOpen(false)}
+        userId={userId}
       />
 
       {/* Header */}
@@ -271,6 +440,23 @@ export default function ChatWindow({
 
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button
+            onClick={() => setIsActionDrawerOpen(prev => !prev)}
+            className="btn btn-secondary"
+            style={{
+              padding: '0.4rem 0.65rem',
+              fontSize: '0.78rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              borderRadius: '8px'
+            }}
+            title="AI Action History"
+          >
+            <Activity size={14} />
+            <span className="hidden-on-mobile">Actions</span>
+          </button>
+
           <button
             onClick={() => setIsDrawerOpen(prev => !prev)}
             className="btn btn-secondary"
@@ -341,7 +527,7 @@ export default function ChatWindow({
         </div>
       </div>
 
-      {/* Safety & Read-Only Banner */}
+      {/* Safety & Action Security Banner */}
       <div
         style={{
           display: 'flex',
@@ -357,10 +543,10 @@ export default function ChatWindow({
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
           <ShieldCheck size={13} color="var(--income)" />
-          Grounded in your actual KampusKash records • Currency in Malaysian Ringgit (RM)
+          Grounded in your actual records • Actions require explicit confirmation
         </span>
         <span style={{ opacity: 0.8 }} className="hidden-on-mobile">
-          Read-Only Mode
+          Protected Actions
         </span>
       </div>
 
@@ -379,8 +565,11 @@ export default function ChatWindow({
             key={index}
             message={msg}
             userAvatar={user?.avatar}
+            onConfirmAction={handleConfirmAction}
+            onCancelAction={handleCancelAction}
           />
         ))}
+
 
         {isLoading && <TypingIndicator />}
 

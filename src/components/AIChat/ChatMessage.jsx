@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, User, Copy, Check } from 'lucide-react';
+import ActionConfirmationCard from './ActionConfirmationCard';
 
 function formatTimestamp(isoString) {
   if (!isoString) return '';
@@ -209,7 +210,12 @@ function renderInlineFormatting(text) {
   });
 }
 
-export default function ChatMessage({ message, userAvatar }) {
+export default function ChatMessage({
+  message,
+  userAvatar,
+  onConfirmAction,
+  onCancelAction
+}) {
   const isAI = message.role === 'assistant' || message.role === 'model';
   const [copied, setCopied] = useState(false);
 
@@ -269,7 +275,8 @@ export default function ChatMessage({ message, userAvatar }) {
           maxWidth: '82%',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: isAI ? 'flex-start' : 'flex-end'
+          alignItems: isAI ? 'flex-start' : 'flex-end',
+          width: isAI && message.proposedAction ? '100%' : 'auto'
         }}
       >
         {/* Name / Role Label */}
@@ -303,7 +310,8 @@ export default function ChatMessage({ message, userAvatar }) {
             color: isAI ? 'var(--text-main)' : '#FFFFFF',
             border: isAI ? '1px solid var(--border-light)' : 'none',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
-            wordBreak: 'break-word'
+            wordBreak: 'break-word',
+            width: isAI && message.proposedAction ? '100%' : 'auto'
           }}
         >
           {isAI ? (
@@ -348,7 +356,19 @@ export default function ChatMessage({ message, userAvatar }) {
             </div>
           )}
         </div>
+
+        {/* Action Confirmation Card (Feature 2) */}
+        {isAI && message.proposedAction && (
+          <div style={{ width: '100%' }}>
+            <ActionConfirmationCard
+              action={message.proposedAction}
+              onConfirm={onConfirmAction}
+              onCancel={onCancelAction}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
