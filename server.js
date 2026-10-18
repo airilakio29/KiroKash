@@ -6,7 +6,10 @@ import {
   handleAIChatRequest,
   handleFinancialInsightsRequest,
   handleBudgetRecommendationRequest,
-  handleSavingsPlanRequest
+  handleSavingsPlanRequest,
+  handleExecuteActionRequest,
+  handleCancelActionRequest,
+  handleActionHistoryRequest
 } from './functions/src/ai/chatFunction.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +50,21 @@ app.post('/api/ai/budget-recommendation', async (req, res) => {
 // KampusKash AI Savings Feasibility Planner Endpoint
 app.post('/api/ai/savings-plan', async (req, res) => {
   await handleSavingsPlanRequest(req, res);
+});
+
+// KampusKash AI Action Execution Endpoint (Feature 6: Action Execution Backend)
+app.post('/api/ai/action/execute', async (req, res) => {
+  await handleExecuteActionRequest(req, res);
+});
+
+// KampusKash AI Action Cancellation Endpoint
+app.post('/api/ai/action/cancel', async (req, res) => {
+  await handleCancelActionRequest(req, res);
+});
+
+// KampusKash AI Action History Endpoint (Feature 7: Action History)
+app.get('/api/ai/action/history', async (req, res) => {
+  await handleActionHistoryRequest(req, res);
 });
 
 // Default initial dataset endpoint for initial seeding or hard resets

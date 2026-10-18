@@ -4,6 +4,8 @@
  * Includes robust error handling, quota detection, and grounded Malaysian student fallback reasoning.
  */
 
+import { extractActionIntent } from './actionService.js';
+
 const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
 
 /**
@@ -106,6 +108,33 @@ export function generateLocalFallbackResponse({ userQuery, summary }) {
   const intel = summary.intelligence;
   const stu = summary.student || summary.profile || { username: 'Student' };
   const banner = '';
+
+  // 0. Action Intent Detection (Feature 1: AI Action System)
+  const actionIntent = extractActionIntent(query, summary);
+  if (actionIntent.missingInfo) {
+    return actionIntent.promptReply;
+  }
+  if (actionIntent.hasAction) {
+    const { actionType, payload } = actionIntent;
+    if (actionType === 'CREATE_BUDGET') {
+      return `Sure! I've prepared a monthly ${payload.categoryName} budget of RM${payload.monthlyLimit.toFixed(2)}. Would you like me to save it? Please review and confirm below.`;
+    }
+    if (actionType === 'UPDATE_BUDGET') {
+      return `Sure! I've prepared an update for your ${payload.categoryName} budget to RM${payload.monthlyLimit.toFixed(2)} / month. Would you like me to save it? Please review and confirm below.`;
+    }
+    if (actionType === 'CREATE_SAVINGS_GOAL') {
+      return `Sure! I've prepared your savings goal for "${payload.title}" with a target of RM${payload.targetAmount.toFixed(2)} by ${payload.targetDate}. Would you like me to save it? Please review and confirm below.`;
+    }
+    if (actionType === 'UPDATE_SAVINGS_GOAL') {
+      return `Sure! I've prepared an update for your savings goal "${payload.title}". Would you like me to save it? Please review and confirm below.`;
+    }
+    if (actionType === 'CREATE_TRANSACTION') {
+      return `Sure! I've prepared this ${payload.type} transaction of RM${payload.amount.toFixed(2)} for "${payload.title}" (${payload.categoryName}). Would you like me to record it? Please review and confirm below.`;
+    }
+    if (actionType === 'GENERATE_FINANCIAL_REPORT') {
+      return `I can generate your official monthly financial report for ${payload.month}. Please confirm below to review and download the statement.`;
+    }
+  }
 
   // 1. Trend Questions / Why did I spend more / Month-to-Month comparison
   if (/why.*spend.*more|trend|compare.*(?:month|last|three)|habit|unusual/i.test(query)) {
@@ -339,6 +368,32 @@ export async function executeAIChat({
     .reverse()
     .find(m => m.role === 'user')?.content || '';
 
+  // Helper to extract action from text or intent
+  const resolveActionProposal = (replyText) => {
+    let proposedAction = null;
+    const actionMatch = replyText.match(/```action\s*([\s\S]*?)\s*```/);
+    let cleanReply = replyText;
+    if (actionMatch) {
+      try {
+        proposedAction = JSON.parse(actionMatch[1]);
+        cleanReply = replyText.replace(/```action\s*[\s\S]*?\s*```/, '').trim();
+      } catch (e) {
+        console.warn('Failed to parse action json from reply:', e);
+      }
+    }
+    if (!proposedAction) {
+      const intent = extractActionIntent(lastUserMessage, summary);
+      if (intent.hasAction) {
+        proposedAction = {
+          type: intent.actionType,
+          payload: intent.payload,
+          summary: intent.summary
+        };
+      }
+    }
+    return { cleanReply, proposedAction };
+  };
+
   // If Gemini API Key is provided, call real Gemini API
   if (apiKey && apiKey !== 'your_gemini_api_key_here') {
     try {
@@ -349,7 +404,14 @@ export async function executeAIChat({
         apiKey,
         model
       });
-      return response;
+      const { cleanReply, proposedAction } = resolveActionProposal(response.reply);
+      return {
+        reply: cleanReply,
+        proposedAction,
+        provider: response.provider || 'gemini',
+        model: response.model || model,
+        usage: response.usage || null
+      };
     } catch (err) {
       console.warn('[KampusKash AI] Gemini API call failed, falling back to local reasoning:', err.message);
       // Fallback gracefully so student experience is uninterrupted
@@ -357,8 +419,10 @@ export async function executeAIChat({
         userQuery: lastUserMessage,
         summary
       });
+      const { cleanReply, proposedAction } = resolveActionProposal(fallbackReply);
       return {
-        reply: fallbackReply + `\n\n*(Note: Gemini API temporarily unavailable: ${err.message})*`,
+        reply: cleanReply + `\n\n*(Note: Gemini API temporarily unavailable: ${err.message})*`,
+        proposedAction,
         provider: 'fallback',
         model: 'local-rules-engine'
       };
@@ -370,9 +434,11 @@ export async function executeAIChat({
     userQuery: lastUserMessage,
     summary
   });
+  const { cleanReply, proposedAction } = resolveActionProposal(localReply);
 
   return {
-    reply: localReply,
+    reply: cleanReply,
+    proposedAction,
     provider: 'local-grounded',
     model: 'grounded-financial-engine'
   };

@@ -175,10 +175,30 @@ export async function handleAIChatRequest(req, res, options = {}) {
       model: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
     });
 
+    // 6. Validate & Register Proposed Action (if any)
+    let proposedAction = null;
+    if (aiResult.proposedAction) {
+      const { validateActionProposal, createPendingAction } = await import('./actionService.js');
+      const val = validateActionProposal({
+        type: aiResult.proposedAction.type,
+        payload: aiResult.proposedAction.payload,
+        userData
+      });
+      if (val.valid) {
+        proposedAction = createPendingAction({
+          type: aiResult.proposedAction.type,
+          payload: aiResult.proposedAction.payload,
+          userId: authUser.uid,
+          summary: aiResult.proposedAction.summary || 'Financial Action Proposal'
+        });
+      }
+    }
+
     return res.status(200).json({
       success: true,
       conversationId,
       reply: aiResult.reply,
+      proposedAction,
       provider: aiResult.provider,
       timestamp: new Date().toISOString()
     });
@@ -329,4 +349,130 @@ export async function handleSavingsPlanRequest(req, res) {
     return res.status(500).json({ error: 'Failed to calculate savings plan.', details: error.message });
   }
 }
+
+/**
+ * Handle AI Action Execution (Approval-gated mutation)
+ */
+export async function handleExecuteActionRequest(req, res) {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized: Missing or invalid Bearer token.' });
+    }
+
+    const token = authHeader.split('Bearer ')[1].trim();
+    let authUser;
+    try {
+      authUser = verifyFirebaseTokenClaims(token, process.env.VITE_FIREBASE_PROJECT_ID || 'kampuskash-82b7c');
+    } catch (authErr) {
+      return res.status(401).json({ error: `Unauthorized: ${authErr.message}` });
+    }
+
+    const { actionId, userData = {} } = req.body || {};
+    if (!actionId) {
+      return res.status(400).json({ error: 'Missing required actionId parameter.' });
+    }
+
+    const { executeAction } = await import('./actionService.js');
+    const result = executeAction({
+      actionId,
+      userId: authUser.uid,
+      userData
+    });
+
+    if (!result.success) {
+      const statusCode = result.error.includes('expired') ? 410 : result.error.includes('already') ? 409 : result.error.includes('Security') ? 403 : 400;
+      return res.status(statusCode).json({ success: false, error: result.error });
+    }
+
+    return res.status(200).json({
+      success: true,
+      actionId: result.actionId,
+      actionType: result.actionType,
+      message: result.message,
+      resultRecord: result.resultRecord,
+      updatedUserData: result.updatedUserData,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Action Execution Error]', error);
+    return res.status(500).json({ error: 'Failed to execute action.', details: error.message });
+  }
+}
+
+/**
+ * Handle AI Action Cancellation
+ */
+export async function handleCancelActionRequest(req, res) {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized: Missing or invalid Bearer token.' });
+    }
+
+    const token = authHeader.split('Bearer ')[1].trim();
+    let authUser;
+    try {
+      authUser = verifyFirebaseTokenClaims(token, process.env.VITE_FIREBASE_PROJECT_ID || 'kampuskash-82b7c');
+    } catch (authErr) {
+      return res.status(401).json({ error: `Unauthorized: ${authErr.message}` });
+    }
+
+    const { actionId } = req.body || {};
+    if (!actionId) {
+      return res.status(400).json({ error: 'Missing required actionId parameter.' });
+    }
+
+    const { cancelAction } = await import('./actionService.js');
+    const result = cancelAction({ actionId, userId: authUser.uid });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.status(200).json({
+      success: true,
+      actionId: result.actionId,
+      status: 'cancelled',
+      message: result.message,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Action Cancel Error]', error);
+    return res.status(500).json({ error: 'Failed to cancel action.', details: error.message });
+  }
+}
+
+/**
+ * Handle AI Action History Request
+ */
+export async function handleActionHistoryRequest(req, res) {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized: Missing or invalid Bearer token.' });
+    }
+
+    const token = authHeader.split('Bearer ')[1].trim();
+    let authUser;
+    try {
+      authUser = verifyFirebaseTokenClaims(token, process.env.VITE_FIREBASE_PROJECT_ID || 'kampuskash-82b7c');
+    } catch (authErr) {
+      return res.status(401).json({ error: `Unauthorized: ${authErr.message}` });
+    }
+
+    const { getActionHistory } = await import('./actionService.js');
+    const history = getActionHistory(authUser.uid);
+
+    return res.status(200).json({
+      success: true,
+      history,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Action History Error]', error);
+    return res.status(500).json({ error: 'Failed to fetch action history.', details: error.message });
+  }
+}
+
 

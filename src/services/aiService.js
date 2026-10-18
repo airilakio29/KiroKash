@@ -273,6 +273,7 @@ export async function sendMessageToAI({
   return {
     reply: data.reply,
     conversationId: data.conversationId || conversationId,
+    proposedAction: data.proposedAction || null,
     timestamp: data.timestamp || new Date().toISOString(),
     provider: data.provider || 'gemini'
   };
@@ -343,5 +344,80 @@ export async function fetchSavingsPlan({
   };
 
   return postToAiEndpoint('savings-plan', bodyPayload, getIdToken, userData);
+}
+
+/**
+ * Execute an Approved AI Action (Feature 6: Action Execution Backend)
+ */
+export async function executeAIAction({
+  actionId,
+  userData = {},
+  getIdToken
+}) {
+  const bodyPayload = {
+    actionId,
+    userData: {
+      profile: userData.user || {},
+      accounts: userData.accounts || [],
+      transactions: userData.transactions || [],
+      budgets: userData.budgets || [],
+      savingsGoals: userData.savingsGoals || [],
+      categories: userData.categories || []
+    }
+  };
+
+  return postToAiEndpoint('action/execute', bodyPayload, getIdToken, userData);
+}
+
+/**
+ * Cancel a Proposed AI Action
+ */
+export async function cancelAIAction({
+  actionId,
+  userData = {},
+  getIdToken
+}) {
+  const bodyPayload = { actionId };
+  return postToAiEndpoint('action/cancel', bodyPayload, getIdToken, userData);
+}
+
+/**
+ * Fetch User AI Action History (Feature 7: Action History)
+ */
+export async function fetchAIActionHistory({
+  userData = {},
+  getIdToken
+}) {
+  const token = await resolveAuthToken(getIdToken, userData);
+  const endpoint = getApiEndpoint('action/history');
+
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+  } catch (networkErr) {
+    if (endpoint.startsWith('/')) {
+      try {
+        res = await fetch(`http://localhost:3001${endpoint}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch {
+        return { success: true, history: [] };
+      }
+    } else {
+      return { success: true, history: [] };
+    }
+  }
+
+  if (!res.ok) {
+    return { success: true, history: [] };
+  }
+
+  return res.json();
 }
 
