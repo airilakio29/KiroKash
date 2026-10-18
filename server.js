@@ -2,6 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  handleAIChatRequest,
+  handleFinancialInsightsRequest,
+  handleBudgetRecommendationRequest,
+  handleSavingsPlanRequest
+} from './functions/src/ai/chatFunction.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,8 +24,29 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     appName: 'KiroKash API',
     currency: 'MYR (RM)',
+    aiAssistant: 'KampusKash AI Financial Intelligence',
     timestamp: new Date().toISOString()
   });
+});
+
+// KampusKash AI Chat Assistant Endpoint (Secure Firebase & Gemini Backend)
+app.post('/api/ai/chat', async (req, res) => {
+  await handleAIChatRequest(req, res);
+});
+
+// KampusKash AI Financial Intelligence Insights Endpoint
+app.post('/api/ai/insights', async (req, res) => {
+  await handleFinancialInsightsRequest(req, res);
+});
+
+// KampusKash AI Personalized Budget Recommendation Endpoint
+app.post('/api/ai/budget-recommendation', async (req, res) => {
+  await handleBudgetRecommendationRequest(req, res);
+});
+
+// KampusKash AI Savings Feasibility Planner Endpoint
+app.post('/api/ai/savings-plan', async (req, res) => {
+  await handleSavingsPlanRequest(req, res);
 });
 
 // Default initial dataset endpoint for initial seeding or hard resets

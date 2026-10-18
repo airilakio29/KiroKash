@@ -5,5 +5,13 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   base: process.env.VERCEL ? '/' : '/UFinance-Student-Financial-Tracker/',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      }
+    }
+  }
 })
 
