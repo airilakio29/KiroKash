@@ -20,7 +20,7 @@ import {
   DEFAULT_LOCATION,
   OVERPASS_ENDPOINTS,
   TILE_LAYER_URL,
-  CARTO_API_KEY
+  TILE_LAYER_FALLBACK
 } from '../src/config/mapConfig.js';
 
 describe('Explore Service & Cafe Logic', () => {
@@ -127,8 +127,7 @@ describe('Explore Service & Cafe Logic', () => {
   describe('Real OpenStreetMap Integration & Overpass API', () => {
     it('should configure valid OpenStreetMap tile and Overpass endpoints', () => {
       assert.ok(TILE_LAYER_URL.includes('{z}/{x}/{y}'), 'Must have standard tile template');
-      assert.ok(CARTO_API_KEY && CARTO_API_KEY.startsWith('cb1_'), 'Must configure CARTO basemap key');
-      assert.ok(TILE_LAYER_URL.includes(`key=${CARTO_API_KEY}`), 'Tile URL must include CARTO key');
+      assert.ok(TILE_LAYER_FALLBACK.includes('tile.openstreetmap.org'), 'Must provide fallback OpenStreetMap tile layer');
       assert.ok(OVERPASS_ENDPOINTS.length >= 2, 'Must have at least 2 fallback Overpass endpoints');
       assert.ok(LOCATION_PRESETS.length >= 4, 'Must include location presets');
       assert.ok(DEFAULT_LOCATION.latitude && DEFAULT_LOCATION.longitude, 'Default location set');

@@ -65,7 +65,7 @@ describe('KiroKash Phase 1 Foundation Test Suite', () => {
   describe('Profile & Authentication Formatting', () => {
     it('should identify technical IDs (Firebase UID, hex hashes, tokens)', () => {
       assert.equal(isTechnicalId('8f3a91d7c2a4e5b6c7d8e9f012345678'), true);
-      assert.equal(isTechnicalId('AIzaSyD7v12345678901234567890'), true);
+      assert.equal(isTechnicalId('techToken99887766554433221100aabb'), true);
       assert.equal(isTechnicalId('u1v2w3x4y5z6a7b8c9d0e1f2g3h4'), true);
       assert.equal(isTechnicalId('Airil Asyraff'), false);
       assert.equal(isTechnicalId('Sarah Tan'), false);

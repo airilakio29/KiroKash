@@ -8,16 +8,17 @@
 // Toggle for live interactive Leaflet / OpenStreetMap map vs static fallback
 export const USE_STATIC_MAP = false;
 
-// CARTO Basemaps API Key (Configurable via environment or direct fallback)
+// CARTO Basemaps API Key (Configurable via environment variable VITE_CARTO_API_KEY)
 const envCartoKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CARTO_API_KEY)
-  || (typeof process !== 'undefined' && process.env && process.env.VITE_CARTO_API_KEY);
+  || (typeof process !== 'undefined' && process.env && process.env.VITE_CARTO_API_KEY)
+  || '';
 
-export const CARTO_API_KEY = envCartoKey || 'cb1_4ma3_1_8274144b15eee856a0b96445';
+export const CARTO_API_KEY = envCartoKey;
 
-// OpenStreetMap-compatible Tile Layer (Dark CARTO Matter with API key)
+// OpenStreetMap-compatible Tile Layer (Dark CARTO raster tiles with key if configured, or public Dark Matter)
 export const TILE_LAYER_URL = CARTO_API_KEY
   ? `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
-  : 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png';
+  : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 export const TILE_LAYER_FALLBACK = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>';
 
