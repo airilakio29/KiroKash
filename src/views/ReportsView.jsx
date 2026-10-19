@@ -16,7 +16,7 @@ function BarChartSimple({ data, maxValue }) {
   const safeMax = maxValue || Math.max(...data.map(d => Math.max(d.income, d.expense)), 1);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: '180px', paddingTop: '1rem' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: '180px', paddingTop: '1rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', paddingBottom: '0.35rem' }}>
       {data.map((month) => {
         const incH = (month.income / safeMax) * 150;
         const expH = (month.expense / safeMax) * 150;

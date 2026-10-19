@@ -28,6 +28,17 @@ export default function Sidebar({
 }) {
   const { user, logout } = useAuth();
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isMobileOpen]);
+
   // Close drawer on Escape key press
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -236,6 +247,7 @@ export default function Sidebar({
       <style>{`
         .sidebar {
           width: 260px;
+          min-width: 260px;
           background: var(--bg-sidebar);
           color: #FFFFFF;
           display: flex;
@@ -246,9 +258,10 @@ export default function Sidebar({
           z-index: 100;
           transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
           position: relative;
+          top: auto;
           box-sizing: border-box;
-          overflow-y: auto;
-          -webkit-overflow-scrolling: touch;
+          align-self: flex-start;
+          min-height: 100vh;
         }
 
         .sidebar-brand-wrapper {
@@ -399,12 +412,17 @@ export default function Sidebar({
             top: 0;
             left: 0;
             height: 100vh;
+            height: 100dvh;
             max-height: 100vh;
+            max-height: 100dvh;
             width: 280px;
             max-width: 85vw;
             transform: translateX(-100%);
             box-shadow: 6px 0 28px rgba(0, 0, 0, 0.5);
             z-index: 999;
+            align-self: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
           }
 
           .sidebar.mobile-open {

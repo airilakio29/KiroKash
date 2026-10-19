@@ -13,8 +13,20 @@ function formatTimestamp(isoString) {
 }
 
 /**
+ * Sanitize sensitive tokens, JWTs, and API keys from display
+ */
+function sanitizeChatText(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/AIza[0-9A-Za-z-_]{20,50}/g, '[REDACTED_API_KEY]')
+    .replace(/[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/g, '[REDACTED_TOKEN]');
+}
+
+/**
  * Lightweight safe markdown renderer for chat bubbles
  * Formats: headers (###), bold (**), bullet points (- / *), code blocks, and paragraph spacing.
+ * Ensures long unbroken strings wrap safely and code blocks scroll horizontally without breaking bubble layout.
  */
 function renderMarkdownContent(text) {
   if (!text) return null;
@@ -23,14 +35,39 @@ function renderMarkdownContent(text) {
   const elements = [];
   let currentList = [];
   let listType = null;
+  let inCodeBlock = false;
+  let codeLines = [];
+  let codeLang = '';
 
   const flushList = (key) => {
     if (currentList.length > 0) {
       if (listType === 'ol') {
         elements.push(
-          <ol key={`ol-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0' }}>
+          <ol
+            key={`ol-${key}`}
+            style={{
+              paddingLeft: '1.25rem',
+              margin: '0.4rem 0',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word'
+            }}
+          >
             {currentList.map((item, idx) => (
-              <li key={idx} style={{ marginBottom: '0.25rem', fontSize: '0.92rem', lineHeight: 1.55 }}>
+              <li
+                key={idx}
+                style={{
+                  marginBottom: '0.25rem',
+                  fontSize: '0.92rem',
+                  lineHeight: 1.55,
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word'
+                }}
+              >
                 {renderInlineFormatting(item)}
               </li>
             ))}
@@ -38,9 +75,31 @@ function renderMarkdownContent(text) {
         );
       } else {
         elements.push(
-          <ul key={`ul-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0' }}>
+          <ul
+            key={`ul-${key}`}
+            style={{
+              paddingLeft: '1.25rem',
+              margin: '0.4rem 0',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word'
+            }}
+          >
             {currentList.map((item, idx) => (
-              <li key={idx} style={{ marginBottom: '0.25rem', fontSize: '0.92rem', lineHeight: 1.55 }}>
+              <li
+                key={idx}
+                style={{
+                  marginBottom: '0.25rem',
+                  fontSize: '0.92rem',
+                  lineHeight: 1.55,
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word'
+                }}
+              >
                 {renderInlineFormatting(item)}
               </li>
             ))}
@@ -52,8 +111,83 @@ function renderMarkdownContent(text) {
     }
   };
 
+  const flushCodeBlock = (key) => {
+    if (codeLines.length > 0 || inCodeBlock) {
+      elements.push(
+        <div
+          key={`codeblock-wrap-${key}`}
+          style={{
+            margin: '0.65rem 0',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            background: 'rgba(0, 0, 0, 0.45)',
+            border: '1px solid var(--border-light)',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box'
+          }}
+        >
+          {codeLang && (
+            <div
+              style={{
+                fontSize: '0.68rem',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                padding: '0.25rem 0.75rem',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'rgba(0, 0, 0, 0.25)',
+                fontFamily: 'monospace'
+              }}
+            >
+              {codeLang}
+            </div>
+          )}
+          <pre
+            style={{
+              margin: 0,
+              padding: '0.75rem 1rem',
+              overflowX: 'auto',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              minWidth: 0,
+              fontSize: '0.82rem',
+              lineHeight: 1.5,
+              color: 'var(--text-main)',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              whiteSpace: 'pre'
+            }}
+          >
+            <code>{codeLines.join('\n')}</code>
+          </pre>
+        </div>
+      );
+      codeLines = [];
+      codeLang = '';
+      inCodeBlock = false;
+    }
+  };
+
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
+
+    // Code block toggle (```)
+    if (trimmed.startsWith('```')) {
+      flushList(idx);
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeLines = [];
+        codeLang = trimmed.slice(3).trim();
+      } else {
+        flushCodeBlock(idx);
+      }
+      return;
+    }
+
+    // Inside code block: preserve exact code line
+    if (inCodeBlock) {
+      codeLines.push(line);
+      return;
+    }
 
     // Empty line
     if (!trimmed) {
@@ -73,7 +207,12 @@ function renderMarkdownContent(text) {
             margin: '0.5rem 0',
             color: 'var(--text-muted)',
             fontStyle: 'italic',
-            fontSize: '0.88rem'
+            fontSize: '0.88rem',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word'
           }}
         >
           {renderInlineFormatting(trimmed.replace(/^>\s*/, ''))}
@@ -93,7 +232,12 @@ function renderMarkdownContent(text) {
             fontWeight: 700,
             margin: '0.75rem 0 0.35rem',
             color: 'var(--text-main)',
-            fontFamily: 'Plus Jakarta Sans, sans-serif'
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word'
           }}
         >
           {renderInlineFormatting(trimmed.replace('### ', ''))}
@@ -112,7 +256,12 @@ function renderMarkdownContent(text) {
             fontWeight: 800,
             margin: '0.85rem 0 0.4rem',
             color: 'var(--text-main)',
-            fontFamily: 'Plus Jakarta Sans, sans-serif'
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word'
           }}
         >
           {renderInlineFormatting(trimmed.replace('## ', ''))}
@@ -146,7 +295,12 @@ function renderMarkdownContent(text) {
           margin: '0.35rem 0',
           fontSize: '0.92rem',
           lineHeight: 1.6,
-          color: 'inherit'
+          color: 'inherit',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word'
         }}
       >
         {renderInlineFormatting(trimmed)}
@@ -155,6 +309,7 @@ function renderMarkdownContent(text) {
   });
 
   flushList('end');
+  flushCodeBlock('end');
   return elements;
 }
 
@@ -176,7 +331,9 @@ function renderInlineFormatting(text) {
           key={index}
           style={{
             fontWeight: 700,
-            color: isRM ? 'var(--income, #10B981)' : 'var(--text-main)'
+            color: isRM ? 'var(--income, #10B981)' : 'var(--text-main)',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word'
           }}
         >
           {boldText}
@@ -185,7 +342,15 @@ function renderInlineFormatting(text) {
     }
     if (part.startsWith('*') && part.endsWith('*')) {
       return (
-        <em key={index} style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>
+        <em
+          key={index}
+          style={{
+            fontStyle: 'italic',
+            color: 'var(--text-muted)',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word'
+          }}
+        >
           {part.slice(1, -1)}
         </em>
       );
@@ -199,14 +364,23 @@ function renderInlineFormatting(text) {
             padding: '0.15rem 0.4rem',
             borderRadius: '4px',
             fontSize: '0.85em',
-            color: 'var(--primary-light)'
+            color: 'var(--primary-light)',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+            maxWidth: '100%',
+            display: 'inline-block',
+            boxSizing: 'border-box'
           }}
         >
           {part.slice(1, -1)}
         </code>
       );
     }
-    return part;
+    return (
+      <span key={index} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+        {part}
+      </span>
+    );
   });
 }
 
@@ -235,7 +409,10 @@ export default function ChatMessage({
         alignItems: 'flex-start',
         gap: '0.65rem',
         marginBottom: '1.25rem',
+        width: '100%',
         maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
         animation: 'fadeIn 0.2s ease-out'
       }}
     >
@@ -272,11 +449,13 @@ export default function ChatMessage({
       {/* Message Bubble Container */}
       <div
         style={{
-          maxWidth: '82%',
+          maxWidth: isAI && message.proposedAction ? '100%' : '84%',
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: isAI ? 'flex-start' : 'flex-end',
-          width: isAI && message.proposedAction ? '100%' : 'auto'
+          width: isAI && message.proposedAction ? '100%' : 'auto',
+          boxSizing: 'border-box'
         }}
       >
         {/* Name / Role Label */}
@@ -288,7 +467,11 @@ export default function ChatMessage({
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
-            padding: '0 0.25rem'
+            padding: '0 0.25rem',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
           }}
         >
           <span style={{ fontWeight: 600 }}>{isAI ? 'KampusKash AI' : 'You'}</span>
@@ -298,6 +481,7 @@ export default function ChatMessage({
 
         {/* Bubble */}
         <div
+          className="kampuskash-chat-message-bubble"
           style={{
             position: 'relative',
             padding: '0.85rem 1.15rem',
@@ -310,15 +494,32 @@ export default function ChatMessage({
             color: isAI ? 'var(--text-main)' : '#FFFFFF',
             border: isAI ? '1px solid var(--border-light)' : 'none',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+            overflowWrap: 'anywhere',
             wordBreak: 'break-word',
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
             width: isAI && message.proposedAction ? '100%' : 'auto'
           }}
         >
           {isAI ? (
-            <div>{renderMarkdownContent(message.content)}</div>
+            <div style={{ maxWidth: '100%', minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}>
+              {renderMarkdownContent(sanitizeChatText(message.content))}
+            </div>
           ) : (
-            <div style={{ fontSize: '0.92rem', lineHeight: 1.55 }}>
-              {message.content}
+            <div
+              style={{
+                fontSize: '0.92rem',
+                lineHeight: 1.55,
+                maxWidth: '100%',
+                minWidth: 0,
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
+                boxSizing: 'border-box',
+                whiteSpace: 'pre-wrap'
+              }}
+            >
+              {sanitizeChatText(message.content)}
             </div>
           )}
 

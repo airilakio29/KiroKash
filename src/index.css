@@ -418,6 +418,7 @@ body {
 .table-container {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-md);
 }
 
@@ -535,10 +536,15 @@ body {
   background: var(--bg-card);
   width: 100%;
   max-width: 500px;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-modal);
   padding: 2rem;
   position: relative;
+  box-sizing: border-box;
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -630,6 +636,17 @@ body {
   .account-card-item {
     flex: 1 1 100%;
     min-height: 52px;
+  }
+
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+
+  .modal-content {
+    padding: 1.25rem 1rem;
+    max-height: calc(100vh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+    border-radius: var(--radius-lg);
   }
 }
 
@@ -2273,33 +2290,66 @@ body {
   height: 85vh !important;
 }
 
+.kampuskash-ai-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 5, 15, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 990;
+  animation: fadeIn 0.2s ease-out;
+}
+
 /* Responsive adjustments for mobile */
 @media (max-width: 768px) {
   .kampuskash-ai-popup-overlay {
     bottom: 0 !important;
     right: 0 !important;
     left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     height: 100% !important;
+    height: 100dvh !important;
     max-height: 100vh !important;
+    max-height: 100dvh !important;
     border-radius: 0 !important;
+    z-index: 1000 !important;
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
   }
 
   .kampuskash-ai-popup-overlay .kampuskash-ai-window {
     border-radius: 0 !important;
+    border: none !important;
     height: 100% !important;
-    max-height: 100% !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
   }
 
   .kampuskash-ai-fab {
-    bottom: 1.25rem !important;
+    bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem)) !important;
     right: 1.25rem !important;
     width: 50px !important;
     height: 50px !important;
   }
 
+  .chat-shortcut-hint {
+    display: none !important;
+  }
+
+  .chat-header-close-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
   .hidden-on-mobile {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .chat-shortcut-hint {
     display: none !important;
   }
 }
@@ -2315,8 +2365,36 @@ body {
 
 .kampuskash-action-card {
   animation: fadeIn 0.25s ease-out;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .kampuskash-action-card:hover {
   border-color: var(--primary) !important;
 }
+
+/* Chat Interface Overflow & Wrapping Safety */
+.kampuskash-ai-window * {
+  box-sizing: border-box;
+}
+
+.kampuskash-chat-message-bubble {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.kampuskash-chat-message-bubble pre {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+}
+
+.kampuskash-chat-message-bubble code {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+

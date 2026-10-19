@@ -91,7 +91,8 @@ export default function ActionConfirmationCard({
 
   if (!action) return null;
 
-  const { actionId, actionType, summary, details, amount, category, account, date, status, expiresAt } = action;
+  const resolvedActionId = action.actionId || action.id;
+  const { actionType, summary, details, amount, category, account, date, status, expiresAt } = action;
   const meta = getActionMeta(actionType);
 
   const isExpired = expiresAt && Date.now() > expiresAt;
@@ -102,7 +103,11 @@ export default function ActionConfirmationCard({
     setIsSubmitting(true);
     setActionError(null);
     try {
-      await onConfirm(action);
+      await onConfirm({
+        ...action,
+        actionId: resolvedActionId,
+        id: resolvedActionId
+      });
     } catch (err) {
       setActionError(err.message || 'Execution failed. Please try again.');
       setIsSubmitting(false);
@@ -114,7 +119,11 @@ export default function ActionConfirmationCard({
     setIsSubmitting(true);
     setActionError(null);
     try {
-      await onCancel(action);
+      await onCancel({
+        ...action,
+        actionId: resolvedActionId,
+        id: resolvedActionId
+      });
     } catch (err) {
       setActionError(err.message || 'Failed to cancel action.');
       setIsSubmitting(false);
@@ -132,7 +141,9 @@ export default function ActionConfirmationCard({
         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
         overflow: 'hidden',
         transition: 'all 0.2s ease',
-        maxWidth: '100%'
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
       }}
     >
       {/* Card Header */}
@@ -281,13 +292,26 @@ export default function ActionConfirmationCard({
             padding: '0.65rem',
             borderRadius: '10px',
             background: 'var(--bg-card-subtle)',
-            border: '1px solid var(--border-light)'
+            border: '1px solid var(--border-light)',
+            minWidth: 0,
+            boxSizing: 'border-box'
           }}
         >
-          {amount !== undefined && amount !== null && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {(details?.title || action?.title) && (
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Amount
+                Goal / Title
+              </span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                {details?.title || action?.title}
+              </span>
+            </div>
+          )}
+
+          {amount !== undefined && amount !== null && (
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {actionType === 'CREATE_SAVINGS_GOAL' || actionType === 'UPDATE_SAVINGS_GOAL' ? 'Target Amount' : 'Amount'}
               </span>
               <span style={{ fontSize: '0.95rem', fontWeight: 800, color: details?.type === 'income' ? 'var(--income, #10B981)' : 'var(--text-main)' }}>
                 RM{Number(amount).toFixed(2)}
@@ -296,11 +320,11 @@ export default function ActionConfirmationCard({
           )}
 
           {category && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Category
               </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                 <Tag size={12} color="var(--primary)" />
                 {category}
               </span>
@@ -308,11 +332,11 @@ export default function ActionConfirmationCard({
           )}
 
           {account && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Account
               </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                 <CreditCard size={12} color="var(--income)" />
                 {account}
               </span>
@@ -320,11 +344,11 @@ export default function ActionConfirmationCard({
           )}
 
           {date && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Date / Target
+                {actionType === 'CREATE_SAVINGS_GOAL' || actionType === 'UPDATE_SAVINGS_GOAL' ? 'Target Date' : 'Date'}
               </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                 <Calendar size={12} color="var(--text-muted)" />
                 {date}
               </span>
@@ -332,18 +356,18 @@ export default function ActionConfirmationCard({
           )}
 
           {details?.period && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Period
               </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                 {details.period}
               </span>
             </div>
           )}
 
           {details?.currentAmount !== undefined && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Initial Deposit
               </span>
@@ -382,47 +406,56 @@ export default function ActionConfirmationCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
+              flexWrap: 'wrap',
               gap: '0.5rem',
               marginTop: '0.85rem'
             }}
           >
             <button
+              type="button"
               onClick={handleCancel}
               disabled={isSubmitting || disabled}
               className="btn btn-secondary"
               style={{
-                padding: '0.45rem 0.85rem',
-                fontSize: '0.82rem',
+                padding: '0.55rem 0.95rem',
+                fontSize: '0.85rem',
                 borderRadius: '8px',
+                minHeight: '44px',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.35rem',
+                flex: '1 1 auto',
                 cursor: isSubmitting || disabled ? 'not-allowed' : 'pointer'
               }}
             >
-              <XCircle size={14} />
+              <XCircle size={15} />
               Cancel
             </button>
 
             <button
+              type="button"
               onClick={handleConfirm}
               disabled={isSubmitting || disabled}
               className="btn btn-primary"
               style={{
-                padding: '0.45rem 1rem',
-                fontSize: '0.82rem',
+                padding: '0.55rem 1rem',
+                fontSize: '0.85rem',
                 fontWeight: 700,
                 borderRadius: '8px',
+                minHeight: '44px',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.35rem',
                 background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
                 color: '#FFFFFF',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                flex: '1 1 auto',
                 cursor: isSubmitting || disabled ? 'not-allowed' : 'pointer'
               }}
             >
-              <CheckCircle2 size={14} />
+              <CheckCircle2 size={15} />
               {isSubmitting ? 'Processing...' : 'Confirm & Save'}
             </button>
           </div>

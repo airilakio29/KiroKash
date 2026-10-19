@@ -557,6 +557,18 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
             display: block;
           }
         }
+
+        @media (max-width: 480px) {
+          .app-header {
+            padding: 0.65rem 0.75rem;
+          }
+          .header-page-title {
+            font-size: 1.02rem;
+          }
+          .header-subtitle {
+            font-size: 0.7rem;
+          }
+        }
       `}</style>
     </header>
   );

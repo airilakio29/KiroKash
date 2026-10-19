@@ -59,6 +59,17 @@ export default function ChatWindow({
     scrollToBottom(true);
   }, [messages, isLoading]);
 
+  // Support Escape key to close the chatbot
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   // Load chat history from Firestore
   useEffect(() => {
     if (!userId) return;
@@ -186,20 +197,38 @@ export default function ChatWindow({
 
   // Confirm and Execute an AI Action Proposal (Feature 2 & 6)
   const handleConfirmAction = async (action) => {
-    if (!action || !action.actionId) return;
+    if (!action) return;
+    const targetActionId = action.actionId || action.id;
+    if (!targetActionId) {
+      console.error('[Action Confirmation] Missing actionId on proposed action:', action);
+      throw new Error('Missing required actionId parameter.');
+    }
     const getIdTokenFn = auth?.currentUser
       ? () => auth.currentUser.getIdToken(false)
       : null;
 
-    // 1. Call execution backend with token
-    const res = await executeAIAction(action.actionId, getIdTokenFn);
+    // 1. Call execution backend with token and complete user financial data
+    const res = await executeAIAction({
+      actionId: targetActionId,
+      getIdToken: getIdTokenFn,
+      userData: {
+        user,
+        accounts: financeData?.accounts || [],
+        transactions: financeData?.transactions || [],
+        budgets: financeData?.budgets || [],
+        savingsGoals: financeData?.savingsGoals || [],
+        categories: financeData?.categories || []
+      }
+    });
+
     if (!res || !res.success) {
       throw new Error(res?.error || 'Execution failed on server.');
     }
 
     // 2. Mark action as approved in message list
     setMessages(prev => prev.map(msg => {
-      if (msg.proposedAction && msg.proposedAction.actionId === action.actionId) {
+      const msgActionId = msg.proposedAction?.actionId || msg.proposedAction?.id;
+      if (msgActionId === targetActionId) {
         return {
           ...msg,
           proposedAction: { ...msg.proposedAction, status: 'approved' }
@@ -209,22 +238,27 @@ export default function ChatWindow({
     }));
 
     // 3. Immediately synchronize local FinanceContext state so the dashboard updates
-    const details = action.details || {};
+    const details = action.details || action.payload || {};
     try {
       switch (action.actionType) {
         case 'CREATE_BUDGET':
         case 'UPDATE_BUDGET':
           if (details.categoryId && details.monthlyLimit !== undefined && financeData?.upsertBudget) {
-            financeData.upsertBudget(details.categoryId, details.monthlyLimit);
+            financeData.upsertBudget(details.categoryId, Number(details.monthlyLimit));
           }
           break;
         case 'CREATE_SAVINGS_GOAL':
           if (financeData?.addSavingsGoal) {
+            const targetAmount = Math.max(0, Number(details.targetAmount ?? action.amount ?? 2000));
+            const currentAmount = Math.max(0, Number(details.currentAmount || 0));
+            const targetDate = details.targetDate || action.date || '2027-05-31';
+            const title = details.title || action.summary || 'New Phone';
+
             financeData.addSavingsGoal({
-              title: details.title,
-              targetAmount: details.targetAmount,
-              targetDate: details.targetDate,
-              currentAmount: details.currentAmount || 0
+              title,
+              targetAmount,
+              targetDate,
+              currentAmount
             });
           }
           break;
@@ -297,19 +331,26 @@ export default function ChatWindow({
 
   // Cancel an AI Action Proposal (Feature 2 & 9)
   const handleCancelAction = async (action) => {
-    if (!action || !action.actionId) return;
+    if (!action) return;
+    const targetActionId = action.actionId || action.id;
+    if (!targetActionId) return;
+
     const getIdTokenFn = auth?.currentUser
       ? () => auth.currentUser.getIdToken(false)
       : null;
 
     try {
-      await cancelAIAction(action.actionId, getIdTokenFn);
+      await cancelAIAction({
+        actionId: targetActionId,
+        getIdToken: getIdTokenFn
+      });
     } catch (e) {
       console.warn('Failed to register cancellation on backend:', e);
     }
 
     setMessages(prev => prev.map(msg => {
-      if (msg.proposedAction && msg.proposedAction.actionId === action.actionId) {
+      const msgActionId = msg.proposedAction?.actionId || msg.proposedAction?.id;
+      if (msgActionId === targetActionId) {
         return {
           ...msg,
           proposedAction: { ...msg.proposedAction, status: 'cancelled' }
@@ -381,18 +422,21 @@ export default function ChatWindow({
 
       {/* Header */}
       <div
+        className="chat-window-header"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0.85rem 1.25rem',
+          padding: '0.85rem 1rem',
           background: 'var(--bg-card-subtle)',
           borderBottom: '1px solid var(--border-light)',
-          flexShrink: 0
+          flexShrink: 0,
+          gap: '0.5rem',
+          minWidth: 0
         }}
       >
         {/* Brand & Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: '1 1 auto' }}>
           <div
             style={{
               width: '38px',
@@ -403,28 +447,30 @@ export default function ChatWindow({
               alignItems: 'center',
               justifyContent: 'center',
               color: '#FFFFFF',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)'
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+              flexShrink: 0
             }}
           >
             <Sparkles size={20} />
           </div>
 
-          <div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.96rem', color: 'var(--text-main)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
                 KampusKash AI
               </span>
               <span
                 style={{
-                  fontSize: '0.68rem',
-                  padding: '0.15rem 0.45rem',
+                  fontSize: '0.65rem',
+                  padding: '0.12rem 0.4rem',
                   borderRadius: '10px',
                   background: 'rgba(16, 185, 129, 0.15)',
                   color: 'var(--income, #10B981)',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px'
+                  gap: '3px',
+                  flexShrink: 0
                 }}
               >
                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--income, #10B981)' }} />
@@ -432,60 +478,69 @@ export default function ChatWindow({
               </span>
             </div>
 
-            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+            <div className="hidden-on-mobile" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Personal Student Financial Assistant • Gemini AI
             </div>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
           <button
+            type="button"
             onClick={() => setIsActionDrawerOpen(prev => !prev)}
             className="btn btn-secondary"
             style={{
-              padding: '0.4rem 0.65rem',
+              padding: '0.4rem 0.6rem',
               fontSize: '0.78rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              minHeight: '38px'
             }}
             title="AI Action History"
+            aria-label="Action History"
           >
             <Activity size={14} />
             <span className="hidden-on-mobile">Actions</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setIsDrawerOpen(prev => !prev)}
             className="btn btn-secondary"
             style={{
-              padding: '0.4rem 0.65rem',
+              padding: '0.4rem 0.6rem',
               fontSize: '0.78rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              minHeight: '38px'
             }}
             title="Chat History"
+            aria-label="Chat History"
           >
             <History size={14} />
             <span className="hidden-on-mobile">History</span>
           </button>
 
           <button
+            type="button"
             onClick={handleNewConversation}
             className="btn btn-secondary"
             style={{
-              padding: '0.4rem 0.65rem',
+              padding: '0.4rem 0.6rem',
               fontSize: '0.78rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              minHeight: '38px'
             }}
             title="Start New Chat"
+            aria-label="New Chat"
           >
             <RotateCcw size={14} />
             <span className="hidden-on-mobile">New Chat</span>
@@ -493,16 +548,23 @@ export default function ChatWindow({
 
           {isModal && (
             <button
+              type="button"
               onClick={() => setIsExpanded(prev => !prev)}
+              className="hidden-on-mobile"
               style={{
                 background: 'none',
                 border: 'none',
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
                 padding: '0.4rem',
-                display: 'flex'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '38px',
+                minHeight: '38px'
               }}
               title={isExpanded ? 'Minimize' : 'Expand'}
+              aria-label={isExpanded ? 'Minimize' : 'Expand'}
             >
               {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
@@ -510,18 +572,31 @@ export default function ChatWindow({
 
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
+              className="chat-header-close-btn"
+              title="Close AI Assistant"
+              aria-label="Close KampusKash AI Assistant"
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
+                width: '44px',
+                height: '44px',
+                minWidth: '44px',
+                minHeight: '44px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid var(--border-light, rgba(255, 255, 255, 0.2))',
+                color: 'var(--text-main, #FFFFFF)',
                 cursor: 'pointer',
-                padding: '0.4rem',
-                display: 'flex'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginLeft: '0.25rem',
+                transition: 'all 0.2s ease',
+                zIndex: 10
               }}
-              title="Close Assistant"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           )}
         </div>
@@ -555,9 +630,14 @@ export default function ChatWindow({
         style={{
           flex: 1,
           overflowY: 'auto',
+          overflowX: 'hidden',
           padding: '1.25rem',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box'
         }}
       >
         {messages.map((msg, index) => (
@@ -622,7 +702,7 @@ export default function ChatWindow({
       {/* Input Area */}
       <div
         style={{
-          padding: '0.85rem 1.25rem 1rem',
+          padding: '0.75rem 1rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
           background: 'var(--bg-card)',
           borderTop: '1px solid var(--border-light)',
           flexShrink: 0

@@ -349,15 +349,29 @@ export async function fetchSavingsPlan({
 /**
  * Execute an Approved AI Action (Feature 6: Action Execution Backend)
  */
-export async function executeAIAction({
-  actionId,
-  userData = {},
-  getIdToken
-}) {
+export async function executeAIAction(arg1, arg2, arg3) {
+  let actionId;
+  let getIdToken;
+  let userData = {};
+
+  if (typeof arg1 === 'object' && arg1 !== null && !arg2) {
+    actionId = arg1.actionId || arg1.id;
+    getIdToken = arg1.getIdToken;
+    userData = arg1.userData || {};
+  } else {
+    actionId = typeof arg1 === 'object' && arg1 !== null ? (arg1.actionId || arg1.id) : arg1;
+    getIdToken = arg2;
+    userData = arg3 || {};
+  }
+
+  if (!actionId || typeof actionId !== 'string') {
+    throw new Error('Missing required actionId parameter.');
+  }
+
   const bodyPayload = {
     actionId,
     userData: {
-      profile: userData.user || {},
+      profile: userData.user || userData.profile || {},
       accounts: userData.accounts || [],
       transactions: userData.transactions || [],
       budgets: userData.budgets || [],
@@ -372,11 +386,25 @@ export async function executeAIAction({
 /**
  * Cancel a Proposed AI Action
  */
-export async function cancelAIAction({
-  actionId,
-  userData = {},
-  getIdToken
-}) {
+export async function cancelAIAction(arg1, arg2, arg3) {
+  let actionId;
+  let getIdToken;
+  let userData = {};
+
+  if (typeof arg1 === 'object' && arg1 !== null && !arg2) {
+    actionId = arg1.actionId || arg1.id;
+    getIdToken = arg1.getIdToken;
+    userData = arg1.userData || {};
+  } else {
+    actionId = typeof arg1 === 'object' && arg1 !== null ? (arg1.actionId || arg1.id) : arg1;
+    getIdToken = arg2;
+    userData = arg3 || {};
+  }
+
+  if (!actionId || typeof actionId !== 'string') {
+    throw new Error('Missing required actionId parameter.');
+  }
+
   const bodyPayload = { actionId };
   return postToAiEndpoint('action/cancel', bodyPayload, getIdToken, userData);
 }

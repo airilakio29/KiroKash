@@ -179,17 +179,20 @@ export async function handleAIChatRequest(req, res, options = {}) {
     let proposedAction = null;
     if (aiResult.proposedAction) {
       const { validateActionProposal, createPendingAction } = await import('./actionService.js');
+      const actionType = aiResult.proposedAction.type || aiResult.proposedAction.actionType;
+      const actionPayload = aiResult.proposedAction.payload || aiResult.proposedAction.details || aiResult.proposedAction;
+
       const val = validateActionProposal({
-        type: aiResult.proposedAction.type,
-        payload: aiResult.proposedAction.payload,
+        type: actionType,
+        payload: actionPayload,
         userData
       });
       if (val.valid) {
         proposedAction = createPendingAction({
-          type: aiResult.proposedAction.type,
-          payload: aiResult.proposedAction.payload,
+          type: actionType,
+          payload: actionPayload,
           userId: authUser.uid,
-          summary: aiResult.proposedAction.summary || 'Financial Action Proposal'
+          summary: aiResult.proposedAction.summary || val.summary || 'Financial Action Proposal'
         });
       }
     }
@@ -368,14 +371,15 @@ export async function handleExecuteActionRequest(req, res) {
       return res.status(401).json({ error: `Unauthorized: ${authErr.message}` });
     }
 
-    const { actionId, userData = {} } = req.body || {};
-    if (!actionId) {
+    const { actionId, id, userData = {} } = req.body || {};
+    const targetActionId = actionId || id;
+    if (!targetActionId) {
       return res.status(400).json({ error: 'Missing required actionId parameter.' });
     }
 
     const { executeAction } = await import('./actionService.js');
     const result = executeAction({
-      actionId,
+      actionId: targetActionId,
       userId: authUser.uid,
       userData
     });
@@ -418,13 +422,14 @@ export async function handleCancelActionRequest(req, res) {
       return res.status(401).json({ error: `Unauthorized: ${authErr.message}` });
     }
 
-    const { actionId } = req.body || {};
-    if (!actionId) {
+    const { actionId, id } = req.body || {};
+    const targetActionId = actionId || id;
+    if (!targetActionId) {
       return res.status(400).json({ error: 'Missing required actionId parameter.' });
     }
 
     const { cancelAction } = await import('./actionService.js');
-    const result = cancelAction({ actionId, userId: authUser.uid });
+    const result = cancelAction({ actionId: targetActionId, userId: authUser.uid });
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });

@@ -89,7 +89,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
           flexWrap: 'wrap'
         }}>
           {/* Search Box */}
-          <div style={{ position: 'relative', flex: '1 1 250px', minWidth: '200px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 'min(100%, 150px)' }}>
             <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -105,7 +105,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
           {/* Type Quick Filter */}
           <select
             className="form-control"
-            style={{ height: '40px', width: 'auto', minWidth: '150px' }}
+            style={{ height: '40px', width: 'auto', minWidth: '120px', flex: '0 1 auto' }}
             value={selectedType}
             onChange={e => setSelectedType(e.target.value)}
             aria-label="Filter by type"

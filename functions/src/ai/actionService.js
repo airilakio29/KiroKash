@@ -277,7 +277,7 @@ export function extractActionIntent(queryText, userData = {}) {
   }
 
   // 3. Savings Goal Creation & Update: "create savings goal RM1200 for laptop by december"
-  if (/saving|goal|target/i.test(qLower) && (/create|start|set|add|new|update|change|increase|adjust/i.test(qLower))) {
+  if (/saving|goal|target|fund/i.test(qLower) && (/create|start|set|add|new|update|change|increase|adjust|target\s+date|target\s+is|aim/i.test(qLower))) {
     const isUpdate = /update|change|increase|adjust/i.test(qLower);
 
     const amtMatch = query.match(/rm\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)/i) ||
@@ -309,7 +309,12 @@ export function extractActionIntent(queryText, userData = {}) {
     } else {
       const forMatch = query.match(/(?:for|named|title|called)\s+([^.,!?\n]+)/i);
       if (forMatch) {
-        title = forMatch[1].replace(/by\s+.*$/i, '').trim();
+        title = forMatch[1]
+          .replace(/^(?:a|an|the)\s+/i, '')
+          .replace(/by\s+.*$/i, '')
+          .trim();
+      } else if (/phone|iphone/i.test(query)) {
+        title = 'New Phone';
       } else if (/laptop/i.test(query)) {
         title = 'Laptop Fund';
       } else if (/emergency/i.test(query)) {
@@ -324,6 +329,19 @@ export function extractActionIntent(queryText, userData = {}) {
     const explicitDateMatch = query.match(/\b(\d{4}-\d{2}-\d{2})\b/);
     if (explicitDateMatch) {
       targetDate = explicitDateMatch[1];
+    } else if (/next year/i.test(qLower)) {
+      const nextYear = new Date().getFullYear() + 1;
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      let matchedMonth = 4; // default May (month index 4) if 'may' present
+      for (let m = 0; m < 12; m++) {
+        if (qLower.includes(monthNames[m])) {
+          matchedMonth = m;
+          break;
+        }
+      }
+      const lastDay = new Date(nextYear, matchedMonth + 1, 0).getDate();
+      const monthStr = String(matchedMonth + 1).padStart(2, '0');
+      targetDate = `${nextYear}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
     } else if (/december/i.test(qLower)) {
       targetDate = `${new Date().getFullYear()}-12-31`;
     } else if (/next month/i.test(qLower)) {
@@ -331,6 +349,8 @@ export function extractActionIntent(queryText, userData = {}) {
     } else if (/six months|6 months/i.test(qLower)) {
       targetDate = new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
     }
+
+    const currentAmount = /no money|no deposit|zero|rm\s*0\b/i.test(qLower) ? 0 : 0;
 
     const existingGoal = mentionedGoal || savingsGoals.find(g => g.title.toLowerCase().includes(title.toLowerCase()));
 
@@ -355,7 +375,7 @@ export function extractActionIntent(queryText, userData = {}) {
         title,
         targetAmount,
         targetDate,
-        currentAmount: 0
+        currentAmount
       },
       summary: `Create savings goal: "${title}" of RM${targetAmount.toFixed(2)} by ${targetDate}`
     };
@@ -436,11 +456,22 @@ export function validateActionProposal(arg1, arg2, arg3) {
         return { valid: false, error: 'Target amount must be a positive number greater than RM 0.' };
       }
       if (payload.targetDate) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.targetDate) || isNaN(new Date(payload.targetDate).getTime())) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.targetDate)) {
+          const parsed = Date.parse(payload.targetDate);
+          if (!isNaN(parsed)) {
+            const d = new Date(parsed);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            payload.targetDate = `${year}-${month}-${day}`;
+          } else {
+            return { valid: false, error: 'Invalid target date format. Please use YYYY-MM-DD.' };
+          }
+        } else if (isNaN(new Date(payload.targetDate).getTime())) {
           return { valid: false, error: 'Invalid target date format. Please use YYYY-MM-DD.' };
         }
       }
-      return { valid: true, actionType: type, payload, amount, category, account, date, summary: payload.summary || `Create savings goal: "${payload.title}" of RM${target.toFixed(2)}` };
+      return { valid: true, actionType: type, payload, amount: target, category, account, date: payload.targetDate || date, summary: payload.summary || `Create savings goal: "${payload.title}" of RM${target.toFixed(2)}` };
     }
 
     case ACTION_TYPES.UPDATE_SAVINGS_GOAL: {
@@ -517,6 +548,7 @@ export function createPendingAction(arg1, arg2) {
 
   const action = {
     actionId,
+    id: actionId,
     type,
     actionType: type,
     userId: userId || 'guest',
@@ -567,10 +599,14 @@ export function executeAction(arg1, arg2, arg3) {
     actionId = arg1;
     userId = arg2;
     userData = arg3 || {};
-  } else {
-    actionId = arg1.actionId;
+  } else if (typeof arg1 === 'object' && arg1 !== null) {
+    actionId = arg1.actionId || arg1.id;
     userId = arg1.userId;
     userData = arg1.userData || {};
+  }
+
+  if (!actionId || typeof actionId !== 'string') {
+    return { success: false, error: 'Missing required actionId parameter.' };
   }
 
   const action = actionRegistry.get(actionId);
@@ -758,9 +794,13 @@ export function cancelAction(arg1, arg2) {
   if (typeof arg1 === 'string') {
     actionId = arg1;
     userId = arg2;
-  } else {
-    actionId = arg1.actionId;
+  } else if (typeof arg1 === 'object' && arg1 !== null) {
+    actionId = arg1.actionId || arg1.id;
     userId = arg1.userId;
+  }
+
+  if (!actionId || typeof actionId !== 'string') {
+    return { success: false, error: 'Missing required actionId parameter.' };
   }
 
   const action = actionRegistry.get(actionId);

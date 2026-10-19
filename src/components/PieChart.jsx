@@ -101,7 +101,7 @@ export default function PieChart({ data = [] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <svg width="220" height="220" viewBox="0 0 220 220" style={{ overflow: 'visible' }}>
+        <svg width="220" height="220" viewBox="0 0 220 220" style={{ maxWidth: '100%', height: 'auto', overflow: 'visible' }}>
           {slices.map((slice) => {
             const isHovered = hoveredIndex === slice.index;
             return (
@@ -141,7 +141,7 @@ export default function PieChart({ data = [] }) {
       {/* Legend Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))',
         gap: '0.65rem',
         paddingTop: '0.75rem',
         borderTop: '1px solid var(--border-light)'

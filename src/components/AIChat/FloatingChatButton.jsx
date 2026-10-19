@@ -70,11 +70,20 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
         )}
       </button>
 
+      {/* Click-outside backdrop */}
+      {isOpen && (
+        <div
+          className="kampuskash-ai-backdrop"
+          onClick={() => onToggle(false)}
+          aria-label="Close AI Assistant overlay"
+        />
+      )}
+
       {/* Floating Panel / Drawer Modal */}
       {isOpen && (
         <div
           className="kampuskash-ai-popup-overlay"
-          onClick={() => onToggle(false)}
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             bottom: '5.5rem',
@@ -87,7 +96,6 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
             animation: 'slideUpFade 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
             filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5))'
           }}
-          onClick={(e) => e.stopPropagation()}
         >
           <ChatWindow
             onClose={() => onToggle(false)}

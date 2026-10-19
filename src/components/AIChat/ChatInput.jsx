@@ -27,9 +27,18 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
   };
 
   const handleKeyDown = (e) => {
+    const isTouch = typeof window !== 'undefined' && (
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches
+    );
+
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+      if (!isTouch) {
+        e.preventDefault();
+        handleSubmit(e);
+      }
+      // On mobile touch devices, let Enter insert a newline naturally
     }
   };
 
@@ -62,7 +71,8 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS + 50))}
           onKeyDown={handleKeyDown}
-          placeholder="Ask KampusKash AI about your spending, budget, or savings..."
+          placeholder="Ask KampusKash AI about spending, budgets, or savings..."
+          aria-label="Ask KampusKash AI"
           disabled={isLoading}
           rows={1}
           style={{
@@ -76,17 +86,19 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
             lineHeight: 1.5,
             fontFamily: 'inherit',
             maxHeight: '120px',
-            padding: '0.2rem 0'
+            padding: '0.35rem 0'
           }}
         />
 
         <button
           type="submit"
           disabled={!text.trim() || isLoading || isOverLimit}
-          className="btn btn-primary"
+          className="btn btn-primary chat-send-btn"
           style={{
-            width: '38px',
-            height: '38px',
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            minHeight: '44px',
             padding: 0,
             borderRadius: '12px',
             display: 'flex',
@@ -97,9 +109,10 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
             opacity: (!text.trim() || isLoading || isOverLimit) ? 0.5 : 1,
             transition: 'all 0.15s ease'
           }}
-          title="Send message (Enter)"
+          title="Send message"
+          aria-label="Send message"
         >
-          <Send size={16} />
+          <Send size={18} />
         </button>
       </div>
 
@@ -116,11 +129,11 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
           color: 'var(--text-muted)'
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+        <span className="chat-shortcut-hint" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
           <CornerDownLeft size={11} /> Press <strong style={{ color: 'var(--text-main)' }}>Enter</strong> to send, <strong style={{ color: 'var(--text-main)' }}>Shift+Enter</strong> for newline
         </span>
 
-        <span style={{ color: isOverLimit ? 'var(--expense)' : 'var(--text-muted)' }}>
+        <span style={{ color: isOverLimit ? 'var(--expense)' : 'var(--text-muted)', marginLeft: 'auto' }}>
           {text.length}/{MAX_CHARS}
         </span>
       </div>
