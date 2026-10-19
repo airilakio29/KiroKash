@@ -3,7 +3,7 @@
  * Secure App-Shell Caching with Zero-Cache for Sensitive Financial Endpoints
  */
 
-const CACHE_NAME = 'kampuskash-appshell-v1';
+const CACHE_NAME = 'kampuskash-appshell-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Core static assets for initial App Shell
