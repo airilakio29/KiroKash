@@ -79,7 +79,7 @@ export default function ReportsView() {
 
   if (!hasData) {
     return (
-      <div>
+      <div className="view-fade-in">
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700 }}>
             Reports & Analytics
@@ -102,7 +102,7 @@ export default function ReportsView() {
   }
 
   return (
-    <div>
+    <div className="view-fade-in">
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
           Reports & Analytics

@@ -427,7 +427,9 @@ export default function ChatWindow({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0.85rem 1rem',
+          padding: isModal
+            ? 'max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.5rem)) 1rem 0.85rem'
+            : '0.85rem 1rem',
           background: 'var(--bg-card-subtle)',
           borderBottom: '1px solid var(--border-light)',
           flexShrink: 0,
@@ -702,7 +704,9 @@ export default function ChatWindow({
       {/* Input Area */}
       <div
         style={{
-          padding: '0.75rem 1rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
+          padding: isModal
+            ? '0.75rem 1rem max(0.85rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
+            : '0.75rem 1rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
           background: 'var(--bg-card)',
           borderTop: '1px solid var(--border-light)',
           flexShrink: 0

@@ -59,7 +59,7 @@ export default function DashboardView({
   const displayBalance = accounts.length > 0 ? totalAccountBalance : totalBalance;
 
   return (
-    <div>
+    <div className="view-fade-in">
       {/* Student Financial Motto (if set) */}
       {user?.bio && (
         <div data-tour="motto-banner" style={{
@@ -93,7 +93,7 @@ export default function DashboardView({
         marginBottom: '1.25rem',
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: '240px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: '1 1 200px' }}>
           <div style={{
             width: '38px',
             height: '38px',
@@ -327,11 +327,12 @@ export default function DashboardView({
                     boxSizing: 'border-box',
                     background: 'var(--bg-card-subtle)',
                     borderRadius: 'var(--radius-sm)',
-                    transition: 'background var(--transition-fast)'
+                    transition: 'background var(--transition-fast)',
+                    gap: '0.75rem'
                   }}>
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: '0.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           {t.title}
                         </span>
                         {t.isDemo && (
@@ -348,7 +349,7 @@ export default function DashboardView({
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem', wordBreak: 'break-word' }}>
                         {t.date} · {cat ? cat.name : 'Uncategorized'}
                       </div>
                     </div>
@@ -357,7 +358,8 @@ export default function DashboardView({
                       fontSize: '0.95rem',
                       color: isIncome ? 'var(--income)' : 'var(--expense)',
                       whiteSpace: 'nowrap',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      textAlign: 'right'
                     }}>
                       {isIncome ? '+' : '-'} RM {Number(t.amount).toFixed(2)}
                     </div>

@@ -246,7 +246,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
   };
 
   return (
-    <div className="explore-page-wrapper">
+    <div className="explore-page-wrapper view-fade-in">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="explore-floating-toast" role="status" aria-live="polite">

@@ -24,6 +24,7 @@ import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
 import AIChatView from './views/AIChatView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
+import FloatingNavButton from './components/FloatingNavButton';
 
 import TransactionModal from './components/TransactionModal';
 import BudgetModal from './components/BudgetModal';
@@ -350,10 +351,16 @@ function AppLayout({
         onClose={() => setIsProfileModalOpen(false)}
       />
 
-      {/* Floating KampusKash AI Assistant Button & Popup Panel */}
+      {/* Floating KampusKash AI Assistant Button & Popup Panel (Bottom-Right) */}
       <FloatingChatButton
         isOpen={isAiChatOpen}
         onToggle={setIsAiChatOpen}
+      />
+
+      {/* Floating Mobile Navigation Button (Bottom-Left) */}
+      <FloatingNavButton
+        isOpen={isMobileOpen}
+        onOpen={() => setIsMobileOpen(true)}
       />
 
       {/* Step A: Profile Setup Wizard (shown immediately on first login before reaching Dashboard) */}

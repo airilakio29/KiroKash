@@ -443,10 +443,11 @@ export default function Sidebar({
           left: 0;
           width: 100vw;
           height: 100vh;
-          background: rgba(10, 5, 15, 0.65);
-          backdrop-filter: blur(4px);
+          background: rgba(10, 5, 15, 0.68);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
           z-index: 998;
-          animation: fadeIn 0.2s ease-out;
+          animation: fadeIn 0.22s ease-out;
         }
 
         @media (max-width: 900px) {
@@ -460,8 +461,12 @@ export default function Sidebar({
             max-height: 100dvh;
             width: 280px;
             max-width: 85vw;
+            padding-top: max(1.5rem, calc(env(safe-area-inset-top, 0px) + 0.75rem));
+            padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
+            padding-left: max(1.25rem, calc(env(safe-area-inset-left, 0px) + 0.5rem));
             transform: translateX(-100%);
-            box-shadow: 6px 0 28px rgba(0, 0, 0, 0.5);
+            box-shadow: none;
+            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
             z-index: 999;
             align-self: auto;
             overflow-y: auto;
@@ -470,6 +475,7 @@ export default function Sidebar({
 
           .sidebar.mobile-open {
             transform: translateX(0);
+            box-shadow: 10px 0 32px rgba(0, 0, 0, 0.65);
           }
 
           .mobile-close-btn {

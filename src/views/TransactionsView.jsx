@@ -57,7 +57,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
   };
 
   return (
-    <div>
+    <div className="view-fade-in">
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         {/* Header Action Bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>

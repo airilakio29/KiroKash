@@ -111,7 +111,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
   };
 
   return (
-    <div>
+    <div className="view-fade-in">
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
           Settings & Customization
@@ -164,7 +164,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
         }}>
           <UserAvatar avatar={user?.avatar} name={displayName} size={64} />
 
-          <div style={{ flex: 1, minWidth: '220px' }}>
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
               <h4 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 {displayName}

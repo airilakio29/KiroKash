@@ -7,7 +7,7 @@ export default function BudgetsView({ onOpenAddBudget, onEditBudget }) {
   const { budgets, categories, transactions, deleteBudget } = useFinance();
 
   return (
-    <div>
+    <div className="view-fade-in">
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>

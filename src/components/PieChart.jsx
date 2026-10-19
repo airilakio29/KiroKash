@@ -99,9 +99,14 @@ export default function PieChart({ data = [] }) {
   const activeItem = hoveredIndex !== null ? slices[hoveredIndex] : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <svg width="220" height="220" viewBox="0 0 220 220" style={{ maxWidth: '100%', height: 'auto', overflow: 'visible' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '100%' }}>
+        <svg
+          viewBox="0 0 220 220"
+          style={{ width: '100%', maxWidth: '220px', height: 'auto', maxHeight: '220px', overflow: 'visible' }}
+          role="img"
+          aria-label="Category Spending Donut Chart"
+        >
           {slices.map((slice) => {
             const isHovered = hoveredIndex === slice.index;
             return (
@@ -139,50 +144,117 @@ export default function PieChart({ data = [] }) {
       </div>
 
       {/* Legend Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))',
-        gap: '0.65rem',
-        paddingTop: '0.75rem',
-        borderTop: '1px solid var(--border-light)'
-      }}>
+      <div className="pie-legend-grid">
         {slices.map((item) => (
           <div
             key={item.id || item.index}
+            className={`pie-legend-item ${hoveredIndex === item.index ? 'active' : ''}`}
             onMouseEnter={() => setHoveredIndex(item.index)}
             onMouseLeave={() => setHoveredIndex(null)}
             onClick={() => setHoveredIndex(prev => prev === item.index ? null : item.index)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '0.5rem 0.65rem',
-              minHeight: '44px',
-              boxSizing: 'border-box',
-              borderRadius: 'var(--radius-sm)',
-              background: hoveredIndex === item.index ? 'var(--primary-badge)' : 'var(--bg-card-subtle)',
-              cursor: 'pointer',
-              transition: 'all var(--transition-fast)'
-            }}
           >
-            <span style={{
-              width: '12px',
-              height: '12px',
-              borderRadius: '50%',
-              backgroundColor: item.color,
-              flexShrink: 0
-            }} />
-            <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1 }}>
-              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span
+              className="pie-legend-dot"
+              style={{ backgroundColor: item.color }}
+            />
+            <div className="pie-legend-text">
+              <div className="pie-legend-name" title={item.name}>
                 {item.name}
               </div>
-              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                RM {item.amount.toFixed(2)} ({item.percentage}%)
+              <div className="pie-legend-amount">
+                RM {item.amount.toFixed(2)} <span className="pie-legend-pct">({item.percentage}%)</span>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      <style>{`
+        .pie-legend-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+          gap: 0.6rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid var(--border-light);
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .pie-legend-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.55rem;
+          padding: 0.55rem 0.65rem;
+          min-height: 44px;
+          min-width: 0;
+          width: 100%;
+          box-sizing: border-box;
+          border-radius: var(--radius-sm);
+          background: var(--bg-card-subtle);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          touch-action: manipulation;
+        }
+
+        .pie-legend-item:hover,
+        .pie-legend-item.active {
+          background: var(--primary-badge, rgba(139, 92, 246, 0.2));
+          transform: translateY(-1px);
+        }
+
+        .pie-legend-item:active {
+          transform: scale(0.97);
+        }
+
+        .pie-legend-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          margin-top: 4px;
+        }
+
+        .pie-legend-text {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .pie-legend-name {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: var(--text-main);
+          line-height: 1.25;
+          word-break: break-word;
+          overflow-wrap: break-word;
+        }
+
+        .pie-legend-amount {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          margin-top: 3px;
+          line-height: 1.2;
+          word-break: break-word;
+        }
+
+        .pie-legend-pct {
+          color: var(--primary-light, #C4B5FD);
+          opacity: 0.95;
+          font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+          .pie-legend-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
+          }
+        }
+
+        @media (max-width: 340px) {
+          .pie-legend-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+      `}</style>
     </div>
   );
 }
