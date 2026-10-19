@@ -404,6 +404,9 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
           align-items: center;
           justify-content: space-between;
           padding: 1.15rem 2rem;
+          padding-top: max(1.15rem, env(safe-area-inset-top, 0px));
+          padding-left: max(2rem, env(safe-area-inset-left, 0px));
+          padding-right: max(2rem, env(safe-area-inset-right, 0px));
           background: color-mix(in srgb, var(--bg-app) 92%, transparent);
           backdrop-filter: blur(12px);
           border-bottom: 1px solid color-mix(in srgb, var(--border-light) 100%, transparent);
@@ -543,6 +546,9 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
         @media (max-width: 768px) {
           .app-header {
             padding: 0.85rem 1rem;
+            padding-top: max(0.85rem, env(safe-area-inset-top, 0px));
+            padding-left: max(1rem, env(safe-area-inset-left, 0px));
+            padding-right: max(1rem, env(safe-area-inset-right, 0px));
           }
           .header-page-title {
             font-size: 1.15rem;
@@ -561,6 +567,9 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
         @media (max-width: 480px) {
           .app-header {
             padding: 0.65rem 0.75rem;
+            padding-top: max(0.65rem, env(safe-area-inset-top, 0px));
+            padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+            padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
           }
           .header-page-title {
             font-size: 1.02rem;

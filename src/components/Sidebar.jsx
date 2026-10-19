@@ -13,10 +13,13 @@ import {
   BarChart3,
   User as UserIcon,
   Compass,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 import logoImg from '../assets/kiro-logo.png';
 import UserAvatar from './UserAvatar';
+import { triggerInstallPrompt } from './PWAInstallPrompt';
+import { isPWAInstalled } from '../registerServiceWorker';
 
 export default function Sidebar({
   activeTab,
@@ -232,6 +235,21 @@ export default function Sidebar({
             )}
           </div>
 
+          {!isPWAInstalled() && (
+            <button
+              onClick={() => {
+                triggerInstallPrompt();
+                if (isMobileOpen) setIsMobileOpen(false);
+              }}
+              title="Install KampusKash Mobile Application"
+              aria-label="Install KampusKash Mobile Application"
+              className="sidebar-install-btn"
+            >
+              <Download size={15} />
+              <span>Install App</span>
+            </button>
+          )}
+
           <button
             onClick={logout}
             title="Log Out"
@@ -370,6 +388,31 @@ export default function Sidebar({
           font-family: var(--font-sans);
           cursor: pointer;
           transition: background var(--transition-fast);
+        }
+
+        .sidebar-install-btn {
+          width: 100%;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding: 0.6rem;
+          background: rgba(139, 92, 246, 0.18);
+          color: #DDD6FE;
+          border: 1px solid rgba(139, 92, 246, 0.35);
+          border-radius: var(--radius-sm);
+          font-size: 0.85rem;
+          font-weight: 600;
+          font-family: var(--font-sans);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+
+        .sidebar-install-btn:hover {
+          background: rgba(139, 92, 246, 0.32);
+          color: #FFFFFF;
         }
 
         .sidebar-logout-btn:hover {

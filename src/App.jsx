@@ -4,6 +4,8 @@ import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { missingFirebaseKeys } from './firebase';
 
 import FullScreenLoader from './components/FullScreenLoader';
+import OfflineBanner from './components/OfflineBanner';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import ResetPassword from './components/ResetPassword';
 import GlitterBackground from './components/GlitterBackground';
 import KiroAmbientParticles from './components/KiroAmbientParticles';
@@ -649,6 +651,8 @@ function AppWithLoader() {
 
   return (
     <>
+      <OfflineBanner />
+      <PWAInstallPrompt />
       <FullScreenLoader isResolved={isAuthResolved} />
       {isAuthResolved && <AppAuthenticator />}
     </>

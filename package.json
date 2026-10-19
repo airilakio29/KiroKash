@@ -13,7 +13,7 @@
     "predeploy": "npm run build:gh-pages",
     "deploy": "gh-pages -d dist",
     "lint": "oxlint",
-    "test": "node --test test/phase1.test.js test/explore.test.js test/demo.test.js test/ai.test.js test/ai_intelligence.test.js test/ai_actions.test.js",
+    "test": "node --test test/phase1.test.js test/explore.test.js test/demo.test.js test/ai.test.js test/ai_intelligence.test.js test/ai_actions.test.js test/chat_overflow_and_action_confirmation.test.js test/responsive_ui_and_mobile_chat.test.js test/pwa.test.js",
     "test:real-ai": "node --test test/real_gemini.test.js",
     "preview": "vite preview"
   },
