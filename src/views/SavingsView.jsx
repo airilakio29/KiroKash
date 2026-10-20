@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { calculateSavingsProgress } from '../services/savingsService';
-import { PiggyBank, PlusCircle, Trash2, Edit3, Calendar, CheckCircle2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import EmptyState from '../components/EmptyState';
+import { SavingsSkeleton } from '../components/Skeleton';
+import { PiggyBank, PlusCircle, Trash2, Edit3, Calendar, CheckCircle2, ArrowDownCircle } from 'lucide-react';
 
 export default function SavingsView({ onOpenAddSavings, onOpenDepositSavings, onEditSavings }) {
-  const { savingsGoals, deleteSavingsGoal } = useFinance();
+  const { savingsGoals, deleteSavingsGoal, isLoading } = useFinance();
+  const { showSuccess } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteSavingsGoal(deleteTarget.id);
+    showSuccess(`Deleted savings goal "${deleteTarget.title}"`);
+    setDeleteTarget(null);
+  };
+
+  if (isLoading) {
+    return <SavingsSkeleton />;
+  }
 
   return (
     <div className="view-fade-in">
@@ -26,18 +43,13 @@ export default function SavingsView({ onOpenAddSavings, onOpenDepositSavings, on
       </div>
 
       {savingsGoals.length === 0 ? (
-        <div className="card" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <PiggyBank size={40} color="var(--primary)" style={{ marginBottom: '1rem', opacity: 0.6 }} />
-          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-            No Active Savings Goals
-          </h4>
-          <p style={{ fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            Start saving for your semester objectives today!
-          </p>
-          <button onClick={onOpenAddSavings} className="btn btn-primary">
-            + Create Your First Goal
-          </button>
-        </div>
+        <EmptyState
+          icon={PiggyBank}
+          title="No Active Savings Goals"
+          description="Setting a concrete savings goal is the easiest way to afford big purchases like laptops, certifications, or semester travel."
+          actionText="+ Create Your First Goal"
+          onAction={onOpenAddSavings}
+        />
       ) : (
         <div style={{
           display: 'grid',
@@ -67,11 +79,7 @@ export default function SavingsView({ onOpenAddSavings, onOpenDepositSavings, on
                       </button>
                     )}
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Delete savings goal "${goal.title}"?`)) {
-                          deleteSavingsGoal(goal.id);
-                        }
-                      }}
+                      onClick={() => setDeleteTarget(goal)}
                       className="btn btn-danger btn-icon"
                       style={{ width: '30px', height: '30px' }}
                       title="Delete Goal"
@@ -98,44 +106,34 @@ export default function SavingsView({ onOpenAddSavings, onOpenDepositSavings, on
                   </div>
 
                   <div className="progress-bar-bg" style={{ height: '10px' }}>
-                    <div className="progress-bar-fill progress-safe" style={{ width: `${percentage}%` }} />
+                    <div
+                      className="progress-bar-fill progress-safe"
+                      style={{
+                        width: `${percentage}%`,
+                        background: isCompleted ? 'linear-gradient(90deg, #10B981, #34D399)' : undefined,
+                        transition: 'width 0.4s ease'
+                      }}
+                    />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Calendar size={13} /> Target Date: {goal.targetDate || 'No date set'}
-                  </span>
-                  <span style={{ fontWeight: 700, color: isCompleted ? 'var(--income)' : 'var(--primary)' }}>
-                    {isCompleted ? 'Goal Reached!' : `${percentage}% Achieved`}
-                  </span>
-                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Calendar size={13} />
+                    <span>{goal.targetDate ? `Target: ${goal.targetDate}` : 'No deadline'}</span>
+                  </div>
 
-                <div style={{ display: 'flex', gap: '0.65rem' }}>
                   {isCompleted ? (
-                    <div style={{
-                      width: '100%',
-                      textAlign: 'center',
-                      padding: '0.55rem',
-                      background: 'var(--income-bg)',
-                      color: 'var(--income)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontWeight: 700,
-                      fontSize: '0.88rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem'
-                    }}>
-                      <CheckCircle2 size={16} /> Goal Completed! 🎉
-                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--income)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <CheckCircle2 size={14} /> Goal Achieved!
+                    </span>
                   ) : (
                     <button
                       onClick={() => onOpenDepositSavings(goal.id)}
-                      className="btn btn-primary"
-                      style={{ flex: 1, padding: '0.55rem' }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
                     >
-                      + Deposit Funds (RM)
+                      <ArrowDownCircle size={13} /> + Deposit
                     </button>
                   )}
                 </div>
@@ -144,6 +142,17 @@ export default function SavingsView({ onOpenAddSavings, onOpenDepositSavings, on
           })}
         </div>
       )}
+
+      {/* Styled Delete Confirmation Dialog */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="Delete Savings Goal"
+        message={`Are you sure you want to delete the savings goal "${deleteTarget?.title}"?`}
+        confirmText="Delete Goal"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

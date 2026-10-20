@@ -447,7 +447,7 @@ export default function Sidebar({
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
           z-index: 998;
-          animation: fadeIn 0.22s ease-out;
+          animation: fadeIn var(--anim-duration-drawer, 320ms) var(--anim-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
         }
 
         @media (max-width: 900px) {
@@ -466,7 +466,7 @@ export default function Sidebar({
             padding-left: max(1.25rem, calc(env(safe-area-inset-left, 0px) + 0.5rem));
             transform: translateX(-100%);
             box-shadow: none;
-            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
+            transition: transform var(--anim-duration-drawer, 320ms) var(--anim-ease-out, cubic-bezier(0.16, 1, 0.3, 1)), box-shadow var(--anim-duration-drawer, 320ms) ease;
             z-index: 999;
             align-self: auto;
             overflow-y: auto;

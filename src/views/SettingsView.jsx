@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import ConfirmModal from '../components/ConfirmModal';
 import { PRESET_THEMES, loadSavedTheme, saveTheme } from '../utils/themeEngine';
 import {
   PlusCircle,
@@ -47,9 +49,11 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
     resetTutorial: resetFinanceTutorial
   } = useFinance();
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
 
   const fileInputRef = useRef(null);
   const [msg, setMsg] = useState({ text: '', isError: false });
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
 
   const [activeThemeConfig, setActiveThemeConfig] = useState(() => loadSavedTheme());
   const [customColors, setCustomColors] = useState(() => activeThemeConfig.customColors || getPresetColors(activeThemeConfig.presetId));
@@ -339,7 +343,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
                 </div>
 
                 <button
-                  onClick={() => deleteCategory(cat.id)}
+                  onClick={() => setCategoryToDelete(cat)}
                   className="btn btn-danger btn-icon"
                   style={{ width: '28px', height: '28px' }}
                   title="Delete category"
@@ -390,16 +394,33 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
               onClick={() => {
                 if (resetFinanceTutorial) resetFinanceTutorial();
                 if (onReplayTutorial) onReplayTutorial();
-                setMsg({ text: 'Tutorial will now replay.', isError: false });
+                showSuccess('Onboarding guide & feature tour restarted!');
               }}
               className="btn btn-secondary"
               style={{ justifyContent: 'center' }}
             >
-              <BookOpen size={16} /> Replay Tutorial
+              <BookOpen size={16} /> Replay Tutorial & Onboarding
             </button>
           </div>
         </div>
       </div>
+
+      {/* Confirm Delete Category Modal */}
+      <ConfirmModal
+        isOpen={Boolean(categoryToDelete)}
+        title="Delete Category"
+        message={`Are you sure you want to delete "${categoryToDelete?.name}"? Existing transactions categorized under this will retain their record.`}
+        confirmLabel="Delete Category"
+        isDanger={true}
+        onConfirm={() => {
+          if (categoryToDelete) {
+            deleteCategory(categoryToDelete.id);
+            showSuccess(`Category "${categoryToDelete.name}" deleted.`);
+            setCategoryToDelete(null);
+          }
+        }}
+        onCancel={() => setCategoryToDelete(null)}
+      />
     </div>
   );
 }

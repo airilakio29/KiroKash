@@ -13,6 +13,9 @@ import Auth from './Auth';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Tutorial from './components/Tutorial';
+import WelcomeIntroModal from './components/WelcomeIntroModal';
+import { DashboardSkeleton } from './components/Skeleton';
+import { ToastProvider } from './context/ToastContext';
 
 import DashboardView from './views/DashboardView';
 import TransactionsView from './views/TransactionsView';
@@ -65,6 +68,9 @@ function AppLayout({
   isTourActive,
   onExitTour,
   onReplayTutorial,
+  isWelcomeIntroOpen,
+  onCompleteWelcomeIntro,
+  onSkipWelcomeIntro,
   isLoading,
   loadError
 }) {
@@ -283,14 +289,7 @@ function AppLayout({
           <TutorialDemoBanner onExitTour={onExitTour} />
 
           {isLoading ? (
-            <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                Loading your finances...
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
-                Syncing with your account data
-              </div>
-            </div>
+            <DashboardSkeleton />
           ) : (
             <>
               {loadError && (
@@ -309,7 +308,9 @@ function AppLayout({
                   ⚠️ {loadError}
                 </div>
               )}
-              {renderActiveView()}
+              <div key={activeTab} className="page-transition-wrapper">
+                {renderActiveView()}
+              </div>
             </>
           )}
         </main>
@@ -373,8 +374,15 @@ function AppLayout({
         />
       )}
 
+      {/* Step A-2: 3-Screen Welcome Introduction */}
+      <WelcomeIntroModal
+        isOpen={Boolean(isWelcomeIntroOpen)}
+        onComplete={onCompleteWelcomeIntro}
+        onSkip={onSkipWelcomeIntro}
+      />
+
       {/* Step B / Replay: Modern Contextual Product Tour */}
-      {isTourActive && (
+      {isTourActive && !isWelcomeIntroOpen && (
         <Tutorial
           onComplete={onExitTour}
           activeTab={activeTab}
@@ -391,6 +399,7 @@ function AppLayout({
 }
 
 function AppContent() {
+  const { user } = useAuth();
   const {
     completeTutorial,
     onboardingCompleted,
@@ -404,6 +413,16 @@ function AppContent() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isReplayingTutorial, setIsReplayingTutorial] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isWelcomeIntroOpen, setIsWelcomeIntroOpen] = useState(() => {
+    try {
+      const uid = user?.id || user?.uid;
+      if (!uid) return false;
+      const seen = localStorage.getItem(`kampuskash_welcome_seen_${uid}`);
+      return !seen;
+    } catch {
+      return false;
+    }
+  });
 
   // Synchronize on browser history popstate / back-forward navigation
   useEffect(() => {
@@ -424,6 +443,22 @@ function AppContent() {
   // Step B: Guided interactive tutorial on Dashboard
   const isOnboardingActive = !onboardingCompleted;
   const isTourActive = (isOnboardingActive && onboardingStep === 'tutorial') || isReplayingTutorial;
+
+  const handleCompleteWelcomeIntro = () => {
+    try {
+      const uid = user?.id || user?.uid;
+      if (uid) localStorage.setItem(`kampuskash_welcome_seen_${uid}`, 'true');
+    } catch {}
+    setIsWelcomeIntroOpen(false);
+  };
+
+  const handleSkipWelcomeIntro = () => {
+    try {
+      const uid = user?.id || user?.uid;
+      if (uid) localStorage.setItem(`kampuskash_welcome_seen_${uid}`, 'true');
+    } catch {}
+    setIsWelcomeIntroOpen(false);
+  };
 
   const handleExitTour = () => {
     try {
@@ -454,11 +489,19 @@ function AppContent() {
         onExitTour={handleExitTour}
         onReplayTutorial={() => {
           try {
-            localStorage.setItem('kirokash_tutorial_current_step', '0');
+            const uid = user?.id || user?.uid;
+            if (uid) {
+              localStorage.setItem(`kirokash_tutorial_step_${uid}`, '0');
+              localStorage.setItem('kirokash_tutorial_current_step', '0');
+            }
           } catch {}
+          setIsWelcomeIntroOpen(true);
           setIsReplayingTutorial(true);
           setActiveTab('dashboard');
         }}
+        isWelcomeIntroOpen={isWelcomeIntroOpen}
+        onCompleteWelcomeIntro={handleCompleteWelcomeIntro}
+        onSkipWelcomeIntro={handleSkipWelcomeIntro}
         isLoading={isLoading}
         loadError={loadError}
       />
@@ -657,12 +700,12 @@ function AppWithLoader() {
   const { isAuthResolved } = useAuth();
 
   return (
-    <>
+    <ToastProvider>
       <OfflineBanner />
       <PWAInstallPrompt />
       <FullScreenLoader isResolved={isAuthResolved} />
       {isAuthResolved && <AppAuthenticator />}
-    </>
+    </ToastProvider>
   );
 }
 

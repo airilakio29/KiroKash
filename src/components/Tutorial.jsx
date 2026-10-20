@@ -19,6 +19,8 @@ import {
   PieChart as PieIcon
 } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
+import { useAuth } from '../context/AuthContext';
+import { db, doc, setDoc } from '../firebase';
 import { TOUR_STEPS } from '../services/tutorialService';
 
 const ICON_MAP = {
@@ -49,10 +51,14 @@ export default function Tutorial({
   onCloseProfileModal
 }) {
   const { completeTutorial } = useFinance();
+  const { user } = useAuth();
+  const userId = user?.id || 'guest';
 
   const [currentStepIndex, setCurrentStepIndex] = useState(() => {
     try {
-      const saved = localStorage.getItem('kirokash_tutorial_current_step');
+      const userSaved = localStorage.getItem(`kirokash_tutorial_step_${userId}`);
+      const fallback = localStorage.getItem('kirokash_tutorial_current_step');
+      const saved = userSaved !== null ? userSaved : fallback;
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed) && parsed >= 0 && parsed < TOUR_STEPS.length) {
         return parsed;
@@ -60,8 +66,9 @@ export default function Tutorial({
     } catch {}
     return 0;
   });
+
   const [targetRect, setTargetRect] = useState(null);
-  const [cardPlacement, setCardPlacement] = useState({ top: 100, left: 100, placement: 'bottom' });
+  const [cardPlacement, setCardPlacement] = useState({ top: 100, left: 100, isMobileSheet: false });
   const [isElementVisible, setIsElementVisible] = useState(false);
 
   const cardRef = useRef(null);
@@ -82,8 +89,18 @@ export default function Tutorial({
   // Complete tour handler
   const handleFinish = useCallback(() => {
     try {
+      localStorage.removeItem(`kirokash_tutorial_step_${userId}`);
       localStorage.removeItem('kirokash_tutorial_current_step');
     } catch {}
+
+    if (userId && db) {
+      setDoc(doc(db, 'users', userId), {
+        tutorialCompleted: true,
+        onboardingCompleted: true,
+        tutorialStep: TOUR_STEPS.length - 1
+      }, { merge: true }).catch(() => {});
+    }
+
     if (completeTutorial) {
       completeTutorial();
     }
@@ -93,7 +110,7 @@ export default function Tutorial({
     if (onComplete) {
       onComplete();
     }
-  }, [completeTutorial, onCloseProfileModal, onComplete]);
+  }, [completeTutorial, onCloseProfileModal, onComplete, userId]);
 
   // Navigate to step
   const goToStep = useCallback((index) => {
@@ -118,8 +135,17 @@ export default function Tutorial({
     }
 
     try {
+      localStorage.setItem(`kirokash_tutorial_step_${userId}`, String(index));
       localStorage.setItem('kirokash_tutorial_current_step', String(index));
     } catch {}
+
+    // Persist user progress in Firestore
+    if (userId && db) {
+      setDoc(doc(db, 'users', userId), {
+        tutorialStep: index
+      }, { merge: true }).catch(() => {});
+    }
+
     setCurrentStepIndex(index);
   }, [
     activeTab, 
@@ -128,7 +154,8 @@ export default function Tutorial({
     onOpenAddTransaction, 
     isProfileModalOpen, 
     onOpenProfileModal, 
-    onCloseProfileModal
+    onCloseProfileModal,
+    userId
   ]);
 
   const handleNext = useCallback(() => {
@@ -159,19 +186,40 @@ export default function Tutorial({
   // Positioning calculation
   const updatePosition = useCallback(() => {
     const el = findTargetElement();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isMobile = vw < 768;
+
+    // Mobile: Always use bottom-sheet layout to prevent cut-offs and keyboard conflicts
+    if (isMobile) {
+      if (el) {
+        setTargetRect(el.getBoundingClientRect());
+      } else {
+        setTargetRect(null);
+      }
+      setIsElementVisible(true);
+      setCardPlacement({
+        top: 0,
+        left: 0,
+        isMobileSheet: true,
+        placement: 'bottom-sheet'
+      });
+      return;
+    }
 
     if (!el) {
       setTargetRect(null);
       setIsElementVisible(true);
-      // Fallback: center in viewport
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const cardWidth = Math.min(340, vw - 32);
+      // Fallback: center in viewport on desktop
+      const cardWidth = Math.min(360, vw - 32);
       const cardHeight = 220;
       setCardPlacement({
         top: Math.max(20, (vh - cardHeight) / 2),
         left: Math.max(16, (vw - cardWidth) / 2),
-        placement: 'center'
+        isMobileSheet: false,
+        placement: 'center',
+        cardWidth,
+        cardHeight
       });
       return;
     }
@@ -180,19 +228,14 @@ export default function Tutorial({
     setTargetRect(rect);
     setIsElementVisible(true);
 
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
     const cardEl = cardRef.current;
-    const cardWidth = cardEl ? cardEl.offsetWidth : Math.min(340, vw - 32);
+    const cardWidth = cardEl ? cardEl.offsetWidth : Math.min(360, vw - 32);
     const cardHeight = cardEl ? cardEl.offsetHeight : 210;
 
-    const margin = 12;
+    const margin = 16;
     const caretOffset = 10;
-    const isMobile = vw < 768;
 
-    const candidatePlacements = isMobile
-      ? ['bottom', 'top', 'right', 'left']
-      : [step.preferredPosition, 'bottom', 'right', 'top', 'left'];
+    const candidatePlacements = [step.preferredPosition, 'bottom', 'right', 'top', 'left'];
 
     let chosenPlacement = 'bottom';
     let top = 0;
@@ -238,7 +281,14 @@ export default function Tutorial({
     left = Math.max(margin, Math.min(left, vw - cardWidth - margin));
     top = Math.max(margin, Math.min(top, vh - cardHeight - margin));
 
-    setCardPlacement({ top, left, placement: chosenPlacement, cardWidth, cardHeight });
+    setCardPlacement({
+      top,
+      left,
+      isMobileSheet: false,
+      placement: chosenPlacement,
+      cardWidth,
+      cardHeight
+    });
   }, [findTargetElement, step.preferredPosition]);
 
   // Scroll target element into view if needed
@@ -246,19 +296,29 @@ export default function Tutorial({
     let timer = setTimeout(() => {
       const el = findTargetElement();
       if (el) {
+        const isMobile = window.innerWidth < 768;
         const rect = el.getBoundingClientRect();
-        const isInView = (
-          rect.top >= 40 &&
-          rect.bottom <= window.innerHeight - 40 &&
-          rect.left >= 0 &&
-          rect.right <= window.innerWidth
-        );
-        if (!isInView) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        const vh = window.innerHeight;
+
+        if (isMobile) {
+          // Keep target element in top 55% of the mobile viewport so bottom-sheet doesn't cover it
+          if (rect.bottom > vh * 0.55 || rect.top < 60) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else {
+          const isInView = (
+            rect.top >= 50 &&
+            rect.bottom <= vh - 50 &&
+            rect.left >= 0 &&
+            rect.right <= window.innerWidth
+          );
+          if (!isInView) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          }
         }
       }
       updatePosition();
-    }, 120);
+    }, 140);
 
     return () => clearTimeout(timer);
   }, [currentStepIndex, findTargetElement, updatePosition]);
@@ -283,7 +343,7 @@ export default function Tutorial({
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         handleFinish();
-      } else if (e.key === 'ArrowRight' && step.actionType === 'info') {
+      } else if (e.key === 'ArrowRight') {
         handleNext();
       } else if (e.key === 'ArrowLeft' && !isFirstStep) {
         handleBack();
@@ -292,11 +352,11 @@ export default function Tutorial({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleFinish, handleNext, handleBack, step.actionType, isFirstStep]);
+  }, [handleFinish, handleNext, handleBack, isFirstStep]);
 
-  // Calculate arrow caret positioning
+  // Calculate arrow caret positioning on desktop
   const getCaretStyles = () => {
-    if (!targetRect || cardPlacement.placement === 'center') {
+    if (!targetRect || cardPlacement.isMobileSheet || cardPlacement.placement === 'center') {
       return { display: 'none' };
     }
 
@@ -307,8 +367,8 @@ export default function Tutorial({
       height: 0,
       borderStyle: 'solid'
     };
-    const cWidth = cardPlacement.cardWidth || 300;
-    const cHeight = cardPlacement.cardHeight || 180;
+    const cWidth = cardPlacement.cardWidth || 340;
+    const cHeight = cardPlacement.cardHeight || 200;
 
     if (cardPlacement.placement === 'bottom') {
       const targetCenter = targetRect.left + targetRect.width / 2;
@@ -318,7 +378,7 @@ export default function Tutorial({
         top: -size,
         left: `${relativeLeft}px`,
         borderWidth: `0 ${size}px ${size}px ${size}px`,
-        borderColor: `transparent transparent var(--bg-card) transparent`,
+        borderColor: `transparent transparent var(--bg-card, #2A1F35) transparent`,
         filter: 'drop-shadow(0 -1px 0 var(--border-light))'
       };
     }
@@ -331,7 +391,7 @@ export default function Tutorial({
         bottom: -size,
         left: `${relativeLeft}px`,
         borderWidth: `${size}px ${size}px 0 ${size}px`,
-        borderColor: `var(--bg-card) transparent transparent transparent`,
+        borderColor: `var(--bg-card, #2A1F35) transparent transparent transparent`,
         filter: 'drop-shadow(0 1px 0 var(--border-light))'
       };
     }
@@ -344,7 +404,7 @@ export default function Tutorial({
         left: -size,
         top: `${relativeTop}px`,
         borderWidth: `${size}px ${size}px ${size}px 0`,
-        borderColor: `transparent var(--bg-card) transparent transparent`,
+        borderColor: `transparent var(--bg-card, #2A1F35) transparent transparent`,
         filter: 'drop-shadow(-1px 0 0 var(--border-light))'
       };
     }
@@ -357,13 +417,15 @@ export default function Tutorial({
         right: -size,
         top: `${relativeTop}px`,
         borderWidth: `${size}px 0 ${size}px ${size}px`,
-        borderColor: `transparent transparent transparent var(--bg-card)`,
+        borderColor: `transparent transparent transparent var(--bg-card, #2A1F35)`,
         filter: 'drop-shadow(1px 0 0 var(--border-light))'
       };
     }
 
     return { display: 'none' };
   };
+
+  const isMobile = cardPlacement.isMobileSheet;
 
   return (
     <>
@@ -376,65 +438,69 @@ export default function Tutorial({
             left: targetRect.left - 4,
             width: targetRect.width + 8,
             height: targetRect.height + 8,
-            borderRadius: '8px',
-            border: '2px solid var(--primary)',
-            boxShadow: '0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent), 0 0 20px color-mix(in srgb, var(--primary) 25%, transparent)',
+            borderRadius: '10px',
+            border: '2px solid var(--primary, #8B5CF6)',
+            boxShadow: '0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent), 0 0 24px color-mix(in srgb, var(--primary) 35%, transparent)',
             pointerEvents: 'none',
             zIndex: 9998,
-            transition: 'all 0.22s ease-out',
+            transition: 'all 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
             animation: 'targetPulse 2.4s infinite ease-in-out'
           }}
         />
       )}
 
-      {/* Compact Contextual Tour Card */}
+      {/* Contextual Tour Tooltip / Mobile Bottom Sheet */}
       <div
         ref={cardRef}
         role="dialog"
-        aria-label="Product tour guide"
+        aria-label="KampusKash Product Tour"
+        className={isMobile ? 'tutorial-sheet-mobile' : 'tutorial-card-desktop'}
         style={{
           position: 'fixed',
-          top: `${cardPlacement.top}px`,
-          left: `${cardPlacement.left}px`,
-          width: 'clamp(280px, 88vw, 350px)',
-          background: 'var(--bg-card)',
-          borderRadius: '14px',
-          border: '1px solid var(--border-light)',
-          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25)',
+          top: isMobile ? 'auto' : `${cardPlacement.top}px`,
+          bottom: isMobile ? 'calc(1rem + env(safe-area-inset-bottom, 0px))' : 'auto',
+          left: isMobile ? '1rem' : `${cardPlacement.left}px`,
+          right: isMobile ? '1rem' : 'auto',
+          width: isMobile ? 'auto' : 'clamp(300px, 88vw, 360px)',
+          maxWidth: isMobile ? 'calc(100vw - 2rem)' : '360px',
+          background: 'var(--bg-card, #2A1F35)',
+          borderRadius: isMobile ? '18px' : '14px',
+          border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+          boxShadow: '0 20px 48px rgba(0, 0, 0, 0.6), 0 0 30px rgba(139, 92, 246, 0.25)',
           zIndex: 9999,
-          padding: '1.15rem 1.2rem 1.05rem',
+          padding: '1.2rem 1.25rem 1.1rem',
           display: isElementVisible ? 'flex' : 'none',
           flexDirection: 'column',
-          gap: '0.65rem',
-          color: 'var(--text-main)',
+          gap: '0.7rem',
+          color: 'var(--text-main, #FFFFFF)',
           fontFamily: 'var(--font-sans, "Inter", sans-serif)',
-          animation: 'cardFadeIn 0.2s ease-out'
+          animation: isMobile ? 'sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1)' : 'cardFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        {/* Caret arrow */}
-        <div style={getCaretStyles()} />
+        {/* Caret arrow on desktop */}
+        {!isMobile && <div style={getCaretStyles()} />}
 
-        {/* Card Header */}
+        {/* Card Header: Step counter and exit X */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
             <div style={{
-              width: '26px',
-              height: '26px',
-              borderRadius: '7px',
-              background: 'color-mix(in srgb, var(--primary) 20%, transparent)',
-              color: 'var(--primary)',
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'color-mix(in srgb, var(--primary) 22%, transparent)',
+              color: 'var(--primary-light, #E8DEF5)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-              <Icon size={15} />
+              <Icon size={16} />
             </div>
             <span style={{
-              fontSize: '0.74rem',
+              fontSize: '0.75rem',
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
-              color: 'var(--text-muted)'
+              color: 'var(--text-muted, #C4B5D4)'
             }}>
               Step {currentStepIndex + 1} of {TOUR_STEPS.length}
             </span>
@@ -446,9 +512,9 @@ export default function Tutorial({
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--text-muted)',
+              color: 'var(--text-muted, #C4B5D4)',
               cursor: 'pointer',
-              padding: '3px',
+              padding: '4px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -457,40 +523,41 @@ export default function Tutorial({
             }}
             title="Exit tour"
           >
-            <X size={16} />
+            <X size={17} />
           </button>
         </div>
 
         {/* Progress Bar */}
         <div style={{
           width: '100%',
-          height: '3px',
-          background: 'var(--border-light)',
+          height: '4px',
+          background: 'rgba(255, 255, 255, 0.1)',
           borderRadius: '2px',
           overflow: 'hidden'
         }}>
           <div style={{
             height: '100%',
             width: `${((currentStepIndex + 1) / TOUR_STEPS.length) * 100}%`,
-            background: 'var(--primary)',
-            transition: 'width 0.25s ease'
+            background: 'linear-gradient(90deg, var(--primary, #8B5CF6), var(--primary-light, #E8DEF5))',
+            transition: 'width 0.28s ease',
+            boxShadow: '0 0 10px rgba(139, 92, 246, 0.4)'
           }} />
         </div>
 
         {/* Title & Description */}
         <div>
           <h4 style={{
-            fontSize: '1rem',
+            fontSize: '1.05rem',
             fontWeight: 800,
             margin: '0 0 0.35rem 0',
-            color: 'var(--text-main)',
+            color: 'var(--text-main, #FFFFFF)',
             lineHeight: 1.3
           }}>
             {step.title}
           </h4>
           <p style={{
-            fontSize: '0.83rem',
-            color: 'var(--text-muted)',
+            fontSize: '0.85rem',
+            color: 'var(--text-muted, #C4B5D4)',
             lineHeight: 1.5,
             margin: 0
           }}>
@@ -503,20 +570,20 @@ export default function Tutorial({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginTop: '0.35rem',
-          paddingTop: '0.65rem',
-          borderTop: '1px solid var(--border-light)'
+          marginTop: '0.4rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))'
         }}>
           <button
             onClick={handleFinish}
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '0.78rem',
+              color: 'var(--text-muted, #C4B5D4)',
+              fontSize: '0.8rem',
               fontWeight: 500,
               cursor: 'pointer',
-              padding: 0,
+              padding: '4px',
               textDecoration: 'underline',
               textUnderlineOffset: '2px'
             }}
@@ -524,7 +591,7 @@ export default function Tutorial({
             Skip tour
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {!isFirstStep && (
               <button
                 onClick={handleBack}
@@ -532,17 +599,17 @@ export default function Tutorial({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.2rem',
-                  padding: '0.38rem 0.7rem',
-                  background: 'var(--bg-card-subtle)',
-                  color: 'var(--text-main)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
+                  padding: '0.42rem 0.75rem',
+                  background: 'var(--bg-card-subtle, rgba(255, 255, 255, 0.08))',
+                  color: 'var(--text-main, #FFFFFF)',
+                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
                   fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                <ChevronLeft size={13} /> Back
+                <ChevronLeft size={14} /> Back
               </button>
             )}
 
@@ -552,24 +619,25 @@ export default function Tutorial({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                padding: isLastStep ? '0.45rem 1rem' : '0.4rem 0.9rem',
-                background: 'var(--primary)',
-                color: 'var(--text-white, #FFFFFF)',
+                padding: isLastStep ? '0.48rem 1.15rem' : '0.45rem 1rem',
+                background: 'linear-gradient(135deg, var(--primary, #8B5CF6), var(--primary-hover, #7C3AED))',
+                color: '#FFFFFF',
                 border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
                 fontWeight: 700,
                 cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
                 transition: 'all 0.15s ease'
               }}
             >
               {isLastStep ? (
                 <>
-                  <Check size={14} /> Start using KiroKash
+                  <Check size={14} /> Finish Tour
                 </>
               ) : (
                 <>
-                  Next <ChevronRight size={13} />
+                  Next <ChevronRight size={14} />
                 </>
               )}
             </button>
@@ -580,19 +648,29 @@ export default function Tutorial({
       <style>{`
         @keyframes targetPulse {
           0% {
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent), 0 0 14px color-mix(in srgb, var(--primary) 20%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent), 0 0 16px color-mix(in srgb, var(--primary) 25%, transparent);
           }
           50% {
-            box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 15%, transparent), 0 0 24px color-mix(in srgb, var(--primary) 30%, transparent);
+            box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 18%, transparent), 0 0 28px color-mix(in srgb, var(--primary) 38%, transparent);
           }
           100% {
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent), 0 0 14px color-mix(in srgb, var(--primary) 20%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent), 0 0 16px color-mix(in srgb, var(--primary) 25%, transparent);
           }
         }
         @keyframes cardFadeIn {
           from {
             opacity: 0;
-            transform: translateY(6px);
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes sheetSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
           }
           to {
             opacity: 1;

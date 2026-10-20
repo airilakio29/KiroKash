@@ -95,7 +95,7 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
           z-index: 990;
           touch-action: manipulation;
           -webkit-tap-highlight-color: transparent;
-          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+          transition: transform var(--anim-duration-btn, 150ms) var(--anim-ease-out, cubic-bezier(0.16, 1, 0.3, 1)), box-shadow var(--anim-duration-btn, 150ms) ease;
         }
 
         .kampuskash-ai-fab:hover {
@@ -114,7 +114,7 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
           backdrop-filter: blur(4px);
           -webkit-backdrop-filter: blur(4px);
           z-index: 990;
-          transition: opacity 0.25s ease, visibility 0.25s;
+          transition: opacity var(--anim-duration-ai, 380ms) ease, visibility var(--anim-duration-ai, 380ms);
         }
 
         .kampuskash-ai-backdrop.backdrop-open {
@@ -139,9 +139,9 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
           max-height: calc(100vh - 7rem);
           z-index: 991;
           filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55));
-          transition: opacity 0.26s cubic-bezier(0.16, 1, 0.3, 1),
-                      transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
-                      visibility 0.26s;
+          transition: opacity var(--anim-duration-ai, 380ms) var(--anim-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+                      transform var(--anim-duration-ai, 380ms) var(--anim-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+                      visibility var(--anim-duration-ai, 380ms);
           will-change: transform, opacity;
         }
 

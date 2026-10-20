@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { validateSavingsGoal } from '../services/savingsService';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId = null, initialData = null }) {
   const { savingsGoals, addSavingsGoal, updateSavingsGoal, depositToSavingsGoal } = useFinance();
+  const { showSuccess, showError } = useToast();
 
   const [title, setTitle] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -12,6 +14,7 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
   const [targetDate, setTargetDate] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedGoal = goalId ? savingsGoals.find(g => g.id === goalId) : initialData;
 
@@ -32,12 +35,14 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
       setDepositAmount('');
     }
     setError('');
+    setIsSubmitting(false);
   }, [isOpen, mode, selectedGoal]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
 
     if (mode === 'deposit') {
@@ -46,8 +51,17 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
         setError('Please enter a valid deposit amount greater than RM 0');
         return;
       }
-      depositToSavingsGoal(goalId || selectedGoal?.id, dep);
-      onClose();
+      setIsSubmitting(true);
+      try {
+        depositToSavingsGoal(goalId || selectedGoal?.id, dep);
+        showSuccess(`Deposited RM ${dep.toFixed(2)} to ${selectedGoal?.title || 'Goal'}`);
+        onClose();
+      } catch (err) {
+        setError(err?.message || 'Failed to deposit to savings goal');
+        showError(err?.message || 'Failed to deposit to savings goal');
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -63,8 +77,17 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
         setError(validationError);
         return;
       }
-      updateSavingsGoal(goalId || selectedGoal?.id, goalPayload);
-      onClose();
+      setIsSubmitting(true);
+      try {
+        updateSavingsGoal(goalId || selectedGoal?.id, goalPayload);
+        showSuccess(`Savings goal "${goalPayload.title}" updated`);
+        onClose();
+      } catch (err) {
+        setError(err?.message || 'Failed to update goal');
+        showError(err?.message || 'Failed to update goal');
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -82,24 +105,27 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
       return;
     }
 
-    addSavingsGoal(newGoalPayload);
-    onClose();
-  };
-
-  const getTitle = () => {
-    if (mode === 'deposit') return `Deposit to ${selectedGoal ? selectedGoal.title : 'Savings'}`;
-    if (mode === 'edit') return 'Edit Savings Goal';
-    return 'Create New Savings Goal';
+    setIsSubmitting(true);
+    try {
+      addSavingsGoal(newGoalPayload);
+      showSuccess(`Created savings goal "${newGoalPayload.title}"! 🎯`);
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to create goal');
+      showError(err?.message || 'Failed to create goal');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="savings-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
-            {getTitle()}
+          <h3 id="savings-modal-title" style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
+            {mode === 'deposit' ? `Deposit to "${selectedGoal?.title}"` : mode === 'edit' ? 'Edit Savings Goal' : 'Create New Savings Goal'}
           </h3>
-          <button onClick={onClose} className="btn btn-secondary btn-icon" aria-label="Close modal">
+          <button onClick={onClose} className="btn btn-secondary btn-icon" aria-label="Close modal" type="button">
             <X size={18} />
           </button>
         </div>
@@ -113,86 +139,69 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
         <form onSubmit={handleSubmit}>
           {mode === 'deposit' ? (
             <div className="form-group">
-              <label className="form-label" htmlFor="savings-deposit">Deposit Amount (RM)</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--primary)' }}>
-                  RM
-                </span>
-                <input
-                  id="savings-deposit"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="50.00"
-                  className="form-control"
-                  style={{ paddingLeft: '3.2rem' }}
-                  value={depositAmount}
-                  onChange={e => setDepositAmount(e.target.value)}
-                  autoFocus
-                />
-              </div>
+              <label className="form-label" htmlFor="deposit-amount">Deposit Amount (RM)</label>
+              <input
+                id="deposit-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                className="form-control"
+                placeholder="0.00"
+                value={depositAmount}
+                onChange={e => setDepositAmount(e.target.value)}
+                autoFocus
+              />
             </div>
           ) : (
             <>
               <div className="form-group">
-                <label className="form-label" htmlFor="savings-title">Goal Title</label>
+                <label className="form-label" htmlFor="savings-title">Goal Name</label>
                 <input
                   id="savings-title"
                   type="text"
-                  placeholder="e.g. New Laptop for Semester, Emergency Fund"
+                  required
                   className="form-control"
+                  placeholder="e.g. M2 MacBook Air, Semester 3 Tuition"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  autoFocus
+                  maxLength={100}
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label" htmlFor="savings-target">Target Amount (RM)</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--primary)' }}>
-                    RM
-                  </span>
-                  <input
-                    id="savings-target"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="3000.00"
-                    className="form-control"
-                    style={{ paddingLeft: '3.2rem' }}
-                    value={targetAmount}
-                    onChange={e => setTargetAmount(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="savings-current">
-                  {mode === 'edit' ? 'Current Saved Amount (RM)' : 'Initial Saved Amount (Optional RM)'}
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--primary)' }}>
-                    RM
-                  </span>
-                  <input
-                    id="savings-current"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    className="form-control"
-                    style={{ paddingLeft: '3.2rem' }}
-                    value={currentAmount}
-                    onChange={e => setCurrentAmount(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="savings-date">Target Date</label>
                 <input
-                  id="savings-date"
+                  id="savings-target"
+                  type="number"
+                  step="10"
+                  min="1"
+                  required
+                  className="form-control"
+                  placeholder="e.g. 4000"
+                  value={targetAmount}
+                  onChange={e => setTargetAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="savings-initial">Currently Saved (RM)</label>
+                <input
+                  id="savings-initial"
+                  type="number"
+                  step="1"
+                  min="0"
+                  className="form-control"
+                  placeholder="0"
+                  value={currentAmount}
+                  onChange={e => setCurrentAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="savings-target-date">Target Date (Optional)</label>
+                <input
+                  id="savings-target-date"
                   type="date"
                   className="form-control"
                   value={targetDate}
@@ -203,11 +212,22 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
           )}
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary" style={{ flex: 1 }}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              {mode === 'deposit' ? 'Confirm Deposit' : mode === 'edit' ? 'Update Goal' : 'Create Goal'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="spin-icon" /> Saving...
+                </>
+              ) : (
+                mode === 'deposit' ? 'Confirm Deposit' : mode === 'edit' ? 'Update Goal' : 'Create Goal'
+              )}
             </button>
           </div>
         </form>

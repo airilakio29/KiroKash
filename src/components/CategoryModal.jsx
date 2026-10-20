@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { X } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { X, Loader2 } from 'lucide-react';
 
 export default function CategoryModal({ isOpen, onClose }) {
   const { addCategory } = useFinance();
+  const { showSuccess, showError } = useToast();
+
   const [name, setName] = useState('');
   const [type, setType] = useState('expense');
   const [color, setColor] = useState('#10B981');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -16,32 +20,42 @@ export default function CategoryModal({ isOpen, onClose }) {
     '#F59E0B', '#EF4444', '#14B8A6', '#6366F1'
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!name.trim()) {
       setError('Please enter a category name');
       return;
     }
 
-    addCategory({
-      name: name.trim(),
-      type,
-      color,
-      icon: 'Tag'
-    });
-
-    setName('');
-    onClose();
+    setIsSubmitting(true);
+    try {
+      addCategory({
+        name: name.trim(),
+        type,
+        color,
+        icon: 'Tag'
+      });
+      showSuccess(`Category "${name.trim()}" created successfully`);
+      setName('');
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to create category');
+      showError(err?.message || 'Failed to create category');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="cat-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
+          <h3 id="cat-modal-title" style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
             Add Custom Category
           </h3>
-          <button onClick={onClose} className="btn btn-secondary btn-icon">
+          <button onClick={onClose} className="btn btn-secondary btn-icon" aria-label="Close modal" type="button">
             <X size={18} />
           </button>
         </div>
@@ -101,17 +115,29 @@ export default function CategoryModal({ isOpen, onClose }) {
                     cursor: 'pointer',
                     transition: 'transform var(--transition-fast)'
                   }}
+                  aria-label={`Select color ${c}`}
                 />
               ))}
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary" style={{ flex: 1 }}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              Add Category
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="spin-icon" /> Creating...
+                </>
+              ) : (
+                'Add Category'
+              )}
             </button>
           </div>
         </form>

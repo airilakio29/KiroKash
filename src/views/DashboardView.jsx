@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { ACCOUNT_TYPE_ICONS } from '../services/accountService';
@@ -14,7 +14,8 @@ import {
   ArrowDownRight,
   Target,
   Landmark,
-  Sparkles
+  Sparkles,
+  ReceiptText
 } from 'lucide-react';
 
 export default function DashboardView({
@@ -24,6 +25,16 @@ export default function DashboardView({
   onOpenAddAccount,
   onOpenAIChat
 }) {
+  const [isInitialEntrance] = useState(() => {
+    try {
+      const entered = sessionStorage.getItem('kampuskash_dashboard_entered');
+      if (!entered) {
+        sessionStorage.setItem('kampuskash_dashboard_entered', 'true');
+        return true;
+      }
+    } catch {}
+    return false;
+  });
   const {
     totalBalance,
     totalIncome,
@@ -166,7 +177,7 @@ export default function DashboardView({
 
       {/* 4 Hero Metric Summary Cards */}
       <div className="grid-metrics" data-tour="dashboard-metrics">
-        <div className="card metric-card">
+        <div className={`card metric-card ${isInitialEntrance ? 'dashboard-stagger-1' : ''}`}>
           <div className="metric-icon-box balance">
             <Wallet size={24} />
           </div>
@@ -181,7 +192,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        <div className="card metric-card">
+        <div className={`card metric-card ${isInitialEntrance ? 'dashboard-stagger-2' : ''}`}>
           <div className="metric-icon-box income">
             <TrendingUp size={24} />
           </div>
@@ -196,7 +207,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        <div className="card metric-card">
+        <div className={`card metric-card ${isInitialEntrance ? 'dashboard-stagger-3' : ''}`}>
           <div className="metric-icon-box expense">
             <TrendingDown size={24} />
           </div>
@@ -211,7 +222,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        <div className="card metric-card">
+        <div className={`card metric-card ${isInitialEntrance ? 'dashboard-stagger-4' : ''}`}>
           <div className="metric-icon-box savings">
             <PiggyBank size={24} />
           </div>
@@ -287,7 +298,7 @@ export default function DashboardView({
       {/* Main Dashboard Section: Category Pie Chart + Recent Activity */}
       <div className="grid-dashboard-main">
         {/* Direct Category Spending Pie Chart */}
-        <div className="card" data-tour="category-chart">
+        <div className={`card ${isInitialEntrance ? 'dashboard-stagger-chart' : ''}`} data-tour="category-chart">
           <div className="card-title">
             <span>Category Spending Breakdown</span>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Real-time</span>
@@ -296,7 +307,7 @@ export default function DashboardView({
         </div>
 
         {/* Recent Activity Table */}
-        <div className="card" data-tour="recent-transactions">
+        <div className={`card ${isInitialEntrance ? 'dashboard-stagger-chart' : ''}`} data-tour="recent-transactions">
           <div className="card-title">
             <span>Recent Transactions</span>
             <button
@@ -309,8 +320,41 @@ export default function DashboardView({
           </div>
 
           {recentTransactions.length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              No transactions yet. Click "+ Add" to log your first income or expense!
+            <div style={{
+              padding: '2.5rem 1rem',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.65rem'
+            }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '14px',
+                background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+                color: 'var(--primary-light, #E8DEF5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '0.2rem'
+              }}>
+                <ReceiptText size={22} />
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                No Transactions Logged Yet
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '280px', lineHeight: 1.5 }}>
+                Start tracking your daily campus living expenses or part-time earnings.
+              </div>
+              <button
+                onClick={onOpenAddTransaction}
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: '0.4rem' }}
+              >
+                <PlusCircle size={14} /> + Add First Transaction
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -374,7 +418,7 @@ export default function DashboardView({
       {/* Bottom Grid: Budget Health Summary + Active Savings Progress */}
       <div className="grid-dashboard-bottom">
         {/* Budget Health Meter */}
-        <div className="card">
+        <div className={`card ${isInitialEntrance ? 'dashboard-stagger-bottom' : ''}`}>
           <div className="card-title">
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Target size={18} color="var(--primary)" /> Semester Budget Health
@@ -431,7 +475,7 @@ export default function DashboardView({
         </div>
 
         {/* Active Savings Goals Card */}
-        <div className="card">
+        <div className={`card ${isInitialEntrance ? 'dashboard-stagger-bottom' : ''}`}>
           <div className="card-title">
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <PiggyBank size={18} color="var(--primary)" /> Top Savings Goals

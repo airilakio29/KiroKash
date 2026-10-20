@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useFinance } from '../../context/FinanceContext';
+import { useToast } from '../../context/ToastContext';
 import { auth } from '../../firebase';
 import { fetchFinancialInsights } from '../../services/aiService';
 import { generateMonthlyIntelligencePDF } from '../../utils/pdfExport';
@@ -21,6 +22,7 @@ import { generateMonthlyIntelligencePDF } from '../../utils/pdfExport';
 export default function MonthlyReportView() {
   const { user } = useAuth();
   const financeData = useFinance();
+  const { showSuccess, showError } = useToast();
 
   const currentYearMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const [selectedMonth, setSelectedMonth] = useState(currentYearMonth);
@@ -78,9 +80,10 @@ export default function MonthlyReportView() {
         reportData,
         user
       });
+      showSuccess('Financial Intelligence PDF generated and downloaded!');
     } catch (err) {
       console.error('[PDF Export Error]', err);
-      alert('Failed to generate PDF: ' + err.message);
+      showError('Failed to generate PDF: ' + err.message);
     } finally {
       setIsExporting(false);
     }

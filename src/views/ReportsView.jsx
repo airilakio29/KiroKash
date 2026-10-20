@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import PieChart from '../components/PieChart';
 import { getMonthlyAggregates, getSpendingByAccount } from '../services/transactionService';
+import { ReportsSkeleton } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import {
   BarChart3,
   TrendingUp,
@@ -56,6 +58,7 @@ function BarChartSimple({ data, maxValue }) {
 
 export default function ReportsView() {
   const {
+    isLoading,
     transactions,
     accounts,
     totalIncome,
@@ -75,6 +78,10 @@ export default function ReportsView() {
     return Math.max(...monthlyData.map(m => Math.max(m.income, m.expense)), 1);
   }, [monthlyData]);
 
+  if (isLoading) {
+    return <ReportsSkeleton />;
+  }
+
   const hasData = transactions.length > 0;
 
   if (!hasData) {
@@ -88,15 +95,11 @@ export default function ReportsView() {
             Visualize your financial patterns and insights.
           </p>
         </div>
-        <div className="card" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <BarChart3 size={40} color="var(--primary)" style={{ marginBottom: '1rem', opacity: 0.6 }} />
-          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-            No Financial Activity Yet
-          </h4>
-          <p style={{ fontSize: '0.88rem' }}>
-            Add your first transaction to start seeing your spending insights.
-          </p>
-        </div>
+        <EmptyState
+          icon={BarChart3}
+          title="No Financial Activity Yet"
+          description="Add your first transaction to start seeing your spending insights, category breakdowns, and monthly trends."
+        />
       </div>
     );
   }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { X, Repeat } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { X, Repeat, Loader2 } from 'lucide-react';
 
 export default function TransactionModal({ isOpen, onClose, initialData = null }) {
   const { categories, accounts, addTransaction, updateTransaction } = useFinance();
+  const { showSuccess, showError } = useToast();
 
   const [type, setType] = useState('expense');
   const [title, setTitle] = useState('');
@@ -14,6 +16,7 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
   const [isRecurring, setIsRecurring] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset form when modal opens/closes or initialData changes
   useEffect(() => {
@@ -37,14 +40,16 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
       setNote('');
     }
     setError('');
+    setIsSubmitting(false);
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
   const filteredCategories = categories.filter(c => c.type === type);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent double submission
     setError('');
 
     if (!title.trim()) {
@@ -78,23 +83,33 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
       note: note.trim()
     };
 
-    if (initialData && initialData.id) {
-      updateTransaction(initialData.id, payload);
-    } else {
-      addTransaction(payload);
-    }
+    setIsSubmitting(true);
 
-    onClose();
+    try {
+      if (initialData && initialData.id) {
+        updateTransaction(initialData.id, payload);
+        showSuccess(`Transaction "${payload.title}" updated successfully`);
+      } else {
+        addTransaction(payload);
+        showSuccess(`Transaction "${payload.title}" added successfully`);
+      }
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to save transaction');
+      showError(err?.message || 'Failed to save transaction');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="tx-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
+          <h3 id="tx-modal-title" style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
             {initialData && initialData.id ? 'Edit Transaction' : 'Add New Transaction'}
           </h3>
-          <button onClick={onClose} className="btn btn-secondary btn-icon" aria-label="Close">
+          <button onClick={onClose} className="btn btn-secondary btn-icon" aria-label="Close" type="button">
             <X size={18} />
           </button>
         </div>
@@ -260,11 +275,23 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="btn btn-secondary" style={{ flex: 1 }}>
               Cancel
             </button>
-            <button data-tour="transaction-save" type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              {initialData ? 'Save Changes' : 'Add Transaction'}
+            <button
+              data-tour="transaction-save"
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="spin-icon" /> Saving...
+                </>
+              ) : (
+                initialData ? 'Save Changes' : 'Add Transaction'
+              )}
             </button>
           </div>
         </form>

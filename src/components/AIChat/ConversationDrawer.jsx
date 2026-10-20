@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus, MessageSquare, Trash2, X, AlertCircle } from 'lucide-react';
+import ConfirmModal from '../ConfirmModal';
 
 export default function ConversationDrawer({
   isOpen,
@@ -11,6 +12,9 @@ export default function ConversationDrawer({
   onDeleteConversation,
   onClearAllConversations
 }) {
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -158,9 +162,7 @@ export default function ConversationDrawer({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm('Delete this conversation?')) {
-                      onDeleteConversation(conv.conversationId);
-                    }
+                    setDeleteTargetId(conv.conversationId);
                   }}
                   style={{
                     background: 'none',
@@ -192,11 +194,7 @@ export default function ConversationDrawer({
           }}
         >
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to clear all conversation history?')) {
-                onClearAllConversations();
-              }
-            }}
+            onClick={() => setShowClearConfirm(true)}
             style={{
               width: '100%',
               background: 'none',
@@ -218,6 +216,36 @@ export default function ConversationDrawer({
           </button>
         </div>
       )}
+
+      {/* Confirm Delete Single Conversation */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTargetId)}
+        title="Delete Conversation"
+        message="Are you sure you want to delete this AI conversation? All chat messages within this thread will be permanently removed."
+        confirmLabel="Delete Chat"
+        isDanger={true}
+        onConfirm={() => {
+          if (deleteTargetId) {
+            onDeleteConversation(deleteTargetId);
+            setDeleteTargetId(null);
+          }
+        }}
+        onCancel={() => setDeleteTargetId(null)}
+      />
+
+      {/* Confirm Clear All Conversations */}
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear All Chat History"
+        message="Are you sure you want to clear your entire conversation history? This cannot be undone."
+        confirmLabel="Clear All Chats"
+        isDanger={true}
+        onConfirm={() => {
+          onClearAllConversations();
+          setShowClearConfirm(false);
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 }

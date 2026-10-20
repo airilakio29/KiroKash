@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { filterTransactions } from '../services/transactionService';
+import ConfirmModal from '../components/ConfirmModal';
+import EmptyState from '../components/EmptyState';
+import { TransactionsSkeleton } from '../components/Skeleton';
 import {
   Search,
   PlusCircle,
@@ -12,12 +16,14 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Filter,
-  X
+  X,
+  ReceiptText
 } from 'lucide-react';
 
 export default function TransactionsView({ onOpenAddTransaction, onEditTransaction }) {
-  const { transactions, categories, accounts, deleteTransaction, exportToPDF } = useFinance();
+  const { transactions, categories, accounts, deleteTransaction, exportToPDF, isLoading } = useFinance();
   const { user } = useAuth();
+  const { showSuccess } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -26,6 +32,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   // Build a category name map for search
   const categoryNameMap = useMemo(() => {
@@ -55,6 +62,17 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
     setDateTo('');
     setSearchTerm('');
   };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteTransaction(deleteTarget.id);
+    showSuccess(`Deleted transaction "${deleteTarget.title}"`);
+    setDeleteTarget(null);
+  };
+
+  if (isLoading) {
+    return <TransactionsSkeleton />;
+  }
 
   return (
     <div className="view-fade-in">
@@ -98,42 +116,56 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               style={{ paddingLeft: '2.5rem', height: '40px' }}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              aria-label="Search transactions"
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
-          {/* Type Quick Filter */}
-          <select
-            className="form-control"
-            style={{ height: '40px', width: 'auto', minWidth: '120px', flex: '0 1 auto' }}
-            value={selectedType}
-            onChange={e => setSelectedType(e.target.value)}
-            aria-label="Filter by type"
-          >
-            <option value="all">All Types</option>
-            <option value="income">Income Only</option>
-            <option value="expense">Expense Only</option>
-          </select>
+          {/* Type Filter Buttons */}
+          <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+            {['all', 'expense', 'income'].map(t => (
+              <button
+                key={t}
+                onClick={() => setSelectedType(t)}
+                className="btn btn-sm"
+                style={{
+                  borderRadius: 0,
+                  background: selectedType === t ? 'var(--primary)' : 'var(--bg-card-subtle)',
+                  color: selectedType === t ? '#FFF' : 'var(--text-muted)',
+                  border: 'none',
+                  textTransform: 'capitalize',
+                  padding: '0.45rem 0.85rem'
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
 
-          {/* Toggle Filters */}
+          {/* Toggle More Filters */}
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`btn ${showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ height: '40px', padding: '0 0.85rem' }}
-            aria-label="Toggle filters"
+            onClick={() => setShowFilters(prev => !prev)}
+            className={`btn btn-sm ${hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', height: '40px' }}
           >
-            <Filter size={16} />
-            {hasActiveFilters && <span style={{ fontSize: '0.75rem' }}>Active</span>}
+            <Filter size={15} />
+            <span>Filters{hasActiveFilters ? ' •' : ''}</span>
           </button>
 
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="btn btn-secondary" style={{ height: '40px', padding: '0 0.65rem' }} aria-label="Clear filters">
-              <X size={16} />
+            <button onClick={clearFilters} className="btn btn-secondary btn-sm" style={{ height: '40px' }}>
+              Clear
             </button>
           )}
         </div>
 
-        {/* Extended Filters */}
+        {/* Expandable Advanced Filters */}
         {showFilters && (
           <div style={{
             display: 'grid',
@@ -142,8 +174,10 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
             padding: '1rem',
             background: 'var(--bg-card-subtle)',
             borderRadius: 'var(--radius-md)',
-            marginBottom: '1.25rem'
+            border: '1px solid var(--border-light)',
+            animation: 'fadeIn 0.2s ease-out'
           }}>
+            {/* Category Select */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>Category</label>
               <select
@@ -159,6 +193,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               </select>
             </div>
 
+            {/* Account Select */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>Account</label>
               <select
@@ -168,13 +203,13 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                 onChange={e => setSelectedAccount(e.target.value)}
               >
                 <option value="">All Accounts</option>
-                <option value="__unassigned">Unassigned / Legacy</option>
                 {accounts.map(a => (
                   <option key={a.accountId} value={a.accountId}>{a.accountName}</option>
                 ))}
               </select>
             </div>
 
+            {/* Date From */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>From Date</label>
               <input
@@ -186,6 +221,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               />
             </div>
 
+            {/* Date To */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>To Date</label>
               <input
@@ -199,15 +235,22 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
           </div>
         )}
 
-        {/* Transaction List */}
+        {/* Transaction List or Empty State */}
         {filtered.length === 0 ? (
-          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: '1rem', fontWeight: 600 }}>No transactions found.</p>
-            <span style={{ fontSize: '0.85rem' }}>
-              {hasActiveFilters || searchTerm
-                ? 'Try clearing your search query or filters.'
-                : 'Click "+ Add Transaction" to log your first income or expense.'}
-            </span>
+          <div style={{ marginTop: '1.25rem' }}>
+            <EmptyState
+              icon={ReceiptText}
+              title={hasActiveFilters || searchTerm ? 'No Matching Transactions' : 'No Transactions Recorded Yet'}
+              description={
+                hasActiveFilters || searchTerm
+                  ? 'We could not find any transactions matching your filter criteria. Try clearing search filters.'
+                  : 'Start tracking your student spending, allowance, or campus earnings to build insights.'
+              }
+              actionText="+ Add Transaction"
+              onAction={onOpenAddTransaction}
+              secondaryActionText={hasActiveFilters || searchTerm ? 'Clear Filters' : null}
+              onSecondaryAction={clearFilters}
+            />
           </div>
         ) : (
           <>
@@ -263,32 +306,53 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                           )}
                         </td>
                         <td>
-                          <span
-                            className="badge"
-                            style={{
-                              background: `${cat ? cat.color : '#94A3B8'}20`,
-                              color: cat ? cat.color : '#475569'
-                            }}
-                          >
-                            {cat ? cat.name : 'Uncategorized'}
-                          </span>
+                          {cat ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.82rem',
+                              fontWeight: 500
+                            }}>
+                              <span style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: cat.color,
+                                flexShrink: 0
+                              }} />
+                              {cat.name}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-light)', fontSize: '0.82rem' }}>Uncategorized</span>
+                          )}
                         </td>
                         <td>
-                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                            {acc ? acc.accountName : (t.accountId ? 'Deleted' : '—')}
-                          </span>
+                          {acc ? (
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                              {acc.accountName}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>—</span>
+                          )}
                         </td>
                         <td>
                           <span className={`badge ${isIncome ? 'badge-income' : 'badge-expense'}`}>
-                            {isIncome ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                            {isIncome ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                             {t.type}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '1rem', color: isIncome ? 'var(--income)' : 'var(--expense)' }}>
+                        <td style={{
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                          color: isIncome ? 'var(--income)' : 'var(--expense)',
+                          whiteSpace: 'nowrap'
+                        }}>
                           {isIncome ? '+' : '-'} RM {Number(t.amount).toFixed(2)}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button
                               onClick={() => onEditTransaction(t)}
                               className="btn btn-secondary btn-icon"
@@ -299,11 +363,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                               <Edit3 size={14} />
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Delete transaction "${t.title}"?`)) {
-                                  deleteTransaction(t.id);
-                                }
-                              }}
+                              onClick={() => setDeleteTarget(t)}
                               className="btn btn-danger btn-icon"
                               style={{ width: '32px', height: '32px' }}
                               title="Delete"
@@ -334,7 +394,8 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                     padding: '0.85rem',
                     background: 'var(--bg-card-subtle)',
                     borderRadius: 'var(--radius-md)',
-                    marginBottom: '0.5rem'
+                    marginBottom: '0.5rem',
+                    border: '1px solid var(--border-light)'
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
@@ -372,9 +433,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                           <Edit3 size={15} />
                         </button>
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Delete "${t.title}"?`)) deleteTransaction(t.id);
-                          }}
+                          onClick={() => setDeleteTarget(t)}
                           className="btn btn-danger btn-icon mobile-action-btn"
                           aria-label={`Delete ${t.title}`}
                           title="Delete transaction"
@@ -390,6 +449,17 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
           </>
         )}
       </div>
+
+      {/* Styled Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="Delete Transaction"
+        message={`Are you sure you want to delete "${deleteTarget?.title}"? This will adjust your balances accordingly.`}
+        confirmText="Delete Transaction"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       <style>{`
         .desktop-table { display: block; }

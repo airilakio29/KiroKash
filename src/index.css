@@ -52,6 +52,20 @@
   --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Consistent Animation System Tokens */
+  --anim-duration-btn: 150ms;
+  --anim-duration-dropdown: 200ms;
+  --anim-duration-modal: 280ms;
+  --anim-duration-drawer: 320ms;
+  --anim-duration-page: 380ms;
+  --anim-duration-ai: 380ms;
+  --anim-duration-dashboard: 600ms;
+
+  --anim-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --anim-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --anim-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Reset & Global Elements */
@@ -2467,4 +2481,194 @@ body {
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
 }
+
+/* ==========================================================================
+   CONSISTENT ANIMATION SYSTEM, PAGE TRANSITIONS, SKELETONS & ACCESSIBILITY
+   ========================================================================== */
+
+/* Button Micro-Interactions */
+.btn, button, .pressable {
+  transition: transform var(--anim-duration-btn) var(--anim-ease-out),
+              background var(--anim-duration-btn) var(--anim-ease-out),
+              box-shadow var(--anim-duration-btn) var(--anim-ease-out),
+              border-color var(--anim-duration-btn) var(--anim-ease-out),
+              opacity var(--anim-duration-btn) var(--anim-ease-out);
+}
+
+.btn:active, button.pressable:active, .pressable:active {
+  transform: scale(0.97) !important;
+}
+
+/* Page Transitions */
+.page-transition-wrapper {
+  animation: pageFadeSlideIn var(--anim-duration-page) var(--anim-ease-out) forwards;
+  will-change: opacity, transform;
+  min-height: 70vh;
+}
+
+@keyframes pageFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dashboard Entrance Animation System */
+.dashboard-entrance-header {
+  animation: dashboardFadeDown 450ms var(--anim-ease-out) forwards;
+}
+
+.dashboard-stagger-1 {
+  animation: dashboardFadeUp 500ms var(--anim-ease-out) 0ms forwards;
+}
+.dashboard-stagger-2 {
+  animation: dashboardFadeUp 500ms var(--anim-ease-out) 60ms forwards;
+}
+.dashboard-stagger-3 {
+  animation: dashboardFadeUp 500ms var(--anim-ease-out) 120ms forwards;
+}
+.dashboard-stagger-4 {
+  animation: dashboardFadeUp 500ms var(--anim-ease-out) 180ms forwards;
+}
+.dashboard-stagger-chart {
+  animation: dashboardScaleFade 550ms var(--anim-ease-out) 220ms forwards;
+}
+.dashboard-stagger-bottom {
+  animation: dashboardFadeUp 500ms var(--anim-ease-out) 280ms forwards;
+}
+
+@keyframes dashboardFadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboardFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboardScaleFade {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Modal Animations */
+.modal-overlay {
+  animation: modalFadeIn var(--anim-duration-modal) var(--anim-ease-out) forwards;
+}
+
+.modal-content {
+  animation: modalScaleUp var(--anim-duration-modal) var(--anim-ease-out) forwards;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Skeleton Loading Shimmer System */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.8s ease-in-out infinite;
+  border-radius: var(--radius-sm, 4px);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes shimmerSweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Page Transitions System */
+.page-transition-wrapper,
+.view-fade-in {
+  animation: pageFadeSlideIn var(--anim-duration-page, 380ms) var(--anim-ease-out) forwards;
+  width: 100%;
+}
+
+@keyframes pageFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Button & Dropdown Micro-Interactions */
+.btn {
+  transition: transform var(--anim-duration-btn, 150ms) var(--anim-ease-out),
+              background var(--anim-duration-btn, 150ms) ease,
+              box-shadow var(--anim-duration-btn, 150ms) ease !important;
+}
+
+.btn:active {
+  transform: scale(0.97) !important;
+}
+
+select,
+.custom-select {
+  transition: border-color var(--anim-duration-dropdown, 200ms) ease,
+              box-shadow var(--anim-duration-dropdown, 200ms) ease,
+              background-color var(--anim-duration-dropdown, 200ms) ease !important;
+}
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 

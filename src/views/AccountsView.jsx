@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_ICONS } from '../services/accountService';
+import ConfirmModal from '../components/ConfirmModal';
+import EmptyState from '../components/EmptyState';
+import { AccountsSkeleton } from '../components/Skeleton';
 import {
   PlusCircle,
   Trash2,
@@ -9,7 +13,20 @@ import {
 } from 'lucide-react';
 
 export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
-  const { accounts, deleteAccount, totalAccountBalance } = useFinance();
+  const { accounts, deleteAccount, totalAccountBalance, isLoading } = useFinance();
+  const { showSuccess } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteAccount(deleteTarget.accountId);
+    showSuccess(`Deleted account "${deleteTarget.accountName}". Transactions unassigned.`);
+    setDeleteTarget(null);
+  };
+
+  if (isLoading) {
+    return <AccountsSkeleton />;
+  }
 
   return (
     <div className="view-fade-in">
@@ -51,18 +68,13 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
       )}
 
       {accounts.length === 0 ? (
-        <div className="card" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Landmark size={40} color="var(--primary)" style={{ marginBottom: '1rem', opacity: 0.6 }} />
-          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-            No Accounts Yet
-          </h4>
-          <p style={{ fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            Add your first account to start tracking balances across Savings, Current, E-wallet, and Cash.
-          </p>
-          <button onClick={onOpenAddAccount} className="btn btn-primary">
-            + Add Your First Account
-          </button>
-        </div>
+        <EmptyState
+          icon={Landmark}
+          title="No Accounts Linked Yet"
+          description="Keep tabs on your bank accounts, MAE, Touch 'n Go, or physical cash in one place."
+          actionText="+ Add Your First Account"
+          onAction={onOpenAddAccount}
+        />
       ) : (
         <div style={{
           display: 'grid',
@@ -98,7 +110,7 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                           <span style={{
                             fontSize: '0.62rem',
                             padding: '0.1rem 0.4rem',
-                            borderRadius: '4px',
+                            borderRadius: '3px',
                             background: 'rgba(245, 158, 11, 0.2)',
                             color: '#FBBF24',
                             fontWeight: 700
@@ -107,74 +119,63 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                           </span>
                         )}
                       </div>
-                      {account.institution && (
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {account.institution}
-                        </div>
-                      )}
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {account.institution || typeInfo?.label || 'Account'}
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.45rem' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    {onEditAccount && (
+                      <button
+                        onClick={() => onEditAccount(account)}
+                        className="btn btn-secondary btn-icon"
+                        style={{ width: '30px', height: '30px' }}
+                        title="Edit Account"
+                        aria-label={`Edit ${account.accountName}`}
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                    )}
                     <button
-                      onClick={() => onEditAccount(account)}
-                      className="btn btn-secondary btn-icon"
-                      style={{ minWidth: '40px', minHeight: '40px' }}
-                      title="Edit Account"
-                      aria-label={`Edit ${account.accountName}`}
-                    >
-                      <Edit3 size={15} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Delete "${account.accountName}"? Transactions linked to this account will become unassigned.`)) {
-                          deleteAccount(account.accountId);
-                        }
-                      }}
+                      onClick={() => setDeleteTarget(account)}
                       className="btn btn-danger btn-icon"
-                      style={{ minWidth: '40px', minHeight: '40px' }}
+                      style={{ width: '30px', height: '30px' }}
                       title="Delete Account"
                       aria-label={`Delete ${account.accountName}`}
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
 
-                <div style={{
-                  padding: '1rem',
-                  background: 'var(--bg-card-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: '0.75rem'
-                }}>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
-                    Current Balance
-                  </div>
-                  <div style={{
+                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Balance</span>
+                  <span style={{
                     fontFamily: 'Plus Jakarta Sans',
-                    fontSize: '1.5rem',
+                    fontSize: '1.35rem',
                     fontWeight: 800,
                     color: account.balance >= 0 ? 'var(--text-main)' : 'var(--expense)'
                   }}>
                     RM {Number(account.balance).toFixed(2)}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  <span className="badge" style={{
-                    background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
-                    color: 'var(--primary)',
-                    fontSize: '0.72rem'
-                  }}>
-                    {typeInfo ? typeInfo.label : 'Account'}
                   </span>
-                  <span>Source: Manual</span>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Styled Delete Confirmation Dialog */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="Delete Account"
+        message={`Are you sure you want to delete "${deleteTarget?.accountName}"? Transactions linked to this account will become unassigned, but will not be lost.`}
+        confirmText="Delete Account"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

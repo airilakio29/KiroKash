@@ -1,10 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { calculateBudgetStatus } from '../services/budgetService';
+import ConfirmModal from '../components/ConfirmModal';
+import EmptyState from '../components/EmptyState';
+import { BudgetsSkeleton } from '../components/Skeleton';
 import { Target, PlusCircle, Trash2, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function BudgetsView({ onOpenAddBudget, onEditBudget }) {
-  const { budgets, categories, transactions, deleteBudget } = useFinance();
+  const { budgets, categories, transactions, deleteBudget, isLoading } = useFinance();
+  const { showSuccess } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteBudget(deleteTarget.id);
+    const cat = categories.find(c => c.id === deleteTarget.categoryId);
+    showSuccess(`Removed budget limit for ${cat?.name || 'Category'}`);
+    setDeleteTarget(null);
+  };
+
+  if (isLoading) {
+    return <BudgetsSkeleton />;
+  }
 
   return (
     <div className="view-fade-in">
@@ -26,18 +44,13 @@ export default function BudgetsView({ onOpenAddBudget, onEditBudget }) {
       </div>
 
       {budgets.length === 0 ? (
-        <div className="card" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Target size={40} color="var(--primary)" style={{ marginBottom: '1rem', opacity: 0.6 }} />
-          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-            No Budget Limits Created Yet
-          </h4>
-          <p style={{ fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            Keeping a budget helps ensure you stay within your monthly allowance.
-          </p>
-          <button onClick={onOpenAddBudget} className="btn btn-primary">
-            + Set Your First Category Budget
-          </button>
-        </div>
+        <EmptyState
+          icon={Target}
+          title="No Budget Limits Created Yet"
+          description="Keeping a monthly budget helps you stay comfortably within your student allowance and avoid end-of-month pinches."
+          actionText="+ Set Your First Category Budget"
+          onAction={onOpenAddBudget}
+        />
       ) : (
         <div style={{
           display: 'grid',
@@ -77,11 +90,7 @@ export default function BudgetsView({ onOpenAddBudget, onEditBudget }) {
                       </button>
                     )}
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Remove budget for "${category?.name || 'Category'}"?`)) {
-                          deleteBudget(budget.id);
-                        }
-                      }}
+                      onClick={() => setDeleteTarget(budget)}
                       className="btn btn-danger btn-icon"
                       style={{ width: '30px', height: '30px' }}
                       title="Remove Budget"
@@ -101,40 +110,49 @@ export default function BudgetsView({ onOpenAddBudget, onEditBudget }) {
                     color: 'var(--text-muted)',
                     marginBottom: '0.5rem'
                   }}>
-                    <div>Budget: <strong style={{ color: 'var(--text-main)' }}>RM {limit.toFixed(2)}</strong></div>
-                    <div style={{ textAlign: 'right' }}>Spent: <strong style={{ color: isOver ? 'var(--expense)' : 'var(--text-main)' }}>RM {spent.toFixed(2)}</strong></div>
-                    <div>Remaining: <strong style={{ color: isOver ? 'var(--expense)' : 'var(--income)' }}>RM {remaining.toFixed(2)}</strong></div>
-                    <div style={{ textAlign: 'right' }}><strong>{percentage}%</strong> used</div>
+                    <div>Spent: <strong style={{ color: 'var(--text-main)' }}>RM {spent.toFixed(2)}</strong></div>
+                    <div style={{ textAlign: 'right' }}>Cap: <strong style={{ color: 'var(--text-main)' }}>RM {limit.toFixed(2)}</strong></div>
+                    <div>Remaining: <strong style={{ color: isOver ? 'var(--expense)' : isNear ? 'var(--warning)' : 'var(--income)' }}>RM {remaining.toFixed(2)}</strong></div>
+                    <div style={{ textAlign: 'right' }}><strong style={{ color: isOver ? 'var(--expense)' : isNear ? 'var(--warning)' : 'var(--primary)' }}>{percentage}%</strong> spent</div>
                   </div>
 
-                  <div className="progress-bar-bg" style={{ height: '10px' }}>
-                    <div 
+                  <div className="progress-bar-bg" style={{ height: '8px' }}>
+                    <div
                       className={`progress-bar-fill ${isOver ? 'progress-danger' : isNear ? 'progress-warning' : 'progress-safe'}`}
-                      style={{ width: `${Math.min(100, percentage)}%` }}
+                      style={{ width: `${Math.min(100, percentage)}%`, transition: 'width 0.4s ease' }}
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
-                  {isOver ? (
-                    <span className="badge badge-expense" style={{ fontSize: '0.75rem', width: '100%', justifyContent: 'center' }}>
-                      <AlertCircle size={12} /> Over budget by RM {(spent - limit).toFixed(2)}
-                    </span>
-                  ) : isNear ? (
-                    <span className="badge" style={{ background: 'var(--warning-bg)', color: '#B45309', fontSize: '0.75rem', width: '100%', justifyContent: 'center' }}>
-                      <AlertCircle size={12} /> Approaching limit (80%+ used)
-                    </span>
-                  ) : (
-                    <span className="badge badge-income" style={{ fontSize: '0.75rem', width: '100%', justifyContent: 'center' }}>
-                      <CheckCircle2 size={12} /> On track (RM {remaining.toFixed(2)} remaining)
-                    </span>
-                  )}
-                </div>
+                {isOver ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--expense)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    <AlertCircle size={14} /> Exceeded by RM {Math.abs(remaining).toFixed(2)}
+                  </div>
+                ) : isNear ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--warning)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    <AlertCircle size={14} /> Approaching limit (80%+)
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--income)', fontSize: '0.8rem' }}>
+                    <CheckCircle2 size={14} /> On Track
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Styled Delete Confirmation Dialog */}
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="Remove Budget"
+        message={`Are you sure you want to remove the budget cap for "${categories.find(c => c.id === deleteTarget?.categoryId)?.name || 'Category'}"?`}
+        confirmText="Remove Budget"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
