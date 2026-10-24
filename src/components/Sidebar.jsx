@@ -90,7 +90,7 @@ export default function Sidebar({
       )}
 
       <aside className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
-        <div>
+        <div className="sidebar-content-top">
           {/* Brand Logo & Header */}
           <div className="sidebar-brand-wrapper">
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
@@ -143,7 +143,7 @@ export default function Sidebar({
           </button>
 
           {/* Navigation Links with Accessible Touch Targets (min 44px) */}
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.25rem' }}>
             {navItems.map(item => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -183,10 +183,11 @@ export default function Sidebar({
         </div>
 
         {/* Footer User Profile & Logout */}
-        <div style={{
+        <div className="sidebar-content-footer" style={{
           paddingTop: '1.25rem',
           borderTop: '1px solid rgba(255,255,255,0.12)',
-          marginTop: '1.5rem'
+          marginTop: 'auto',
+          flexShrink: 0
         }}>
           <div
             data-tour="sidebar-profile-card"
@@ -275,11 +276,49 @@ export default function Sidebar({
           flex-shrink: 0;
           z-index: 100;
           transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-          position: relative;
-          top: auto;
+          position: fixed;
+          top: 0;
+          left: 0;
+          height: 100vh;
+          height: 100dvh;
+          max-height: 100vh;
+          max-height: 100dvh;
           box-sizing: border-box;
-          align-self: flex-start;
-          min-height: 100vh;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+
+        .sidebar::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.35);
+        }
+
+        .sidebar-content-top {
+          display: flex;
+          flex-direction: column;
+          flex-shrink: 0;
+        }
+
+        .sidebar-content-footer {
+          padding-top: 1.25rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
+          margin-top: auto;
+          flex-shrink: 0;
         }
 
         .sidebar-brand-wrapper {
