@@ -23,20 +23,21 @@ describe('KampusKash — Responsive UI, Desktop Sidebar & Mobile AI Chatbot Veri
   const indexCssContent = fs.readFileSync(indexCssPath, 'utf8');
 
   describe('Issue 1: Desktop Left Sidebar Scrolling Behavior', () => {
-    it('1. Desktop sidebar does not use position: fixed or position: sticky', () => {
+    it('1. Desktop sidebar uses position: fixed to stay permanently visible on the left', () => {
       // Find the base .sidebar declaration before the mobile query
       const baseSidebarBlock = sidebarContent.match(/\.sidebar\s*\{[\s\S]*?\}/);
       assert.ok(baseSidebarBlock, 'Base .sidebar block should exist');
       const css = baseSidebarBlock[0];
-      assert.ok(!css.includes('position: fixed'), 'Desktop sidebar must not have position: fixed');
-      assert.ok(!css.includes('position: sticky'), 'Desktop sidebar must not have position: sticky');
-      assert.ok(css.includes('position: relative'), 'Desktop sidebar should have position: relative');
+      assert.ok(css.includes('position: fixed'), 'Desktop sidebar must use position: fixed');
+      assert.ok(css.includes('top: 0'), 'Desktop sidebar must be pinned to top: 0');
+      assert.ok(css.includes('left: 0'), 'Desktop sidebar must be pinned to left: 0');
     });
 
-    it('2. Desktop sidebar has align-self: flex-start and scrolls naturally with the document', () => {
+    it('2. Desktop sidebar occupies full viewport height, allows internal vertical scrolling and preserves 260px width', () => {
       const baseSidebarBlock = sidebarContent.match(/\.sidebar\s*\{[\s\S]*?\}/);
       const css = baseSidebarBlock[0];
-      assert.ok(css.includes('align-self: flex-start'), 'Desktop sidebar must have align-self: flex-start to scroll with document');
+      assert.ok(css.includes('height: 100vh') || css.includes('height: 100dvh'), 'Desktop sidebar occupies full viewport height');
+      assert.ok(css.includes('overflow-y: auto'), 'Desktop sidebar allows internal vertical scrolling');
       assert.ok(css.includes('width: 260px'), 'Desktop sidebar preserves 260px width');
     });
 

@@ -87,6 +87,15 @@ function AppLayout({
     } catch {}
   };
 
+  // Scroll main area to top when active tab changes
+  useEffect(() => {
+    const mainWrapper = document.querySelector('.main-wrapper');
+    if (mainWrapper) {
+      mainWrapper.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   const handleOpenProfileModal = () => {
     if (isOnboardingActive && onboardingStep === 'profile') return;
     setIsProfileModalOpen(true);

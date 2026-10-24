@@ -416,7 +416,8 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         onToggleSave={handleToggleSaveVoucher}
         onSelectCafe={(cafeId) => {
           setSelectedCafeId(cafeId);
-          window.scrollTo({ top: 380, behavior: 'smooth' });
+          const scrollTarget = document.querySelector('.main-wrapper') || window;
+          scrollTarget.scrollTo({ top: 380, behavior: 'smooth' });
         }}
         copiedCode={copiedCode}
       />
@@ -431,7 +432,8 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets 
         onAddToExpenses={handleAddToExpenses}
         onLocateOnMap={(cafeId) => {
           setSelectedCafeId(cafeId);
-          window.scrollTo({ top: 380, behavior: 'smooth' });
+          const scrollTarget = document.querySelector('.main-wrapper') || window;
+          scrollTarget.scrollTo({ top: 380, behavior: 'smooth' });
         }}
         onCopyVoucherCode={handleCopyCode}
         onSaveVoucher={handleToggleSaveVoucher}
