@@ -56,6 +56,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
   const [categoryToDelete, setCategoryToDelete] = useState(null);
 
   const [activeThemeConfig, setActiveThemeConfig] = useState(() => loadSavedTheme());
+  const [useCustomColors, setUseCustomColors] = useState(() => Boolean(activeThemeConfig.customColors));
   const [customColors, setCustomColors] = useState(() => activeThemeConfig.customColors || getPresetColors(activeThemeConfig.presetId));
 
   // Derive a clean display name
@@ -86,11 +87,11 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
 
   const handleResetTheme = () => {
     setUseCustomColors(false);
-    const defaultConfig = { presetId: 'kiro', customColors: null };
+    const defaultConfig = { presetId: 'light', customColors: null };
     setActiveThemeConfig(defaultConfig);
     saveTheme(defaultConfig);
-    setCustomColors(getPresetColors('kiro'));
-    setMsg({ text: 'Theme reset to Kiro default.', isError: false });
+    setCustomColors(getPresetColors('light'));
+    setMsg({ text: 'Theme reset to default (Fintech Light).', isError: false });
   };
 
   const handleFileUpload = (e) => {
@@ -255,13 +256,63 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
                   {preset.description}
                 </p>
 
-                {/* Color Swatch Preview */}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '0.2rem' }}>
-                  <span style={{ flex: 1, height: '14px', borderRadius: '3px', background: preset.tokens['--bg-app'] }} title="Background" />
-                  <span style={{ flex: 1, height: '14px', borderRadius: '3px', background: preset.tokens['--bg-sidebar'] }} title="Sidebar" />
-                  <span style={{ flex: 1, height: '14px', borderRadius: '3px', background: preset.tokens['--primary'] }} title="Primary" />
-                  <span style={{ flex: 1, height: '14px', borderRadius: '3px', background: preset.tokens['--income'] }} title="Income" />
-                  <span style={{ flex: 1, height: '14px', borderRadius: '3px', background: preset.tokens['--expense'] }} title="Expense" />
+                {/* Real Tinted Layout Preview */}
+                <div style={{
+                  height: '46px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: preset.tokens['--bg-app-gradient'] || preset.tokens['--bg-app'],
+                  border: '1px solid ' + (preset.tokens['--border-light'] || 'rgba(0,0,0,0.1)'),
+                  padding: '4px',
+                  display: 'flex',
+                  gap: '5px',
+                  overflow: 'hidden',
+                  position: 'relative'
+                }}>
+                  {/* Mini Sidebar */}
+                  <div style={{
+                    width: '18px',
+                    height: '100%',
+                    borderRadius: '3px',
+                    background: preset.tokens['--bg-sidebar'],
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    paddingTop: '3px',
+                    gap: '2px'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: preset.tokens['--primary'] }} />
+                    <span style={{ width: '8px', height: '2px', borderRadius: '1px', background: preset.tokens['--sidebar-text-muted'] || '#999' }} />
+                  </div>
+                  {/* Mini Content with Card */}
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{
+                      background: preset.tokens['--bg-card'],
+                      borderRadius: '3px',
+                      padding: '3px 5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
+                    }}>
+                      <span style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        color: preset.tokens['--text-main']
+                      }}>
+                        {preset.isDark ? 'Dark' : 'Tinted'}
+                      </span>
+                      <div style={{ display: 'flex', gap: '3px' }}>
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: preset.tokens['--income'] }} />
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: preset.tokens['--expense'] }} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             );

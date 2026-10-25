@@ -2,44 +2,68 @@
    KAMPUSKASH — CLEAN FINTECH DESIGN SYSTEM & TOKEN ARCHITECTURE
    ========================================================================== */
 
-:root,
-[data-theme="light"] {
-  /* Clean Fintech Light Tokens (Default) */
-  --bg-app: #F8FAFC;
-  --bg-card: #FFFFFF;
-  --bg-card-subtle: #F1F5F9;
-  --bg-sidebar: #0F172A;
-  --bg-sidebar-active: #1E293B;
+:root {
+  /* Clean Fintech Light Tokens (Default theme) */
+  --bg-app: #DAD6FF;
+  --bg-app-gradient: linear-gradient(165deg, #CFD8FF 0%, #DAD6FF 52%, #E6D6FA 100%);
+  --bg-card: #EEF0FF;
+  --bg-card-subtle: #E0E4FF;
+  --bg-sidebar: #2A3392;
+  --bg-sidebar-active: #4A52C8;
 
-  --primary: #4F46E5;
-  --primary-hover: #4338CA;
-  --primary-light: #EEF2FF;
-  --primary-badge: #E0E7FF;
+  --primary: #4338CA;
+  --primary-hover: #382FAA;
+  --primary-light: #C7CEFF;
+  --primary-badge: #BFC8FF;
+  --accent-fg: #3730A3;
 
-  --text-main: #0F172A;
-  --text-muted: #64748B;
-  --text-light: #94A3B8;
+  --text-main: #171A45;
+  --text-muted: #40467F;
+  --text-light: #4B5189;
   --text-white: #FFFFFF;
+  --text-on-primary: #FFFFFF;
+  --text-on-income: #FFFFFF;
+  --text-on-expense: #FFFFFF;
 
-  --income: #10B981;
-  --income-bg: rgba(16, 185, 129, 0.1);
-  --expense: #EF4444;
-  --expense-bg: rgba(239, 68, 68, 0.1);
-  --warning: #F59E0B;
-  --warning-bg: rgba(245, 158, 11, 0.1);
+  --income: #065F46;
+  --income-bg: color-mix(in srgb, #065F46 14%, transparent);
+  --expense: #991B1B;
+  --expense-bg: color-mix(in srgb, #991B1B 14%, transparent);
+  --warning: #8F4108;
+  --warning-bg: color-mix(in srgb, #8F4108 16%, transparent);
 
-  --border-light: #E2E8F0;
-  --border-focus: #4F46E5;
+  --border-light: rgba(67, 56, 202, 0.26);
+  --border-focus: #4338CA;
+
+  --overlay-rgb: 23, 26, 69;
+  --shadow-rgb: 17, 20, 52;
+  --surface-solid: #EEF0FF;
+  --input-bg: #E0E4FF;
+  --input-border: color-mix(in srgb, #171A45 30%, transparent);
+  --tooltip-bg: #2A3392;
+  --tooltip-text: #FFFFFF;
+  --chart-bg: #E0E4FF;
+  --scrim: rgba(17, 20, 52, 0.55);
+
+  --sidebar-text: #FFFFFF;
+  --sidebar-text-muted: #BFC2DE;
+  --sidebar-active-text: #FFFFFF;
+  --sidebar-overlay-rgb: 255, 255, 255;
+
+  --provider-btn-bg: #F7F8FF;
+  --provider-btn-text: #1F2937;
+  --provider-btn-border: rgba(31, 41, 55, 0.28);
+  --theme-color: #CFD8FF;
 
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 18px;
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-modal: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 1px 3px 0 rgba(17, 20, 52, 0.1);
+  --shadow-card: 0 4px 14px -2px rgba(17, 20, 52, 0.18), 0 1px 3px rgba(17, 20, 52, 0.1);
+  --shadow-hover: 0 14px 28px -6px rgba(17, 20, 52, 0.24);
+  --shadow-modal: 0 24px 48px -12px rgba(17, 20, 52, 0.34);
 
   --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -60,40 +84,6 @@
   --anim-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-[data-theme="dark"] {
-  /* Clean Fintech Dark Tokens */
-  --bg-app: #0B0F19;
-  --bg-card: #111827;
-  --bg-card-subtle: #1F2937;
-  --bg-sidebar: #080C14;
-  --bg-sidebar-active: #1F2937;
-
-  --primary: #6366F1;
-  --primary-hover: #4F46E5;
-  --primary-light: #1E1B4B;
-  --primary-badge: #312E81;
-
-  --text-main: #F9FAFB;
-  --text-muted: #9CA3AF;
-  --text-light: #6B7280;
-  --text-white: #FFFFFF;
-
-  --income: #10B981;
-  --income-bg: rgba(16, 185, 129, 0.18);
-  --expense: #EF4444;
-  --expense-bg: rgba(239, 68, 68, 0.18);
-  --warning: #F59E0B;
-  --warning-bg: rgba(245, 158, 11, 0.18);
-
-  --border-light: rgba(255, 255, 255, 0.09);
-  --border-focus: #6366F1;
-
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-}
-
 /* Reset & Global Elements */
 * {
   box-sizing: border-box;
@@ -104,11 +94,15 @@
 html {
   overflow-x: hidden;
   width: 100%;
+  background: var(--bg-app-gradient, var(--bg-app));
+  background-color: var(--bg-app);
+  background-repeat: no-repeat;
+  min-height: 100%;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--bg-app);
+  background: transparent;
   color: var(--text-main);
   line-height: 1.5;
   min-height: 100vh;
@@ -851,53 +845,53 @@ body {
 /* Clean Midnight Dark Mode fintech styling */
 [data-theme-preset="kiro"] body,
 [data-theme-preset="kiro"] .app-container {
-  background-color: var(--bg-app, #0B0F19);
-  color: var(--text-main, #F9FAFB);
+  background: transparent;
+  color: var(--text-main);
 }
 
 [data-theme-preset="kiro"] .card {
-  background: var(--bg-card, #111827);
-  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.09));
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-  color: var(--text-main, #F9FAFB);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  color: var(--text-main);
 }
 
 [data-theme-preset="kiro"] .card:hover {
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-hover);
 }
 
 [data-theme-preset="kiro"] .sidebar {
-  background: var(--bg-sidebar, #080C14);
-  border-right: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-light);
 }
 
 [data-theme-preset="kiro"] .app-header {
-  background: rgba(11, 15, 25, 0.95);
-  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
 }
 
 [data-theme-preset="kiro"] .btn-primary {
-  background: var(--primary, #6366F1);
-  color: #FFFFFF;
+  background: var(--primary);
+  color: var(--text-on-primary, #FFFFFF);
   border: 1px solid transparent;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(var(--shadow-rgb), 0.2);
 }
 
 [data-theme-preset="kiro"] .btn-primary:hover {
-  background: var(--primary-hover, #4F46E5);
+  background: var(--primary-hover);
 }
 
 [data-theme-preset="kiro"] .badge-income {
-  background: var(--income-bg, rgba(16, 185, 129, 0.16));
-  color: var(--income, #10B981);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: var(--income-bg);
+  color: var(--income);
+  border: 1px solid var(--border-light);
 }
 
 [data-theme-preset="kiro"] .badge-expense {
-  background: var(--expense-bg, rgba(239, 68, 68, 0.16));
-  color: var(--expense, #EF4444);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--expense-bg);
+  color: var(--expense);
+  border: 1px solid var(--border-light);
 }
 
 /* Floating animation helper */

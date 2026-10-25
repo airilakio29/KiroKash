@@ -619,8 +619,18 @@ function checkPasswordResetRoute() {
   return false;
 }
 
+function DataLoaderReporter({ onDataReady }) {
+  const { isLoading } = useFinance();
+  useEffect(() => {
+    if (!isLoading && typeof onDataReady === 'function') {
+      onDataReady();
+    }
+  }, [isLoading, onDataReady]);
+  return null;
+}
+
 function AppAuthenticator() {
-  const { user, isAuthenticated, isFirebaseConfigured, loginAsDemo } = useAuth();
+  const { user, isAuthenticated, isAuthResolved, isFirebaseConfigured, loginAsDemo } = useAuth();
   const [inResetFlow, setInResetFlow] = useState(() => {
     handleRootResetRedirect();
     return checkPasswordResetRoute();
@@ -629,9 +639,7 @@ function AppAuthenticator() {
     try {
       const pathname = window.location.pathname.toLowerCase();
       if (pathname.includes('/login') || pathname.endsWith('login')) return 'login';
-    } catch {
-      // Fallback
-    }
+    } catch {}
     return 'signup';
   });
   const [showAuthForm, setShowAuthForm] = useState(() => {
@@ -647,6 +655,10 @@ function AppAuthenticator() {
     }
     return 'light';
   });
+
+  // Track if loader has finished for current signed-in session
+  const [loaderDone, setLoaderDone] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
 
   // Synchronize on URL changes / back-forward navigation & root redirect
   useEffect(() => {
@@ -672,6 +684,25 @@ function AppAuthenticator() {
     };
   }, []);
 
+  // Reset loaderDone when logged out so next login plays loader
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoaderDone(false);
+      setIsDataReady(false);
+    }
+  }, [isAuthenticated]);
+
+  // Prevent back navigation from re-triggering the loading page once inside the app
+  useEffect(() => {
+    if (isAuthenticated && loaderDone) {
+      const handlePopStateGuard = () => {
+        setLoaderDone(true);
+      };
+      window.addEventListener('popstate', handlePopStateGuard);
+      return () => window.removeEventListener('popstate', handlePopStateGuard);
+    }
+  }, [isAuthenticated, loaderDone]);
+
   const handleBackToLogin = () => {
     setInResetFlow(false);
     setAuthInitialMode('login');
@@ -680,9 +711,7 @@ function AppAuthenticator() {
       const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
       const loginUrl = `${basePath}/login`;
       window.history.replaceState(null, document.title, loginUrl);
-    } catch {
-      // Fallback
-    }
+    } catch {}
   };
 
   if (!isFirebaseConfigured) {
@@ -700,9 +729,7 @@ function AppAuthenticator() {
           const match = window.location.hash.match(/[?&#](?:oobCode|code)=([^&#]+)/);
           if (match && match[1]) return decodeURIComponent(match[1]);
         }
-      } catch {
-        // Fallback
-      }
+      } catch {}
       return '';
     })();
 
@@ -711,6 +738,23 @@ function AppAuthenticator() {
     );
   }
 
+  // TASK 1: While Firebase auth state is resolving, render ONLY a plain full screen
+  // background taken from the saved theme tokens (no logo, no text) so nothing wrong can flash.
+  if (!isAuthResolved) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'var(--bg-app-gradient, var(--bg-app))',
+          backgroundColor: 'var(--bg-app)',
+          zIndex: 99999
+        }}
+      />
+    );
+  }
+
+  // Signed out visitors: go straight to home page (or auth form), NO loading page
   if (!isAuthenticated) {
     if (!showAuthForm) {
       return (
@@ -744,6 +788,27 @@ function AppAuthenticator() {
     );
   }
 
+  // Authenticated: show loading screen (minimum 4 seconds) while data loads in parallel,
+  // then transition into main UI or onboarding.
+  if (!loaderDone) {
+    return (
+      <FinanceProvider key={user.id}>
+        <DataLoaderReporter onDataReady={() => setIsDataReady(true)} />
+        <FullScreenLoader
+          isDataReady={isDataReady}
+          onComplete={() => {
+            setLoaderDone(true);
+            try {
+              const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+              window.history.replaceState({ appReady: true }, document.title, basePath || '/');
+            } catch {}
+          }}
+        />
+      </FinanceProvider>
+    );
+  }
+
+  // Main UI (or onboarding for brand new users)
   return (
     <FinanceProvider key={user.id}>
       <AppContent />
@@ -751,15 +816,12 @@ function AppAuthenticator() {
   );
 }
 
-function AppWithLoader() {
-  const { isAuthResolved } = useAuth();
-
+function AppRoot() {
   return (
     <ToastProvider>
       <OfflineBanner />
       <PWAInstallPrompt />
-      <FullScreenLoader isResolved={isAuthResolved} />
-      {isAuthResolved && <AppAuthenticator />}
+      <AppAuthenticator />
     </ToastProvider>
   );
 }
@@ -771,7 +833,7 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <AppWithLoader />
+      <AppRoot />
     </AuthProvider>
   );
 }

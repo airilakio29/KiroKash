@@ -2,9 +2,14 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
+  OAuthProvider,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithCredential,
+  fetchSignInMethodsForEmail,
   signOut, 
   onAuthStateChanged,
   updateProfile,
@@ -61,6 +66,7 @@ let app = null;
 export let auth = null;
 export let db = null;
 export let googleProvider = null;
+export let microsoftProvider = null;
 
 if (isFirebaseConfigured) {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -68,12 +74,20 @@ if (isFirebaseConfigured) {
   db = getFirestore(app);
   googleProvider = new GoogleAuthProvider();
   googleProvider.setCustomParameters({ prompt: 'select_account' });
+  microsoftProvider = new OAuthProvider('microsoft.com');
+  microsoftProvider.setCustomParameters({ prompt: 'select_account' });
 }
 
 export {
+  GoogleAuthProvider,
+  OAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithCredential,
+  fetchSignInMethodsForEmail,
   signOut,
   onAuthStateChanged,
   updateProfile,

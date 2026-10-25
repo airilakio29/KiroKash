@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
 import { useAuth } from './context/AuthContext';
-import { Lock, User, LogIn, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle2, ArrowLeft, Mail, Send, RefreshCw } from 'lucide-react';
+import { 
+  Lock, 
+  User, 
+  LogIn, 
+  Eye, 
+  EyeOff, 
+  UserPlus, 
+  AlertCircle, 
+  CheckCircle2, 
+  ArrowLeft, 
+  Mail, 
+  Send, 
+  RefreshCw 
+} from 'lucide-react';
 import KampusKashLogo from './components/KampusKashLogo';
+import MicrosoftLogo from './components/MicrosoftLogo';
+import { formatAuthError } from './services/authService';
+import { getAuthLabel } from './utils/authLabels';
 
 export default function Auth({ initialMode, onBackToLanding }) {
   const { 
     loginWithFirebase, 
     signupWithFirebase, 
     loginWithGoogle, 
+    signInWithMicrosoft,
+    pendingLinkCredential,
+    redirectError,
     resetPasswordWithFirebase
   } = useAuth();
 
@@ -30,41 +49,15 @@ export default function Auth({ initialMode, onBackToLanding }) {
     setPrevInitialMode(initialMode);
     setMode(initialMode);
   }
-  const [emailInput, setEmailInput] = useState('');
+
+  const [emailInput, setEmailInput] = useState(() => pendingLinkCredential?.email || '');
   const [displayNameInput, setDisplayNameInput] = useState('');
   const [universityInput, setUniversityInput] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => redirectError?.message ? formatAuthError(redirectError) : '');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const formatFirebaseError = (err) => {
-    if (!err) return 'An error occurred during authentication.';
-    const code = err.code || err.message || '';
-    if (code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')) {
-      return 'Invalid email or password. Please check your credentials.';
-    }
-    if (code.includes('auth/email-already-in-use')) {
-      return 'An account with this email already exists. Try logging in instead.';
-    }
-    if (code.includes('auth/weak-password')) {
-      return 'Password should be at least 6 characters long.';
-    }
-    if (code.includes('auth/invalid-email')) {
-      return 'Please enter a valid email address.';
-    }
-    if (code.includes('auth/operation-not-allowed')) {
-      return 'This sign-in method is disabled. In Firebase Console, go to Authentication -> Sign-in method and enable Email/Password and Google.';
-    }
-    if (code.includes('auth/popup-closed-by-user')) {
-      return 'Google sign-in popup was closed before completing.';
-    }
-    if (code.includes('auth/configuration-not-found') || code.includes('auth/invalid-api-key')) {
-      return 'Firebase API keys missing. Please configure your .env credentials.';
-    }
-    return err.message || 'Authentication failed. Please try again.';
-  };
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
@@ -93,10 +86,10 @@ export default function Auth({ initialMode, onBackToLanding }) {
       if (result.success) {
         setSuccess('Account registered successfully! Welcome to KampusKash.');
       } else {
-        setError(result.error ? formatFirebaseError({ message: result.error, code: result.code }) : 'Failed to register account.');
+        setError(formatAuthError(result));
       }
     } catch (err) {
-      setError(formatFirebaseError(err));
+      setError(formatAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -119,10 +112,10 @@ export default function Auth({ initialMode, onBackToLanding }) {
       if (result.success) {
         setSuccess('Login successful! Redirecting...');
       } else {
-        setError(result.error ? formatFirebaseError({ message: result.error, code: result.code }) : 'Invalid email or password.');
+        setError(formatAuthError(result));
       }
     } catch (err) {
-      setError(formatFirebaseError(err));
+      setError(formatAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -134,13 +127,8 @@ export default function Auth({ initialMode, onBackToLanding }) {
     setSuccess('');
 
     const trimmedEmail = emailInput.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!trimmedEmail) {
       setError('Please enter your university or registered student email.');
-      return;
-    }
-    if (!emailRegex.test(trimmedEmail)) {
-      setError('Please enter a valid email address (e.g. student@university.edu).');
       return;
     }
 
@@ -148,33 +136,61 @@ export default function Auth({ initialMode, onBackToLanding }) {
     try {
       const result = await resetPasswordWithFirebase(trimmedEmail);
       if (result.success) {
-        setSuccess(`Password reset email sent to ${trimmedEmail}! Check your inbox and click the link to set your new password.`);
+        setSuccess(`A password reset link was dispatched to ${trimmedEmail}. Check your inbox and spam folder.`);
       } else {
-        setError(result.error ? formatFirebaseError({ message: result.error, code: result.code }) : 'Failed to send reset link.');
+        setError(formatAuthError(result));
       }
     } catch (err) {
-      setError(formatFirebaseError(err));
+      setError(formatAuthError(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  // Click handler invokes login synchronously with no prior await to avoid popup blocking
+  const handleGoogleSignIn = () => {
     setError('');
     setSuccess('');
     setLoading(true);
-    try {
-      const result = await loginWithGoogle();
-      if (result.success) {
-        setSuccess('Signed in with Google successfully!');
-      } else {
-        setError(result.error ? formatFirebaseError({ message: result.error, code: result.code }) : 'Google Sign-In failed.');
-      }
-    } catch (err) {
-      setError(formatFirebaseError(err));
-    } finally {
-      setLoading(false);
-    }
+    loginWithGoogle()
+      .then((result) => {
+        setLoading(false);
+        if (result.success) {
+          setSuccess('Signed in with Google successfully!');
+        } else if (result.code === 'auth/popup-closed-by-user' || result.code === 'auth/cancelled-popup-request') {
+          // Silent per specification
+        } else {
+          setError(formatAuthError(result));
+        }
+      })
+      .catch((err) => {
+        setLoading(false);
+        const msg = formatAuthError(err);
+        if (msg) setError(msg);
+      });
+  };
+
+  // Click handler invokes login synchronously with no prior await to avoid popup blocking
+  const handleMicrosoftSignIn = () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    signInWithMicrosoft()
+      .then((result) => {
+        setLoading(false);
+        if (result.success) {
+          setSuccess('Signed in with Microsoft successfully!');
+        } else if (result.code === 'auth/popup-closed-by-user' || result.code === 'auth/cancelled-popup-request') {
+          // Silent per specification
+        } else {
+          setError(formatAuthError(result));
+        }
+      })
+      .catch((err) => {
+        setLoading(false);
+        const msg = formatAuthError(err);
+        if (msg) setError(msg);
+      });
   };
 
   return (
@@ -191,11 +207,11 @@ export default function Auth({ initialMode, onBackToLanding }) {
         width: '100%',
         maxWidth: '460px',
         padding: '2.5rem 2rem',
-        background: 'var(--bg-card, rgba(54, 40, 68, 0.85))',
+        background: 'var(--surface-solid, var(--bg-card))',
         backdropFilter: 'blur(24px)',
-        borderRadius: '16px',
-        border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
-        boxShadow: '0 32px 64px -16px rgba(0, 0, 0, 0.6)'
+        borderRadius: 'var(--radius-xl, 16px)',
+        border: '1px solid var(--border-light)',
+        boxShadow: 'var(--shadow-modal)'
       }}>
         {/* Back button to return to Landing Page */}
         {onBackToLanding && (
@@ -217,7 +233,7 @@ export default function Auth({ initialMode, onBackToLanding }) {
             }}
           >
             <ArrowLeft size={16} />
-            <span>Back to home</span>
+            <span>{getAuthLabel('backToHome')}</span>
           </button>
         )}
 
@@ -228,7 +244,7 @@ export default function Auth({ initialMode, onBackToLanding }) {
           </div>
           <p style={{
             fontSize: '0.85rem',
-            color: 'var(--text-muted, #C4B5D4)',
+            color: 'var(--text-muted)',
             fontWeight: 500,
             margin: 0
           }}>
@@ -238,14 +254,40 @@ export default function Auth({ initialMode, onBackToLanding }) {
           </p>
         </div>
 
+        {/* Account Linking Prompt Banner (when Microsoft email already exists with another method) */}
+        {pendingLinkCredential && (
+          <div style={{
+            padding: '0.85rem 1rem',
+            background: 'var(--primary-light)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md, 10px)',
+            color: 'var(--accent-fg)',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            marginBottom: '1.25rem',
+            lineHeight: 1.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.35rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}>
+              <AlertCircle size={16} /> Account Linking Required
+            </div>
+            <span>
+              {getAuthLabel('signInWithOriginal', 'en', pendingLinkCredential.email ? 'your email/password or Google' : 'your original sign-in method')}
+            </span>
+          </div>
+        )}
+
         {/* Mode Selector Tabs (Sign Up is active by default) */}
         {mode !== 'reset' && (
           <div style={{
             display: 'flex',
-            background: 'rgba(0, 0, 0, 0.25)',
+            background: 'var(--bg-card-subtle)',
             padding: '4px',
-            borderRadius: '8px',
-            marginBottom: '1.5rem'
+            borderRadius: 'var(--radius-md, 8px)',
+            marginBottom: '1.25rem',
+            border: '1px solid var(--border-light)'
           }}>
             <button
               type="button"
@@ -253,10 +295,10 @@ export default function Auth({ initialMode, onBackToLanding }) {
               style={{
                 flex: 1,
                 padding: '0.6rem',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-sm, 6px)',
                 border: 'none',
-                background: mode === 'signup' ? 'rgba(255, 255, 255, 0.18)' : 'transparent',
-                color: mode === 'signup' ? '#FFFFFF' : 'var(--text-muted)',
+                background: mode === 'signup' ? 'var(--primary)' : 'transparent',
+                color: mode === 'signup' ? 'var(--text-on-primary, #FFFFFF)' : 'var(--text-muted)',
                 fontWeight: 700,
                 fontSize: '0.88rem',
                 cursor: 'pointer',
@@ -275,10 +317,10 @@ export default function Auth({ initialMode, onBackToLanding }) {
               style={{
                 flex: 1,
                 padding: '0.6rem',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-sm, 6px)',
                 border: 'none',
-                background: mode === 'login' ? 'rgba(255, 255, 255, 0.18)' : 'transparent',
-                color: mode === 'login' ? '#FFFFFF' : 'var(--text-muted)',
+                background: mode === 'login' ? 'var(--primary)' : 'transparent',
+                color: mode === 'login' ? 'var(--text-on-primary, #FFFFFF)' : 'var(--text-muted)',
                 fontWeight: 700,
                 fontSize: '0.88rem',
                 cursor: 'pointer',
@@ -294,40 +336,69 @@ export default function Auth({ initialMode, onBackToLanding }) {
           </div>
         )}
 
-        {/* Google Sign-In Button */}
+        {/* Third-Party Provider Buttons: Google & Microsoft */}
         {mode !== 'reset' && (
           <>
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#FFFFFF',
-                color: '#1F2937',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.6rem',
-                marginBottom: '1.25rem',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              Continue with Google
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              {/* Google Button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.72rem 1rem',
+                  background: 'var(--provider-btn-bg, #FFFFFF)',
+                  color: 'var(--provider-btn-text, #1F2937)',
+                  border: '1px solid var(--provider-btn-border, rgba(31, 41, 55, 0.28))',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.65rem',
+                  transition: 'all 0.15s ease',
+                  boxShadow: 'var(--shadow-sm)'
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span>{getAuthLabel('continueWithGoogle')}</span>
+              </button>
+
+              {/* Microsoft Button */}
+              <button
+                type="button"
+                onClick={handleMicrosoftSignIn}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.72rem 1rem',
+                  background: 'var(--provider-btn-bg, #FFFFFF)',
+                  color: 'var(--provider-btn-text, #1F2937)',
+                  border: '1px solid var(--provider-btn-border, rgba(31, 41, 55, 0.28))',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.65rem',
+                  transition: 'all 0.15s ease',
+                  boxShadow: 'var(--shadow-sm)'
+                }}
+              >
+                <MicrosoftLogo size={18} />
+                <span>{getAuthLabel('continueWithMicrosoft')}</span>
+              </button>
+            </div>
 
             <div style={{
               display: 'flex',
@@ -335,11 +406,13 @@ export default function Auth({ initialMode, onBackToLanding }) {
               gap: '0.75rem',
               margin: '1.25rem 0',
               color: 'var(--text-muted)',
-              fontSize: '0.75rem'
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              letterSpacing: '0.04em'
             }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-              <span>OR WITH EMAIL & PASSWORD</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-light)' }} />
+              <span>{getAuthLabel('orWithEmail')}</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-light)' }} />
             </div>
           </>
         )}
@@ -351,15 +424,15 @@ export default function Auth({ initialMode, onBackToLanding }) {
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.75rem 0.9rem',
-            background: 'rgba(239, 68, 68, 0.2)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            color: '#FCA5A5',
-            borderRadius: '8px',
+            background: 'var(--expense-bg)',
+            border: '1px solid var(--border-light)',
+            color: 'var(--expense)',
+            borderRadius: 'var(--radius-md, 8px)',
             fontSize: '0.82rem',
             fontWeight: 500,
             marginBottom: '1.25rem'
           }}>
-            <AlertCircle size={16} color="#EF4444" style={{ flexShrink: 0 }} />
+            <AlertCircle size={16} color="var(--expense)" style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
@@ -370,15 +443,15 @@ export default function Auth({ initialMode, onBackToLanding }) {
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.75rem 0.9rem',
-            background: 'rgba(16, 185, 129, 0.2)',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            color: '#6EE7B7',
-            borderRadius: '8px',
+            background: 'var(--income-bg)',
+            border: '1px solid var(--border-light)',
+            color: 'var(--income)',
+            borderRadius: 'var(--radius-md, 8px)',
             fontSize: '0.82rem',
             fontWeight: 500,
             marginBottom: '1.25rem'
           }}>
-            <CheckCircle2 size={16} color="#10B981" style={{ flexShrink: 0 }} />
+            <CheckCircle2 size={16} color="var(--income)" style={{ flexShrink: 0 }} />
             <span>{success}</span>
           </div>
         )}
@@ -401,9 +474,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                   padding: '0.75rem 1rem',
                   fontSize: '0.9rem',
                   color: 'var(--text-main)',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '8px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: 'var(--radius-md, 8px)',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -418,15 +491,15 @@ export default function Auth({ initialMode, onBackToLanding }) {
                 type="text"
                 value={universityInput}
                 onChange={(e) => setUniversityInput(e.target.value)}
-                placeholder="e.g. Universiti Teknologi Malaysia (UTM)"
+                placeholder="e.g. Universiti Malaya (UM)"
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
                   fontSize: '0.9rem',
                   color: 'var(--text-main)',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '8px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: 'var(--radius-md, 8px)',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -448,9 +521,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                   padding: '0.75rem 1rem',
                   fontSize: '0.9rem',
                   color: 'var(--text-main)',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '8px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: 'var(--radius-md, 8px)',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -473,9 +546,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     padding: '0.75rem 2.5rem 0.75rem 1rem',
                     fontSize: '0.9rem',
                     color: 'var(--text-main)',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '8px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: 'var(--radius-md, 8px)',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -493,6 +566,7 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     cursor: 'pointer',
                     color: 'var(--text-muted)'
                   }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -507,16 +581,16 @@ export default function Auth({ initialMode, onBackToLanding }) {
                 padding: '0.8rem',
                 fontSize: '0.95rem',
                 fontWeight: 700,
-                color: '#FFFFFF',
-                background: 'linear-gradient(135deg, var(--primary, #8B5CF6), var(--primary-hover, #7C3AED))',
+                color: 'var(--text-on-primary, #FFFFFF)',
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: 'var(--radius-md, 8px)',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                boxShadow: '0 4px 16px color-mix(in srgb, var(--primary, #8B5CF6) 35%, transparent)'
+                boxShadow: 'var(--shadow-card)'
               }}
             >
               <UserPlus size={18} /> Create Account
@@ -542,9 +616,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     padding: '0.75rem 1rem 0.75rem 2.6rem',
                     fontSize: '0.9rem',
                     color: 'var(--text-main)',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '8px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: 'var(--radius-md, 8px)',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -563,7 +637,7 @@ export default function Auth({ initialMode, onBackToLanding }) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--primary-light, #C4B5FD)',
+                    color: 'var(--accent-fg)',
                     fontSize: '0.78rem',
                     fontWeight: 600,
                     cursor: 'pointer'
@@ -585,9 +659,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     padding: '0.75rem 2.6rem',
                     fontSize: '0.9rem',
                     color: 'var(--text-main)',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '8px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: 'var(--radius-md, 8px)',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
@@ -605,6 +679,7 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     cursor: 'pointer',
                     color: 'var(--text-muted)'
                   }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -619,44 +694,47 @@ export default function Auth({ initialMode, onBackToLanding }) {
                 padding: '0.8rem',
                 fontSize: '0.95rem',
                 fontWeight: 700,
-                color: '#FFFFFF',
-                background: 'linear-gradient(135deg, var(--primary, #8B5CF6), var(--primary-hover, #7C3AED))',
+                color: 'var(--text-on-primary, #FFFFFF)',
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: 'var(--radius-md, 8px)',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                boxShadow: '0 4px 16px color-mix(in srgb, var(--primary, #8B5CF6) 35%, transparent)'
+                boxShadow: 'var(--shadow-card)'
               }}
             >
-              <LogIn size={18} /> Log In
+              <LogIn size={18} /> Sign In
             </button>
           </form>
         ) : (
           /* Password Reset Mode */
-          <div>
+          <div style={{ textAlign: 'left' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 0.5rem' }}>
+              Reset Account Password
+            </h3>
+
             {success ? (
               <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
                 <div style={{
                   width: '60px',
                   height: '60px',
                   borderRadius: '50%',
-                  background: 'rgba(16, 185, 129, 0.18)',
-                  border: '2px solid rgba(16, 185, 129, 0.5)',
+                  background: 'var(--income-bg)',
+                  border: '2px solid var(--income)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 1.25rem',
-                  boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)'
+                  margin: '0 auto 1.25rem'
                 }}>
-                  <CheckCircle2 size={32} color="#10B981" />
+                  <CheckCircle2 size={32} color="var(--income)" />
                 </div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main, #FFFFFF)', margin: '0 0 0.5rem' }}>
+                <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.5rem' }}>
                   Reset Link Dispatched!
-                </h2>
-                <p style={{ fontSize: '0.86rem', color: 'var(--text-muted, #C4B5D4)', lineHeight: 1.55, margin: '0 0 1.5rem' }}>
+                </h4>
+                <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 1.5rem' }}>
                   {success}
                 </p>
                 <button
@@ -667,16 +745,16 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     padding: '0.85rem',
                     fontSize: '0.95rem',
                     fontWeight: 700,
-                    color: '#FFFFFF',
-                    background: 'linear-gradient(135deg, var(--primary, #8B5CF6), var(--primary-hover, #7C3AED))',
+                    color: 'var(--text-on-primary, #FFFFFF)',
+                    background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
                     border: 'none',
-                    borderRadius: '8px',
+                    borderRadius: 'var(--radius-md, 8px)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    boxShadow: '0 4px 16px color-mix(in srgb, var(--primary, #8B5CF6) 35%, transparent)'
+                    boxShadow: 'var(--shadow-card)'
                   }}
                 >
                   <ArrowLeft size={16} /> Return to Log In
@@ -685,16 +763,16 @@ export default function Auth({ initialMode, onBackToLanding }) {
             ) : (
               <form onSubmit={handlePasswordResetSubmit}>
                 <div style={{
-                  background: 'color-mix(in srgb, var(--primary, #8B5CF6) 12%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--primary, #8B5CF6) 25%, transparent)',
-                  borderRadius: '10px',
+                  background: 'var(--primary-light)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-md, 10px)',
                   padding: '0.85rem 1rem',
                   marginBottom: '1.25rem',
                   fontSize: '0.82rem',
-                  color: 'var(--text-muted, #C4B5D4)',
+                  color: 'var(--accent-fg)',
                   lineHeight: 1.5
                 }}>
-                  Enter your registered student email address. We will send you an official Firebase password reset link with a direct redirect to our custom reset page.
+                  Enter your registered student email address. We will send you an official password reset link.
                 </div>
 
                 <div style={{ marginBottom: '1.25rem' }}>
@@ -714,9 +792,9 @@ export default function Auth({ initialMode, onBackToLanding }) {
                         padding: '0.75rem 1rem 0.75rem 2.6rem',
                         fontSize: '0.9rem',
                         color: 'var(--text-main)',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        borderRadius: '8px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: 'var(--radius-md, 8px)',
                         outline: 'none',
                         boxSizing: 'border-box'
                       }}
@@ -732,17 +810,17 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     padding: '0.85rem',
                     fontSize: '0.95rem',
                     fontWeight: 700,
-                    color: '#FFFFFF',
-                    background: 'linear-gradient(135deg, var(--primary, #8B5CF6), var(--primary-hover, #7C3AED))',
+                    color: 'var(--text-on-primary, #FFFFFF)',
+                    background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
                     border: 'none',
-                    borderRadius: '8px',
+                    borderRadius: 'var(--radius-md, 8px)',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
                     marginBottom: '1rem',
-                    boxShadow: '0 4px 16px color-mix(in srgb, var(--primary, #8B5CF6) 35%, transparent)',
+                    boxShadow: 'var(--shadow-card)',
                     opacity: loading ? 0.75 : 1
                   }}
                 >
@@ -763,12 +841,12 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
                     style={{
                       flex: 1,
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      background: 'var(--bg-card-subtle)',
+                      border: '1px solid var(--border-light)',
                       color: 'var(--text-main)',
                       fontSize: '0.84rem',
                       fontWeight: 600,
-                      borderRadius: '6px',
+                      borderRadius: 'var(--radius-sm, 6px)',
                       padding: '0.6rem',
                       cursor: 'pointer',
                       display: 'flex',
@@ -784,12 +862,12 @@ export default function Auth({ initialMode, onBackToLanding }) {
                     onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
                     style={{
                       flex: 1,
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      background: 'var(--bg-card-subtle)',
+                      border: '1px solid var(--border-light)',
                       color: 'var(--text-main)',
                       fontSize: '0.84rem',
                       fontWeight: 600,
-                      borderRadius: '6px',
+                      borderRadius: 'var(--radius-sm, 6px)',
                       padding: '0.6rem',
                       cursor: 'pointer',
                       display: 'flex',

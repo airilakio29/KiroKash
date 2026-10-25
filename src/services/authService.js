@@ -8,9 +8,13 @@
 import {
   auth,
   googleProvider,
+  microsoftProvider,
+  OAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  linkWithCredential,
   signOut as firebaseSignOut,
   updateProfile,
   sendPasswordResetEmail,
@@ -18,6 +22,65 @@ import {
   confirmPasswordReset,
   isFirebaseConfigured
 } from '../firebase.js';
+
+/**
+ * Format raw Firebase errors into user-friendly plain language.
+ * Popup closed/cancelled returns empty string (no error shown).
+ */
+export function formatAuthError(err) {
+  if (!err) return '';
+  const code = err.code || err.message || '';
+  if (
+    code.includes('auth/popup-closed-by-user') ||
+    code.includes('auth/cancelled-popup-request')
+  ) {
+    return '';
+  }
+  if (code.includes('auth/popup-blocked')) {
+    return 'The sign-in popup was blocked by your browser. Please allow popups or try again.';
+  }
+  if (code.includes('auth/network-request-failed')) {
+    return 'Network connection failed. Please check your internet connection and try again.';
+  }
+  if (code.includes('auth/unauthorized-domain')) {
+    return 'This domain is not authorized for authentication. Please verify your Firebase Authorized Domains configuration.';
+  }
+  if (code.includes('auth/account-exists-with-different-credential')) {
+    return 'An account already exists with this email using a different sign-in method. Please sign in with your original method, and we will link your Microsoft account.';
+  }
+  if (
+    code.includes('auth/invalid-credential') ||
+    code.includes('auth/wrong-password') ||
+    code.includes('auth/user-not-found')
+  ) {
+    return 'Invalid email or password. Please verify your credentials.';
+  }
+  if (code.includes('auth/email-already-in-use')) {
+    return 'An account with this email already exists. Try logging in instead.';
+  }
+  if (code.includes('auth/weak-password')) {
+    return 'Password must be at least 6 characters long.';
+  }
+  if (code.includes('auth/invalid-email')) {
+    return 'Please enter a valid email address.';
+  }
+  if (code.includes('auth/operation-not-allowed')) {
+    return 'This sign-in provider is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method.';
+  }
+  return err.message || 'Authentication error. Please try again.';
+}
+
+function shouldUseRedirect() {
+  if (typeof window === 'undefined') return false;
+  const isIosStandalone =
+    window.navigator?.standalone ||
+    (window.matchMedia?.('(display-mode: standalone)').matches &&
+      /iPhone|iPad|iPod/.test(navigator.userAgent));
+  const isWebview =
+    /;\s*wv\)/.test(navigator.userAgent) ||
+    /FBAN|FBAV|Instagram|Line|MicroMessenger|GSA/.test(navigator.userAgent);
+  return Boolean(isIosStandalone || isWebview);
+}
 
 /**
  * Check if a string looks like a technical UID or hex hash
@@ -108,6 +171,17 @@ export async function loginWithGoogle() {
   if (!isFirebaseConfigured || !auth || !googleProvider) {
     return { success: false, code: 'auth/not-configured', error: 'Firebase is not configured.' };
   }
+
+  if (shouldUseRedirect()) {
+    try {
+      sessionStorage.setItem('kirokash_redirect_pending', 'google');
+      await signInWithRedirect(auth, googleProvider);
+      return { success: true, redirect: true };
+    } catch (redirectErr) {
+      return { success: false, error: redirectErr.message, code: redirectErr.code };
+    }
+  }
+
   try {
     const cred = await signInWithPopup(auth, googleProvider);
     const user = formatFirebaseUser(cred.user, {
@@ -115,9 +189,67 @@ export async function loginWithGoogle() {
       university: 'Campus Student',
       avatar: cred.user.photoURL || '🌐'
     });
-    return { success: true, user };
+    return { success: true, user, credential: cred };
   } catch (error) {
-    return { success: false, error: error.message, code: error.code };
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
+      try {
+        sessionStorage.setItem('kirokash_redirect_pending', 'google');
+        await signInWithRedirect(auth, googleProvider);
+        return { success: true, redirect: true };
+      } catch (redirectErr) {
+        return { success: false, error: redirectErr.message, code: redirectErr.code };
+      }
+    }
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+      email: error.customData?.email || error.email,
+      credential: OAuthProvider.credentialFromError(error)
+    };
+  }
+}
+
+export async function loginWithMicrosoft() {
+  if (!isFirebaseConfigured || !auth || !microsoftProvider) {
+    return { success: false, code: 'auth/not-configured', error: 'Firebase is not configured.' };
+  }
+
+  if (shouldUseRedirect()) {
+    try {
+      sessionStorage.setItem('kirokash_redirect_pending', 'microsoft');
+      await signInWithRedirect(auth, microsoftProvider);
+      return { success: true, redirect: true };
+    } catch (redirectErr) {
+      return { success: false, error: redirectErr.message, code: redirectErr.code };
+    }
+  }
+
+  try {
+    const cred = await signInWithPopup(auth, microsoftProvider);
+    const user = formatFirebaseUser(cred.user, {
+      username: cred.user.displayName || (cred.user.email ? cred.user.email.split('@')[0] : 'Microsoft Student'),
+      university: 'Campus Student',
+      avatar: cred.user.photoURL || '🎓'
+    });
+    return { success: true, user, credential: cred };
+  } catch (error) {
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
+      try {
+        sessionStorage.setItem('kirokash_redirect_pending', 'microsoft');
+        await signInWithRedirect(auth, microsoftProvider);
+        return { success: true, redirect: true };
+      } catch (redirectErr) {
+        return { success: false, error: redirectErr.message, code: redirectErr.code };
+      }
+    }
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+      email: error.customData?.email || error.email,
+      credential: OAuthProvider.credentialFromError(error)
+    };
   }
 }
 

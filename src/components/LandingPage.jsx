@@ -233,7 +233,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
         <div className="features-grid">
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <Wallet size={24} color="#4F46E5" />
+              <Wallet size={24} color="var(--primary)" />
             </div>
             <h3 className="feature-card-title">Real Multi-Account Tracking</h3>
             <p className="feature-card-desc">
@@ -244,7 +244,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
 
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <Target size={24} color="#10B981" />
+              <Target size={24} color="var(--income)" />
             </div>
             <h3 className="feature-card-title">Category Budget Caps</h3>
             <p className="feature-card-desc">
@@ -255,7 +255,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
 
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <Sparkles size={24} color="#6366F1" />
+              <Sparkles size={24} color="var(--accent-fg)" />
             </div>
             <h3 className="feature-card-title">KampusKash AI Assistant</h3>
             <p className="feature-card-desc">
@@ -266,7 +266,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
 
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <TrendingUp size={24} color="#F59E0B" />
+              <TrendingUp size={24} color="var(--warning)" />
             </div>
             <h3 className="feature-card-title">Savings Goals Milestones</h3>
             <p className="feature-card-desc">
@@ -277,7 +277,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
 
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <Smartphone size={24} color="#06B6D4" />
+              <Smartphone size={24} color="var(--primary)" />
             </div>
             <h3 className="feature-card-title">PWA & Offline Ready</h3>
             <p className="feature-card-desc">
@@ -288,7 +288,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
 
           <div className="feature-card">
             <div className="feature-icon-wrapper">
-              <ShieldCheck size={24} color="#10B981" />
+              <ShieldCheck size={24} color="var(--income)" />
             </div>
             <h3 className="feature-card-title">100% Privacy & Cloud Security</h3>
             <p className="feature-card-desc">
@@ -342,7 +342,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
         .landing-page-wrapper {
           min-height: 100vh;
           width: 100%;
-          background-color: var(--bg-app);
+          background: transparent;
           color: var(--text-main);
           font-family: var(--font-sans);
           overflow-x: hidden;
@@ -457,7 +457,7 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
         }
 
         .highlight-text {
-          background: linear-gradient(135deg, var(--primary) 0%, #06B6D4 100%);
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-badge) 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
@@ -553,9 +553,9 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
           border-radius: 50%;
         }
 
-        .dot-red { background: #EF4444; }
-        .dot-yellow { background: #F59E0B; }
-        .dot-green { background: #10B981; }
+        .dot-red { background: var(--expense); }
+        .dot-yellow { background: var(--warning); }
+        .dot-green { background: var(--income); }
 
         .mockup-search-pill {
           background: var(--bg-card);

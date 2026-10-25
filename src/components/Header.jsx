@@ -168,10 +168,10 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
                 top: 'calc(100% + 8px)',
                 right: 0,
                 width: '220px',
-                background: 'var(--bg-sidebar)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'var(--surface-solid, var(--bg-card))',
+                border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-lg)',
-                boxShadow: '0 16px 36px -4px rgba(0, 0, 0, 0.65)',
+                boxShadow: 'var(--shadow-modal)',
                 padding: '0.4rem',
                 zIndex: 1000,
                 display: 'flex',
@@ -197,8 +197,8 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
                       padding: '0.45rem 0.6rem',
                       border: 'none',
                       borderRadius: 'var(--radius-sm)',
-                      background: isSelected ? 'rgba(139, 92, 246, 0.22)' : 'transparent',
-                      color: isSelected ? 'var(--text-white)' : 'var(--text-main)',
+                      background: isSelected ? 'var(--primary-light)' : 'transparent',
+                      color: isSelected ? 'var(--accent-fg)' : 'var(--text-main)',
                       fontSize: '0.82rem',
                       fontWeight: isSelected ? 700 : 500,
                       cursor: 'pointer',
@@ -206,7 +206,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
                       transition: 'background 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                      if (!isSelected) e.currentTarget.style.background = 'var(--bg-card-subtle)';
                     }}
                     onMouseLeave={(e) => {
                       if (!isSelected) e.currentTarget.style.background = 'transparent';
@@ -218,11 +218,12 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
                     </span>
                     <span
                       style={{
-                        width: '10px',
-                        height: '10px',
+                        width: '12px',
+                        height: '12px',
                         borderRadius: '50%',
-                        background: t.tokens['--primary'] || '#8B5CF6',
-                        boxShadow: isSelected ? `0 0 8px ${t.tokens['--primary']}` : 'none'
+                        background: t.tokens['--primary'],
+                        boxShadow: isSelected ? `0 0 6px ${t.tokens['--primary']}` : 'none',
+                        border: '1px solid var(--border-light)'
                       }}
                     />
                   </button>

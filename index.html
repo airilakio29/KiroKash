@@ -18,8 +18,35 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="KampusKash" />
     <meta name="application-name" content="KampusKash" />
-    <meta name="theme-color" content="#0A0A0F" />
-    <meta name="msapplication-TileColor" content="#0A0A0F" />
+    <meta name="theme-color" content="#CFD8FF" />
+    <meta name="msapplication-TileColor" content="#CFD8FF" />
+    <script>
+      (function() {
+        try {
+          var b = localStorage.getItem('kampuskash_theme_boot');
+          if (b) {
+            var data = JSON.parse(b);
+            if (data && data.tokens) {
+              var r = document.documentElement;
+              for (var k in data.tokens) {
+                r.style.setProperty(k, data.tokens[k]);
+              }
+              r.style.colorScheme = data.isDark ? 'dark' : 'light';
+              r.setAttribute('data-theme', data.isDark ? 'dark' : 'light');
+              r.setAttribute('data-theme-preset', data.presetId || 'light');
+              if (data.presetId === 'kiro') r.setAttribute('data-kiro', 'true');
+              var tc = data.tokens['--theme-color'];
+              if (tc) {
+                var m = document.querySelector('meta[name="theme-color"]');
+                if (m) m.setAttribute('content', tc);
+                var mt = document.querySelector('meta[name="msapplication-TileColor"]');
+                if (mt) mt.setAttribute('content', tc);
+              }
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
     <meta name="format-detection" content="telephone=no" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">

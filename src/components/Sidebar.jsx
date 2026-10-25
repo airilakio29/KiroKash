@@ -104,7 +104,7 @@ export default function Sidebar({
                 aria-label="KampusKash - Go to Dashboard"
                 title="Go to Dashboard"
               >
-                <KampusKashLogo size={32} textColor="#FFFFFF" showWordmark={true} />
+                <KampusKashLogo size={32} textColor="var(--sidebar-text)" showWordmark={true} />
               </button>
 
               <button
@@ -151,7 +151,7 @@ export default function Sidebar({
                   className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
                   aria-label={item.label}
                 >
-                  <Icon size={20} color={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} />
+                  <Icon size={20} color={isActive ? 'var(--sidebar-active-text)' : 'var(--sidebar-text-muted)'} />
                   <span>{item.label}</span>
                   {item.badge && (
                     <span
@@ -161,8 +161,8 @@ export default function Sidebar({
                         fontWeight: 700,
                         padding: '0.12rem 0.45rem',
                         borderRadius: '6px',
-                        background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-badge, #A855F7) 100%)',
-                        color: '#FFFFFF',
+                        background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-badge) 100%)',
+                        color: 'var(--text-on-primary)',
                         letterSpacing: '0.05em'
                       }}
                     >
@@ -178,7 +178,7 @@ export default function Sidebar({
         {/* Footer User Profile & Logout */}
         <div className="sidebar-content-footer" style={{
           paddingTop: '1.25rem',
-          borderTop: '1px solid rgba(255,255,255,0.12)',
+          borderTop: '1px solid rgba(var(--sidebar-overlay-rgb), 0.12)',
           marginTop: 'auto',
           flexShrink: 0
         }}>
@@ -205,7 +205,7 @@ export default function Sidebar({
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '0.75rem',
-              background: 'rgba(255,255,255,0.06)',
+              background: 'rgba(var(--sidebar-overlay-rgb), 0.08)',
               borderRadius: 'var(--radius-md)',
               cursor: onOpenProfileModal ? 'pointer' : 'default',
               transition: 'background var(--transition-fast)'
@@ -214,16 +214,16 @@ export default function Sidebar({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
               <UserAvatar avatar={user?.avatar} name={displayName} size={36} />
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--sidebar-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {displayName}
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {user?.bio || user?.university || 'Student'}
                 </div>
               </div>
             </div>
             {onOpenProfileModal && (
-              <span style={{ color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', marginLeft: '0.35rem' }}>
+              <span style={{ color: 'var(--sidebar-text-muted)', display: 'flex', alignItems: 'center', marginLeft: '0.35rem' }}>
                 <UserIcon size={14} />
               </span>
             )}
@@ -261,7 +261,7 @@ export default function Sidebar({
           width: 260px;
           min-width: 260px;
           background: var(--bg-sidebar);
-          color: #FFFFFF;
+          color: var(--sidebar-text);
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -281,7 +281,7 @@ export default function Sidebar({
           overflow-x: hidden;
           -webkit-overflow-scrolling: touch;
           scrollbar-width: thin;
-          scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+          scrollbar-color: rgba(var(--sidebar-overlay-rgb), 0.2) transparent;
         }
 
         .sidebar::-webkit-scrollbar {
@@ -293,12 +293,12 @@ export default function Sidebar({
         }
 
         .sidebar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
+          background: rgba(var(--sidebar-overlay-rgb), 0.2);
           border-radius: 4px;
         }
 
         .sidebar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.35);
+          background: rgba(var(--sidebar-overlay-rgb), 0.35);
         }
 
         .sidebar-content-top {
@@ -309,7 +309,7 @@ export default function Sidebar({
 
         .sidebar-content-footer {
           padding-top: 1.25rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.12);
+          border-top: 1px solid rgba(var(--sidebar-overlay-rgb), 0.12);
           margin-top: auto;
           flex-shrink: 0;
         }
@@ -341,7 +341,7 @@ export default function Sidebar({
         }
 
         .sidebar-logo-btn:focus-visible {
-          outline: 2px solid var(--primary, #8b5cf6);
+          outline: 2px solid var(--primary);
           outline-offset: 4px;
         }
 
@@ -356,7 +356,7 @@ export default function Sidebar({
 
         .sidebar-tagline {
           font-size: 0.74rem;
-          color: rgba(255, 255, 255, 0.65);
+          color: var(--sidebar-text-muted);
           font-weight: 500;
           margin-top: 0.5rem;
           letter-spacing: 0.01em;
@@ -367,9 +367,9 @@ export default function Sidebar({
           width: 100%;
           min-height: 44px;
           background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-          color: #FFFFFF;
+          color: var(--text-on-primary, #FFFFFF);
           margin-bottom: 1.5rem;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+          box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.25);
           font-weight: 600;
         }
 
@@ -383,7 +383,7 @@ export default function Sidebar({
           border-radius: var(--radius-md);
           border: none;
           background: transparent;
-          color: rgba(255, 255, 255, 0.6);
+          color: var(--sidebar-text-muted);
           font-weight: 500;
           font-size: 0.92rem;
           cursor: pointer;
@@ -392,13 +392,13 @@ export default function Sidebar({
         }
 
         .sidebar-nav-item:hover {
-          background: rgba(255, 255, 255, 0.08);
-          color: #FFFFFF;
+          background: rgba(var(--sidebar-overlay-rgb), 0.08);
+          color: var(--sidebar-text);
         }
 
         .sidebar-nav-item.active {
           background: var(--bg-sidebar-active);
-          color: #FFFFFF;
+          color: var(--sidebar-active-text);
           font-weight: 600;
         }
 
@@ -411,9 +411,9 @@ export default function Sidebar({
           gap: 0.5rem;
           margin-top: 0.75rem;
           padding: 0.6rem;
-          background: rgba(231, 76, 60, 0.15);
-          color: #FCA5A5;
-          border: 1px solid rgba(231, 76, 60, 0.25);
+          background: var(--expense-bg);
+          color: var(--expense);
+          border: 1px solid var(--border-light);
           border-radius: var(--radius-sm);
           font-size: 0.85rem;
           font-weight: 600;
@@ -431,9 +431,9 @@ export default function Sidebar({
           gap: 0.5rem;
           margin-top: 0.75rem;
           padding: 0.6rem;
-          background: rgba(139, 92, 246, 0.18);
-          color: #DDD6FE;
-          border: 1px solid rgba(139, 92, 246, 0.35);
+          background: var(--primary-light);
+          color: var(--accent-fg);
+          border: 1px solid var(--border-light);
           border-radius: var(--radius-sm);
           font-size: 0.85rem;
           font-weight: 600;
@@ -443,19 +443,19 @@ export default function Sidebar({
         }
 
         .sidebar-install-btn:hover {
-          background: rgba(139, 92, 246, 0.32);
-          color: #FFFFFF;
+          background: var(--primary-badge);
+          color: var(--accent-fg);
         }
 
         .sidebar-logout-btn:hover {
-          background: rgba(231, 76, 60, 0.25);
+          filter: brightness(0.95);
         }
 
         .mobile-close-btn {
           display: none;
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(var(--sidebar-overlay-rgb), 0.1);
           border: none;
-          color: #FFF;
+          color: var(--sidebar-text);
           width: 44px;
           height: 44px;
           border-radius: 50%;
@@ -466,7 +466,7 @@ export default function Sidebar({
         }
 
         .mobile-close-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: rgba(var(--sidebar-overlay-rgb), 0.2);
         }
 
         .sidebar-mobile-overlay {
@@ -475,7 +475,7 @@ export default function Sidebar({
           left: 0;
           width: 100vw;
           height: 100vh;
-          background: rgba(10, 5, 15, 0.68);
+          background: var(--scrim, rgba(10, 5, 15, 0.68));
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
           z-index: 998;

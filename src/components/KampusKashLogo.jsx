@@ -50,14 +50,14 @@ export default function KampusKashLogo({
         [data-theme="light"] .landing-nav .official-logo-img,
         [data-theme="light"] .auth-card .official-logo-img,
         [data-theme="light"] .landing-footer .official-logo-img {
-          filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.45)) drop-shadow(0 0 1px rgba(15, 23, 42, 0.65));
+          filter: drop-shadow(0 1px 2px rgba(var(--shadow-rgb), 0.45)) drop-shadow(0 0 1px rgba(var(--shadow-rgb), 0.65));
         }
 
-        /* In the dark sidebar and dark loader, render pure native glow without shadow */
+        /* In the sidebar and loader, render a soft primary ambient glow */
         .sidebar .official-logo-img,
         .fullscreen-loader-overlay .official-logo-img,
         [data-theme="dark"] .official-logo-img {
-          filter: drop-shadow(0 4px 16px rgba(139, 92, 246, 0.35));
+          filter: drop-shadow(0 4px 16px color-mix(in srgb, var(--primary) 45%, transparent));
         }
       `}</style>
     </div>

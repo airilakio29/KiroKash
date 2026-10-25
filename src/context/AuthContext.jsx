@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { 
   auth, 
   onAuthStateChanged,
+  getRedirectResult,
+  linkWithCredential,
+  OAuthProvider,
   isFirebaseConfigured
 } from '../firebase';
 import { loadSavedTheme } from '../utils/themeEngine';
@@ -10,6 +13,7 @@ import {
   loginWithEmail,
   registerWithEmail,
   loginWithGoogle as authLoginWithGoogle,
+  loginWithMicrosoft as authLoginWithMicrosoft,
   sendPasswordReset,
   logoutUser
 } from '../services/authService';
@@ -20,6 +24,7 @@ import {
 
 const AuthContext = createContext();
 
+export const STORAGE_KEY_AUTH_HINT = 'kirokash_auth_hint';
 const STORAGE_KEY_USER = 'student_tracker_user';
 const LEGACY_KEYS = [
   'student_tracker_auth_state'
@@ -42,6 +47,7 @@ export function AuthProvider({ children }) {
             isFirebaseUser: false
           };
           localStorage.setItem('kampuskash_is_demo', 'true');
+          localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
           localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(demoUser));
           return demoUser;
         }
@@ -54,7 +60,10 @@ export function AuthProvider({ children }) {
     } catch {}
     return null;
   });
+
   const [isAuthResolved, setIsAuthResolved] = useState(!isFirebaseConfigured);
+  const [pendingLinkCredential, setPendingLinkCredential] = useState(null);
+  const [redirectError, setRedirectError] = useState(null);
 
   // Initialize theme on app load
   useEffect(() => {
@@ -73,49 +82,102 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Firebase is the single source of truth for the real session
+  // Handle redirect result (Microsoft & Google redirects) and onAuthStateChanged
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
       setIsAuthResolved(true);
       return;
     }
 
-    const fallbackTimer = setTimeout(() => {
-      setIsAuthResolved(true);
-    }, 600);
+    let isMounted = true;
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      clearTimeout(fallbackTimer);
-      if (firebaseUser) {
-        const baseUser = formatFirebaseUser(firebaseUser);
-        setUser(baseUser);
-
-        // Fetch cloud profile from Firestore
-        try {
-          const cloudProfile = await fetchUserProfile(firebaseUser.uid);
-          if (cloudProfile) {
-            setUser(prev => prev ? ({
-              ...prev,
-              ...cloudProfile,
-              username: cloudProfile.username || prev.username,
-              avatar: cloudProfile.avatar || prev.avatar
-            }) : null);
-          }
-        } catch (err) {
-          console.warn('Failed to load cloud profile on auth state change', err);
+    async function initAuthFlow() {
+      // 1. Process getRedirectResult before deciding route
+      try {
+        const redirectResult = await getRedirectResult(auth);
+        sessionStorage.removeItem('kirokash_redirect_pending');
+        if (redirectResult && redirectResult.user && isMounted) {
+          localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
+          const baseUser = formatFirebaseUser(redirectResult.user);
+          setUser(baseUser);
         }
-      } else {
-        // Only clear if not in demo mode
-        const isDemo = localStorage.getItem('kampuskash_is_demo');
-        if (!isDemo) {
-          setUser(null);
+      } catch (err) {
+        sessionStorage.removeItem('kirokash_redirect_pending');
+        console.warn('Firebase redirect auth error:', err);
+        if (err.code === 'auth/account-exists-with-different-credential') {
+          try {
+            const cred = OAuthProvider.credentialFromError(err);
+            const email = err.customData?.email || err.email;
+            if (isMounted) {
+              setPendingLinkCredential({ credential: cred, email });
+              setRedirectError({
+                code: err.code,
+                message: 'An account with this email already exists using a different sign in method. Please sign in with your original method, and we will link your Microsoft account.',
+                email
+              });
+            }
+          } catch (_e) {}
+        } else if (err.code !== 'auth/popup-closed-by-user' && isMounted) {
+          setRedirectError({ code: err.code, message: err.message });
         }
       }
-      setIsAuthResolved(true);
-    });
 
-    return () => unsubscribe();
-  }, []);
+      // 2. Listen to onAuthStateChanged
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (!isMounted) return;
+        if (firebaseUser) {
+          localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
+          const baseUser = formatFirebaseUser(firebaseUser);
+          setUser(prev => prev ? { ...prev, ...baseUser } : baseUser);
+
+          // If there is a pending Microsoft credential to link to this existing account:
+          if (pendingLinkCredential && pendingLinkCredential.credential) {
+            try {
+              await linkWithCredential(firebaseUser, pendingLinkCredential.credential);
+              setPendingLinkCredential(null);
+              setRedirectError(null);
+            } catch (linkErr) {
+              console.warn('Auto credential linking error', linkErr);
+            }
+          }
+
+          // Fetch cloud profile from Firestore
+          try {
+            const cloudProfile = await fetchUserProfile(firebaseUser.uid);
+            if (cloudProfile && isMounted) {
+              setUser(prev => prev ? ({
+                ...prev,
+                ...cloudProfile,
+                username: cloudProfile.username || prev.username,
+                avatar: cloudProfile.avatar || prev.avatar
+              }) : null);
+            }
+          } catch (err) {
+            console.warn('Failed to load cloud profile on auth state change', err);
+          }
+        } else {
+          // Only clear if not in demo mode
+          const isDemo = localStorage.getItem('kampuskash_is_demo');
+          if (!isDemo) {
+            localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'out');
+            setUser(null);
+          }
+        }
+        setIsAuthResolved(true);
+      });
+
+      return unsubscribe;
+    }
+
+    const unsubPromise = initAuthFlow();
+
+    return () => {
+      isMounted = false;
+      unsubPromise.then(unsub => {
+        if (typeof unsub === 'function') unsub();
+      });
+    };
+  }, [pendingLinkCredential]);
 
   // Cache the resolved profile
   useEffect(() => {
@@ -130,11 +192,29 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
+  const linkPendingCredentialIfAny = async (firebaseUser) => {
+    if (pendingLinkCredential && pendingLinkCredential.credential && firebaseUser) {
+      try {
+        await linkWithCredential(firebaseUser, pendingLinkCredential.credential);
+        setPendingLinkCredential(null);
+        setRedirectError(null);
+        return true;
+      } catch (err) {
+        console.warn('Credential linking failed:', err);
+      }
+    }
+    return false;
+  };
+
   const loginWithFirebase = async (email, password) => {
     const res = await loginWithEmail(email, password);
     if (res.success) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
+      if (auth.currentUser) {
+        await linkPendingCredentialIfAny(auth.currentUser);
+      }
       try {
         const cloudProfile = await fetchUserProfile(res.user.id);
         if (cloudProfile) {
@@ -151,16 +231,24 @@ export function AuthProvider({ children }) {
     const res = await registerWithEmail(email, password, displayName, university);
     if (res.success) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
+      if (auth.currentUser) {
+        await linkPendingCredentialIfAny(auth.currentUser);
+      }
     }
     return res;
   };
 
   const loginWithGoogle = async () => {
     const res = await authLoginWithGoogle();
-    if (res.success) {
+    if (res.success && res.user) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
+      if (auth.currentUser) {
+        await linkPendingCredentialIfAny(auth.currentUser);
+      }
       try {
         const cloudProfile = await fetchUserProfile(res.user.id);
         if (cloudProfile) {
@@ -169,6 +257,26 @@ export function AuthProvider({ children }) {
       } catch (err) {
         console.warn('Failed to fetch cloud profile post-Google login', err);
       }
+    }
+    return res;
+  };
+
+  const signInWithMicrosoft = async () => {
+    const res = await authLoginWithMicrosoft();
+    if (res.success && res.user) {
+      localStorage.removeItem('kampuskash_is_demo');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
+      setUser(res.user);
+      try {
+        const cloudProfile = await fetchUserProfile(res.user.id);
+        if (cloudProfile) {
+          setUser(prev => prev ? ({ ...prev, ...cloudProfile }) : null);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch cloud profile post-Microsoft login', err);
+      }
+    } else if (res.code === 'auth/account-exists-with-different-credential') {
+      setPendingLinkCredential({ credential: res.credential, email: res.email });
     }
     return res;
   };
@@ -186,6 +294,7 @@ export function AuthProvider({ children }) {
     };
     try {
       localStorage.setItem('kampuskash_is_demo', 'true');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(demoUser));
     } catch {}
     setUser(demoUser);
@@ -209,6 +318,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem(STORAGE_KEY_USER);
       localStorage.removeItem('kampuskash_is_demo');
       localStorage.removeItem('kirokash_tutorial_current_step');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'out');
     } catch (e) {
       console.error('Failed to clear user cache', e);
     }
@@ -241,6 +351,10 @@ export function AuthProvider({ children }) {
     return await saveFullUserProfile(user.id, profileData);
   }, [user, updateUserProfile]);
 
+  const clearRedirectError = useCallback(() => {
+    setRedirectError(null);
+  }, []);
+
   const value = useMemo(() => ({
     user,
     isAuthenticated: Boolean(user),
@@ -249,12 +363,26 @@ export function AuthProvider({ children }) {
     loginWithFirebase,
     signupWithFirebase,
     loginWithGoogle,
+    signInWithMicrosoft,
+    loginWithMicrosoft: signInWithMicrosoft,
+    pendingLinkCredential,
+    redirectError,
+    clearRedirectError,
     loginAsDemo,
     resetPasswordWithFirebase,
     logout,
     updateUserProfile,
     saveProfile
-  }), [user, isAuthResolved, updateUserProfile, saveProfile, loginAsDemo]);
+  }), [
+    user,
+    isAuthResolved,
+    pendingLinkCredential,
+    redirectError,
+    clearRedirectError,
+    updateUserProfile,
+    saveProfile,
+    loginAsDemo
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

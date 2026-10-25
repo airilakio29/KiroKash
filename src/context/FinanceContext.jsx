@@ -218,7 +218,7 @@ export function FinanceProvider({ children }) {
           onboardingStep: 'profile',
           tutorialCompleted: false,
           createdAt: new Date().toISOString()
-        }).catch(err => console.warn('Firestore seed warning', err));
+        }, { merge: true }).catch(err => console.warn('Firestore seed warning', err));
       }
       setIsLoading(false);
       setLoadError(null);
