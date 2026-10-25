@@ -1,285 +1,232 @@
 /**
- * KiroKash Theme & Design Token Engine
- * Manages 10 preset themes, custom color overrides, CSS design token injection,
- * and persistence across desktop and mobile.
+ * KampusKash Theme Engine & Design System
+ * 
+ * Supports clean fintech aesthetic (Light by default, Dark, or System mode)
+ * along with legacy preset compatibility for existing test suites.
  */
 
-export const STORAGE_KEY_THEME = 'student_tracker_theme_customization';
+export const STORAGE_KEY_THEME = 'kampuskash_theme_mode';
+export const STORAGE_KEY_LEGACY = 'student_tracker_theme_customization';
+
+export const THEME_MODES = [
+  { id: 'light', name: 'Light', icon: '☀️', description: 'Clean fintech light theme' },
+  { id: 'dark', name: 'Dark', icon: '🌙', description: 'Modern midnight dark theme' },
+  { id: 'system', name: 'System', icon: '💻', description: 'Sync with system preferences' }
+];
+
+export const LIGHT_TOKENS = {
+  '--bg-app': '#F8FAFC',
+  '--bg-card': '#FFFFFF',
+  '--bg-card-subtle': '#F1F5F9',
+  '--bg-sidebar': '#0F172A',
+  '--bg-sidebar-active': '#1E293B',
+  '--primary': '#4F46E5',
+  '--primary-hover': '#4338CA',
+  '--primary-light': '#EEF2FF',
+  '--primary-badge': '#E0E7FF',
+  '--text-main': '#0F172A',
+  '--text-muted': '#64748B',
+  '--text-light': '#94A3B8',
+  '--text-white': '#FFFFFF',
+  '--income': '#10B981',
+  '--income-bg': 'rgba(16, 185, 129, 0.1)',
+  '--expense': '#EF4444',
+  '--expense-bg': 'rgba(239, 68, 68, 0.1)',
+  '--warning': '#F59E0B',
+  '--warning-bg': 'rgba(245, 158, 11, 0.1)',
+  '--border-light': '#E2E8F0',
+  '--border-focus': '#4F46E5',
+  '--shadow-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+  '--shadow-card': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
+  '--shadow-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+  '--shadow-modal': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
+};
+
+export const DARK_TOKENS = {
+  '--bg-app': '#0B0F19',
+  '--bg-card': '#111827',
+  '--bg-card-subtle': '#1F2937',
+  '--bg-sidebar': '#080C14',
+  '--bg-sidebar-active': '#1F2937',
+  '--primary': '#6366F1',
+  '--primary-hover': '#4F46E5',
+  '--primary-light': '#1E1B4B',
+  '--primary-badge': '#312E81',
+  '--text-main': '#F9FAFB',
+  '--text-muted': '#9CA3AF',
+  '--text-light': '#6B7280',
+  '--text-white': '#FFFFFF',
+  '--income': '#10B981',
+  '--income-bg': 'rgba(16, 185, 129, 0.18)',
+  '--expense': '#EF4444',
+  '--expense-bg': 'rgba(239, 68, 68, 0.18)',
+  '--warning': '#F59E0B',
+  '--warning-bg': 'rgba(245, 158, 11, 0.18)',
+  '--border-light': 'rgba(255, 255, 255, 0.09)',
+  '--border-focus': '#6366F1',
+  '--shadow-sm': '0 1px 3px 0 rgba(0, 0, 0, 0.4)',
+  '--shadow-card': '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4)',
+  '--shadow-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5)',
+  '--shadow-modal': '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+};
 
 export const PRESET_THEMES = [
   {
-    id: 'kiro',
-    name: 'Kiro',
-    icon: '⚡',
-    description: 'Signature onyx black with neon electric purple glow',
+    id: 'light',
+    name: 'Fintech Light',
+    icon: '☀️',
+    description: 'Clean modern slate & indigo theme (Recommended)',
     isDecorativeCat: false,
-    tokens: {
-      '--bg-app': '#0A0A0F',
-      '--bg-card': 'rgba(15, 12, 27, 0.75)',
-      '--bg-card-subtle': 'rgba(24, 18, 43, 0.65)',
-      '--bg-sidebar': '#060609',
-      '--bg-sidebar-active': '#7928CA',
-      '--primary': '#8B5CF6',
-      '--primary-hover': '#7928CA',
-      '--primary-light': '#EDE9FE',
-      '--primary-badge': '#A855F7',
-      '--text-main': '#F8FAFC',
-      '--text-muted': '#C4B5FD',
-      '--text-light': '#A78BFA',
-      '--text-white': '#FFFFFF',
-      '--income': '#10B981',
-      '--expense': '#F43F5E',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(168, 85, 247, 0.22)'
-    }
+    tokens: LIGHT_TOKENS
   },
   {
-    id: 'purple',
-    name: 'KiroKash Purple',
-    icon: '🔮',
-    description: 'Original signature gemstone purple interface',
+    id: 'kiro',
+    name: 'Fintech Dark',
+    icon: '🌙',
+    description: 'Crisp midnight dark theme with emerald & indigo',
     isDecorativeCat: false,
-    tokens: {
-      '--bg-app': '#624873',
-      '--bg-card': 'rgba(74, 54, 87, 0.65)',
-      '--bg-card-subtle': 'rgba(61, 46, 74, 0.55)',
-      '--bg-sidebar': '#2A1F35',
-      '--bg-sidebar-active': '#5A4870',
-      '--primary': '#624873',
-      '--primary-hover': '#4A3657',
-      '--primary-light': '#E8DEF5',
-      '--primary-badge': '#F3EDF9',
-      '--text-main': '#F3EDF9',
-      '--text-muted': '#C4B5D4',
-      '--text-light': '#9A8AB0',
-      '--text-white': '#FFFFFF',
-      '--income': '#C4B5D4',
-      '--expense': '#F87171',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
-    }
+    tokens: DARK_TOKENS
   },
   {
     id: 'ocean',
     name: 'Ocean Blue',
     icon: '🌊',
-    description: 'Deep navy and refreshing azure ocean theme',
+    description: 'Deep navy and azure ocean theme',
     isDecorativeCat: false,
     tokens: {
+      ...DARK_TOKENS,
       '--bg-app': '#0F172A',
-      '--bg-card': 'rgba(30, 41, 59, 0.75)',
-      '--bg-card-subtle': 'rgba(15, 23, 42, 0.6)',
-      '--bg-sidebar': '#020617',
-      '--bg-sidebar-active': '#0284C7',
+      '--bg-card': '#1E293B',
+      '--bg-card-subtle': '#0F172A',
       '--primary': '#38BDF8',
       '--primary-hover': '#0284C7',
       '--primary-light': '#E0F2FE',
-      '--primary-badge': '#BAE6FD',
-      '--text-main': '#F0F9FF',
-      '--text-muted': '#93C5FD',
-      '--text-light': '#60A5FA',
-      '--text-white': '#FFFFFF',
-      '--income': '#34D399',
-      '--expense': '#F87171',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
+      '--primary-badge': '#BAE6FD'
     }
   },
   {
     id: 'mint',
-    name: 'Mint Green',
+    name: 'Mint Emerald',
     icon: '🌿',
     description: 'Fresh mint and emerald campus theme',
     isDecorativeCat: false,
     tokens: {
+      ...DARK_TOKENS,
       '--bg-app': '#064E3B',
-      '--bg-card': 'rgba(6, 78, 59, 0.75)',
-      '--bg-card-subtle': 'rgba(4, 47, 36, 0.6)',
-      '--bg-sidebar': '#022C22',
-      '--bg-sidebar-active': '#059669',
+      '--bg-card': '#065F46',
+      '--bg-card-subtle': '#044E39',
       '--primary': '#10B981',
       '--primary-hover': '#059669',
       '--primary-light': '#D1FAE5',
-      '--primary-badge': '#A7F3D0',
-      '--text-main': '#ECFDF5',
-      '--text-muted': '#6EE7B7',
-      '--text-light': '#34D399',
-      '--text-white': '#FFFFFF',
-      '--income': '#34D399',
-      '--expense': '#F87171',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
+      '--primary-badge': '#A7F3D0'
     }
   },
   {
     id: 'sunset',
     name: 'Sunset Orange',
     icon: '🌅',
-    description: 'Vibrant dusk purple and warm orange glow',
+    description: 'Warm dusk and vibrant sunset tone',
     isDecorativeCat: false,
     tokens: {
-      '--bg-app': '#4C1D95',
-      '--bg-card': 'rgba(88, 28, 135, 0.75)',
-      '--bg-card-subtle': 'rgba(58, 12, 95, 0.6)',
-      '--bg-sidebar': '#2E1065',
-      '--bg-sidebar-active': '#C2410C',
+      ...DARK_TOKENS,
+      '--bg-app': '#2E1065',
+      '--bg-card': '#3B0764',
+      '--bg-card-subtle': '#240742',
       '--primary': '#F97316',
       '--primary-hover': '#EA580C',
       '--primary-light': '#FFEDD5',
-      '--primary-badge': '#FED7AA',
-      '--text-main': '#FFF7ED',
-      '--text-muted': '#FDBA74',
-      '--text-light': '#FB923C',
-      '--text-white': '#FFFFFF',
-      '--income': '#34D399',
-      '--expense': '#EF4444',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
+      '--primary-badge': '#FED7AA'
     }
   },
   {
     id: 'rose',
-    name: 'Rose Pink',
+    name: 'Rose Minimal',
     icon: '🌸',
-    description: 'Soft rose quartz and pastel crimson',
+    description: 'Soft rose accents with high-contrast text',
     isDecorativeCat: false,
     tokens: {
-      '--bg-app': '#831843',
-      '--bg-card': 'rgba(131, 24, 67, 0.75)',
-      '--bg-card-subtle': 'rgba(80, 7, 36, 0.6)',
-      '--bg-sidebar': '#500724',
-      '--bg-sidebar-active': '#BE185D',
-      '--primary': '#F472B6',
-      '--primary-hover': '#DB2777',
-      '--primary-light': '#FCE7F3',
-      '--primary-badge': '#FBCFE8',
-      '--text-main': '#FDF2F8',
-      '--text-muted': '#F472B6',
-      '--text-light': '#F43F5E',
-      '--text-white': '#FFFFFF',
-      '--income': '#34D399',
-      '--expense': '#FB7185',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
+      ...LIGHT_TOKENS,
+      '--primary': '#E11D48',
+      '--primary-hover': '#BE123C',
+      '--primary-light': '#FFE4E6',
+      '--primary-badge': '#FECDD3'
     }
   },
   {
     id: 'dark',
-    name: 'Dark Mode',
-    icon: '🌙',
+    name: 'Onyx Monochrome',
+    icon: '⚡',
     description: 'High-contrast midnight dark theme',
     isDecorativeCat: false,
     tokens: {
-      '--bg-app': '#121212',
-      '--bg-card': 'rgba(30, 30, 30, 0.85)',
-      '--bg-card-subtle': 'rgba(20, 20, 20, 0.7)',
-      '--bg-sidebar': '#1E1E1E',
-      '--bg-sidebar-active': '#3700B3',
-      '--primary': '#BB86FC',
-      '--primary-hover': '#9965F4',
-      '--primary-light': '#E8DEF5',
-      '--primary-badge': '#D7BCE8',
-      '--text-main': '#F3EDF9',
-      '--text-muted': '#B0B0B0',
-      '--text-light': '#888888',
-      '--text-white': '#FFFFFF',
-      '--income': '#03DAC6',
-      '--expense': '#CF6679',
-      '--warning': '#FBBF24',
-      '--border-light': 'rgba(255, 255, 255, 0.1)'
+      ...DARK_TOKENS,
+      '--bg-app': '#000000',
+      '--bg-card': '#121212',
+      '--bg-card-subtle': '#1A1A1A',
+      '--primary': '#A855F7',
+      '--primary-hover': '#9333EA'
     }
   },
   {
     id: 'cute_cat',
-    name: 'Cute Cat',
+    name: 'Campus Lilac',
     icon: '🐱',
-    description: 'Pastel lilac theme with subtle cat decorative accents',
+    description: 'Friendly pastel theme with warm accents',
     isDecorativeCat: true,
     tokens: {
-      '--bg-app': '#5C4468',
-      '--bg-card': 'rgba(82, 60, 93, 0.8)',
-      '--bg-card-subtle': 'rgba(67, 49, 76, 0.65)',
-      '--bg-sidebar': '#35253E',
-      '--bg-sidebar-active': '#936D9E',
-      '--primary': '#F4A261',
-      '--primary-hover': '#E76F51',
-      '--primary-light': '#FFE8D6',
-      '--primary-badge': '#FFD099',
-      '--text-main': '#FFF5EB',
-      '--text-muted': '#E8C5E8',
-      '--text-light': '#C39EC3',
-      '--text-white': '#FFFFFF',
-      '--income': '#2A9D8F',
-      '--expense': '#E76F51',
-      '--warning': '#E9C46A',
-      '--border-light': 'rgba(255, 255, 255, 0.15)'
+      ...LIGHT_TOKENS,
+      '--primary': '#8B5CF6',
+      '--primary-hover': '#7C3AED',
+      '--primary-light': '#EDE9FE',
+      '--primary-badge': '#DDD6FE'
     }
   },
   {
     id: 'forest',
-    name: 'Forest',
+    name: 'Nordic Pine',
     icon: '🌲',
-    description: 'Pine forest greens with warm golden accents',
+    description: 'Pine forest greens with clean whites',
     isDecorativeCat: false,
     tokens: {
-      '--bg-app': '#1B3B2B',
-      '--bg-card': 'rgba(35, 68, 51, 0.8)',
-      '--bg-card-subtle': 'rgba(24, 48, 36, 0.65)',
-      '--bg-sidebar': '#0F261B',
-      '--bg-sidebar-active': '#2D5A43',
-      '--primary': '#48BB78',
-      '--primary-hover': '#38A169',
-      '--primary-light': '#F0FFF4',
-      '--primary-badge': '#C6F6D5',
-      '--text-main': '#F0FFF4',
-      '--text-muted': '#9AE6B4',
-      '--text-light': '#68D391',
-      '--text-white': '#FFFFFF',
-      '--income': '#68D391',
-      '--expense': '#FC8181',
-      '--warning': '#F6AD55',
-      '--border-light': 'rgba(255, 255, 255, 0.12)'
+      ...LIGHT_TOKENS,
+      '--primary': '#059669',
+      '--primary-hover': '#047857',
+      '--primary-light': '#D1FAE5',
+      '--primary-badge': '#A7F3D0'
     }
   },
   {
-    id: 'cream',
-    name: 'Minimal Cream',
-    icon: '🍦',
-    description: 'Clean light cream background with dark slate text',
+    id: 'purple',
+    name: 'Classic Violet',
+    icon: '🔮',
+    description: 'Signature violet theme',
     isDecorativeCat: false,
     tokens: {
-      '--bg-app': '#F5F2EB',
-      '--bg-card': '#FFFFFF',
-      '--bg-card-subtle': '#FAF8F5',
-      '--bg-sidebar': '#1E293B',
-      '--bg-sidebar-active': '#059669',
-      '--primary': '#059669',
-      '--primary-hover': '#047857',
-      '--primary-light': '#E6F4F1',
-      '--primary-badge': '#D1FAE5',
-      '--text-main': '#1E293B',
-      '--text-muted': '#64748B',
-      '--text-light': '#94A3B8',
-      '--text-white': '#FFFFFF',
-      '--income': '#059669',
-      '--expense': '#DC2626',
-      '--warning': '#D97706',
-      '--border-light': 'rgba(0, 0, 0, 0.08)'
+      ...DARK_TOKENS,
+      '--primary': '#8B5CF6',
+      '--primary-hover': '#7C3AED'
     }
   }
 ];
 
+export function getSystemTheme() {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function applyThemeTokens(themeConfig) {
-  if (!themeConfig) return;
+  if (!themeConfig || typeof document === 'undefined') return;
   const root = document.documentElement;
 
-  // 1. Find matching preset or default
-  const preset = PRESET_THEMES.find(t => t.id === themeConfig.presetId) || PRESET_THEMES[0];
+  // Resolve preset or mode
+  let targetPresetId = themeConfig.presetId || 'light';
+  if (targetPresetId === 'system') {
+    targetPresetId = getSystemTheme() === 'dark' ? 'kiro' : 'light';
+  }
 
-  // 2. Base tokens from preset
+  const preset = PRESET_THEMES.find(t => t.id === targetPresetId) || PRESET_THEMES[0];
   const finalTokens = { ...preset.tokens };
 
-  // 3. Apply custom color overrides if specified
   if (themeConfig.customColors) {
     if (themeConfig.customColors.primary) finalTokens['--primary'] = themeConfig.customColors.primary;
     if (themeConfig.customColors.bgApp) finalTokens['--bg-app'] = themeConfig.customColors.bgApp;
@@ -289,13 +236,15 @@ export function applyThemeTokens(themeConfig) {
     if (themeConfig.customColors.expense) finalTokens['--expense'] = themeConfig.customColors.expense;
   }
 
-  // 4. Inject CSS variables to :root
   Object.entries(finalTokens).forEach(([prop, val]) => {
     root.style.setProperty(prop, val);
   });
 
-  // 5. Store active theme attribute for decorative elements (e.g. Kiro, Cute Cat)
+  const isDark = targetPresetId === 'kiro' || targetPresetId === 'dark' || targetPresetId === 'ocean' || targetPresetId === 'mint' || targetPresetId === 'sunset' || targetPresetId === 'purple';
+  root.setAttribute('data-theme', isDark ? 'dark' : 'light');
   root.setAttribute('data-theme-preset', preset.id);
+  root.setAttribute('data-theme-mode', themeConfig.mode || (targetPresetId === 'light' ? 'light' : 'dark'));
+
   if (preset.id === 'kiro') {
     root.setAttribute('data-kiro', 'true');
   } else {
@@ -307,7 +256,6 @@ export function applyThemeTokens(themeConfig) {
     root.removeAttribute('data-cute-cat');
   }
 
-  // 6. Broadcast event so components (Kiro particles, headers, etc.) update dynamically
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: { presetId: preset.id, config: themeConfig } }));
   }
@@ -315,25 +263,70 @@ export function applyThemeTokens(themeConfig) {
 
 export function loadSavedTheme() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_THEME);
-    if (saved) {
-      const config = JSON.parse(saved);
-      applyThemeTokens(config);
-      return config;
+    if (typeof window !== 'undefined') {
+      const urlTheme = new URLSearchParams(window.location.search).get('theme');
+      if (urlTheme === 'dark' || urlTheme === 'light') {
+        const config = {
+          mode: urlTheme,
+          presetId: urlTheme === 'dark' ? 'kiro' : 'light',
+          customColors: null
+        };
+        applyThemeTokens(config);
+        return config;
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      const savedMode = localStorage.getItem(STORAGE_KEY_THEME);
+      if (savedMode) {
+        const config = {
+          mode: savedMode,
+          presetId: savedMode === 'dark' ? 'kiro' : (savedMode === 'system' ? (getSystemTheme() === 'dark' ? 'kiro' : 'light') : 'light'),
+          customColors: null
+        };
+        applyThemeTokens(config);
+        return config;
+      }
+      const legacySaved = localStorage.getItem(STORAGE_KEY_LEGACY);
+      if (legacySaved) {
+        const config = JSON.parse(legacySaved);
+        applyThemeTokens(config);
+        return config;
+      }
     }
   } catch (e) {
-    console.error('Failed to load theme from LocalStorage', e);
+    console.warn('Failed to load theme from LocalStorage', e);
   }
-  const defaultConfig = { presetId: 'kiro', customColors: null };
+  // Default: Clean Fintech Light!
+  const defaultConfig = { presetId: 'light', mode: 'light', customColors: null };
   applyThemeTokens(defaultConfig);
   return defaultConfig;
 }
 
 export function saveTheme(themeConfig) {
   try {
-    localStorage.setItem(STORAGE_KEY_THEME, JSON.stringify(themeConfig));
-    applyThemeTokens(themeConfig);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_LEGACY, JSON.stringify(themeConfig));
+      if (themeConfig.mode) {
+        localStorage.setItem(STORAGE_KEY_THEME, themeConfig.mode);
+      } else if (themeConfig.presetId === 'light') {
+        localStorage.setItem(STORAGE_KEY_THEME, 'light');
+      } else if (themeConfig.presetId === 'kiro' || themeConfig.presetId === 'dark') {
+        localStorage.setItem(STORAGE_KEY_THEME, 'dark');
+      }
+      applyThemeTokens(themeConfig);
+    }
   } catch (e) {
-    console.error('Failed to save theme to LocalStorage', e);
+    console.warn('Failed to save theme to LocalStorage', e);
   }
+}
+
+export function setThemeMode(mode) {
+  const presetId = mode === 'dark' ? 'kiro' : (mode === 'system' ? (getSystemTheme() === 'dark' ? 'kiro' : 'light') : 'light');
+  const config = { mode, presetId, customColors: null };
+  saveTheme(config);
+  return config;
+}
+
+export function initTheme() {
+  return loadSavedTheme();
 }

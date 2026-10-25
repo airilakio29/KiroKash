@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { Lock, User, LogIn, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle2, ArrowLeft, Mail, Send, RefreshCw } from 'lucide-react';
-import logoImg from './assets/kiro-logo.png';
+import KampusKashLogo from './components/KampusKashLogo';
 
-export default function Auth({ initialMode }) {
+export default function Auth({ initialMode, onBackToLanding }) {
   const { 
     loginWithFirebase, 
     signupWithFirebase, 
@@ -91,7 +91,7 @@ export default function Auth({ initialMode }) {
       );
 
       if (result.success) {
-        setSuccess('Account registered successfully! Welcome to KiroKash.');
+        setSuccess('Account registered successfully! Welcome to KampusKash.');
       } else {
         setError(result.error ? formatFirebaseError({ message: result.error, code: result.code }) : 'Failed to register account.');
       }
@@ -197,44 +197,35 @@ export default function Auth({ initialMode }) {
         border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
         boxShadow: '0 32px 64px -16px rgba(0, 0, 0, 0.6)'
       }}>
+        {/* Back button to return to Landing Page */}
+        {onBackToLanding && (
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              marginBottom: '1rem',
+              padding: 0
+            }}
+          >
+            <ArrowLeft size={16} />
+            <span>Back to home</span>
+          </button>
+        )}
+
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div style={{
-            width: 'min(210px, 65vw)',
-            height: 'auto',
-            maxHeight: '75px',
-            margin: '0 auto 0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative'
-          }}>
-            <img
-              src={logoImg || `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/')}
-              alt="KiroKash Logo"
-              onError={(e) => {
-                const fallback = `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/');
-                if (e.target.src !== fallback) e.target.src = fallback;
-              }}
-              style={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '75px',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 6px 18px rgba(139, 92, 246, 0.35))'
-              }}
-            />
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+            <KampusKashLogo size={42} showWordmark={true} />
           </div>
-          <h1 style={{
-            fontFamily: "'Plus Jakarta Sans', var(--font-sans, sans-serif)",
-            fontSize: '1.75rem',
-            fontWeight: 800,
-            color: 'var(--text-main, #FFFFFF)',
-            marginBottom: '0.25rem',
-            letterSpacing: '-0.025em'
-          }}>
-            KiroKash
-          </h1>
           <p style={{
             fontSize: '0.85rem',
             color: 'var(--text-muted, #C4B5D4)',

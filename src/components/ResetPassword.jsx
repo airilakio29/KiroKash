@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useId } from 'react';
 import { verifyResetCode, confirmNewPassword } from '../services/authService';
 import logoImg from '../assets/kiro-logo.png';
+import KampusKashLogo from './KampusKashLogo';
 import { 
   Lock, 
   Eye, 
@@ -250,7 +251,7 @@ export default function ResetPassword({ oobCode: propCode, onBackToLogin }) {
               marginBottom: 0
             }}
           >
-            Create a secure new password for your KiroKash account
+            Create a secure new password for your KampusKash account
           </p>
         </div>
 
@@ -651,7 +652,7 @@ export default function ResetPassword({ oobCode: propCode, onBackToLogin }) {
                 margin: '0 0 1.75rem'
               }}
             >
-              Your password has been securely updated. You can now log in to KiroKash with your new credentials.
+              Your password has been securely updated. You can now log in to KampusKash with your new credentials.
             </p>
 
             <button

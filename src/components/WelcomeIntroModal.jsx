@@ -38,7 +38,7 @@ export default function WelcomeIntroModal({ isOpen, onComplete, onSkip }) {
       badge: 'Step 1 of 3',
       highlights: [
         'Live balance across bank accounts, MAE, and e-wallets',
-        'Built with dark purple gemstone aesthetic',
+        'Clean fintech design system in Ringgit Malaysia',
         'Private and offline-ready on any mobile device'
       ]
     },

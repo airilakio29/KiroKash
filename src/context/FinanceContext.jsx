@@ -116,10 +116,12 @@ export function FinanceProvider({ children }) {
 
   // Real-time Firestore Sync per User UID
   useEffect(() => {
-    if (!userId) {
+    if (!userId || user?.isDemoUser) {
+      setIsLoading(false);
       return;
     }
     if (!db) {
+      setIsLoading(false);
       return;
     }
     const userDocRef = doc(db, 'users', userId);
@@ -277,7 +279,7 @@ export function FinanceProvider({ children }) {
       console.error('LocalStorage write error', e);
     }
 
-    if (userId && db) {
+    if (userId && db && !user?.isDemoUser) {
       const userDocRef = doc(db, 'users', userId);
       setDoc(userDocRef, {
         categories: newCat,

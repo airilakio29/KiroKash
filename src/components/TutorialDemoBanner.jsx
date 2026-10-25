@@ -1,6 +1,6 @@
 import React from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Sparkles, XCircle, AlertCircle } from 'lucide-react';
+import { Sparkles, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function TutorialDemoBanner({ onExitTour }) {
   const { isDemoMode, demoNotice, exitTour } = useFinance();
@@ -11,7 +11,7 @@ export default function TutorialDemoBanner({ onExitTour }) {
 
   return (
     <div style={{ position: 'sticky', top: 0, zIndex: 998, marginBottom: '1rem' }}>
-      {/* Persistent Tutorial Demo Banner */}
+      {/* Clean Fintech Tutorial / Demo Banner */}
       <aside
         role="status"
         aria-label="Tutorial demo mode notice"
@@ -22,77 +22,77 @@ export default function TutorialDemoBanner({ onExitTour }) {
           flexWrap: 'wrap',
           gap: '0.75rem',
           padding: '0.75rem 1.25rem',
-          background: 'linear-gradient(135deg, rgba(67, 30, 95, 0.95) 0%, rgba(98, 45, 140, 0.95) 100%)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(192, 132, 252, 0.45)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
+          borderLeft: '4px solid var(--primary)',
           borderRadius: 'var(--radius-md, 10px)',
-          boxShadow: '0 6px 20px -4px rgba(0, 0, 0, 0.4)',
-          color: '#F3E8FF'
+          boxShadow: 'var(--shadow-card)',
+          color: 'var(--text-main)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '26px',
-            height: '26px',
-            borderRadius: '50%',
-            background: 'rgba(250, 204, 21, 0.2)',
-            color: '#FACC15',
+            width: '28px',
+            height: '28px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--primary-light)',
+            color: 'var(--primary)',
             flexShrink: 0
           }}>
-            <Sparkles size={15} />
+            <Sparkles size={16} />
           </span>
           <div style={{ fontSize: '0.88rem', lineHeight: 1.4 }}>
-            <strong style={{ color: '#FACC15', marginRight: '0.35rem' }}>Tutorial Mode:</strong>
-            <span>You are viewing sample student data. Your real data is untouched.</span>
+            <strong style={{ color: 'var(--text-main)', marginRight: '0.35rem' }}>Live Demo Mode:</strong>
+            <span style={{ color: 'var(--text-muted)' }}>
+              Exploring with Malaysian student sample data (RM). Test any button or add transactions freely.
+            </span>
           </div>
         </div>
 
         {handleExit && (
           <button
             onClick={handleExit}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-primary btn-sm"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.4rem',
-              background: 'rgba(255, 255, 255, 0.12)',
-              borderColor: 'rgba(255, 255, 255, 0.25)',
-              color: '#FFFFFF',
-              fontSize: '0.8rem',
+              fontSize: '0.82rem',
               fontWeight: 600,
-              padding: '0.35rem 0.75rem',
-              cursor: 'pointer'
+              padding: '0.4rem 0.85rem'
             }}
             aria-label="Exit tutorial"
           >
-            <XCircle size={14} /> Exit Tutorial
+            <span>Exit Demo / Sign Up</span>
+            <ArrowRight size={14} />
           </button>
         )}
       </aside>
 
-      {/* Floating Action Notice (e.g. when blocked export/sync is clicked) */}
+      {/* Floating Action Notice */}
       {demoNotice && (
         <div
           role="alert"
           style={{
             marginTop: '0.5rem',
-            padding: '0.6rem 1rem',
-            background: 'rgba(245, 158, 11, 0.18)',
-            border: '1px solid rgba(245, 158, 11, 0.45)',
+            padding: '0.65rem 1rem',
+            background: 'var(--warning-bg)',
+            border: '1px solid var(--warning)',
             borderRadius: 'var(--radius-sm, 6px)',
-            color: '#FDE68A',
-            fontSize: '0.84rem',
+            color: 'var(--text-main)',
+            fontSize: '0.85rem',
+            fontWeight: 500,
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
-            animation: 'fadeIn 0.25s ease'
+            boxShadow: 'var(--shadow-sm)',
+            animation: 'fadeIn 0.2s ease'
           }}
         >
-          <AlertCircle size={16} color="#F59E0B" style={{ flexShrink: 0 }} />
+          <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0 }} />
           <span>{demoNotice}</span>
         </div>
       )}

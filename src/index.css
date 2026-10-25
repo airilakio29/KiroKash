@@ -1,71 +1,97 @@
 /* ==========================================================================
-   UFINANCE — GREEN GEMSTONE DESIGN SYSTEM & BASE STYLES
+   KAMPUSKASH — CLEAN FINTECH DESIGN SYSTEM & TOKEN ARCHITECTURE
    ========================================================================== */
 
-:root {
-  /* Purple Gemstone Color Tokens */
-  --bg-app: #624873;
-  --bg-card: rgba(74, 54, 87, 0.6);
-  --bg-card-subtle: rgba(61, 46, 74, 0.5);
-  --bg-sidebar: #2A1F35;
-  --bg-sidebar-active: #5A4870;
-  
-  --primary: #624873;
-  --primary-hover: #4A3657;
-  --primary-light: #E8DEF5;
-  --primary-badge: #F3EDF9;
-  
-  --sage-accent: var(--primary);
-  --sage-glow: rgba(0, 0, 0, 0.15); /* Fallback */
-  --mint-sparkle: var(--primary-light);
-  --emerald-accent: var(--primary);
-  --gold-sparkle: #F39C12;
-  --ruby-sparkle: #E74C3C;
-  --sapphire-sparkle: #00A8FF;
-  
-  --text-main: #F3EDF9;
-  --text-muted: #C4B5D4;
-  --text-light: #9A8AB0;
-  --text-white: #FFFFFF;
-  
-  --income-bg: color-mix(in srgb, var(--income) 20%, transparent);
-  --expense-bg: color-mix(in srgb, var(--expense) 20%, transparent);
-  --warning-bg: color-mix(in srgb, var(--warning) 20%, transparent);
-  
-  --income: #C4B5D4;
-  --expense: #F87171;
-  --warning: #FBBF24;
-  
-  --border-light: rgba(15, 45, 30, 0.08);
-  --border-focus: var(--primary);
-  
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
-  
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-card: 0 12px 32px -4px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
-  --shadow-hover: 0 18px 40px -4px rgba(0, 0, 0, 0.4);
-  --shadow-modal: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
-  
-  --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-smooth: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+:root,
+[data-theme="light"] {
+  /* Clean Fintech Light Tokens (Default) */
+  --bg-app: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F1F5F9;
+  --bg-sidebar: #0F172A;
+  --bg-sidebar-active: #1E293B;
 
-  /* Consistent Animation System Tokens */
+  --primary: #4F46E5;
+  --primary-hover: #4338CA;
+  --primary-light: #EEF2FF;
+  --primary-badge: #E0E7FF;
+
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --text-light: #94A3B8;
+  --text-white: #FFFFFF;
+
+  --income: #10B981;
+  --income-bg: rgba(16, 185, 129, 0.1);
+  --expense: #EF4444;
+  --expense-bg: rgba(239, 68, 68, 0.1);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+
+  --border-light: #E2E8F0;
+  --border-focus: #4F46E5;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-modal: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
   --anim-duration-btn: 150ms;
-  --anim-duration-dropdown: 200ms;
-  --anim-duration-modal: 280ms;
-  --anim-duration-drawer: 320ms;
-  --anim-duration-page: 380ms;
-  --anim-duration-ai: 380ms;
-  --anim-duration-dashboard: 600ms;
+  --anim-duration-dropdown: 180ms;
+  --anim-duration-modal: 240ms;
+  --anim-duration-drawer: 280ms;
+  --anim-duration-page: 320ms;
+  --anim-duration-ai: 320ms;
+  --anim-duration-dashboard: 450ms;
 
   --anim-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --anim-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --anim-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --anim-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme="dark"] {
+  /* Clean Fintech Dark Tokens */
+  --bg-app: #0B0F19;
+  --bg-card: #111827;
+  --bg-card-subtle: #1F2937;
+  --bg-sidebar: #080C14;
+  --bg-sidebar-active: #1F2937;
+
+  --primary: #6366F1;
+  --primary-hover: #4F46E5;
+  --primary-light: #1E1B4B;
+  --primary-badge: #312E81;
+
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --text-light: #6B7280;
+  --text-white: #FFFFFF;
+
+  --income: #10B981;
+  --income-bg: rgba(16, 185, 129, 0.18);
+  --expense: #EF4444;
+  --expense-bg: rgba(239, 68, 68, 0.18);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.18);
+
+  --border-light: rgba(255, 255, 255, 0.09);
+  --border-focus: #6366F1;
+
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
 }
 
 /* Reset & Global Elements */
@@ -142,8 +168,11 @@ body {
 /* Desktop layout: Fixed sidebar + independently scrollable main content */
 @media (min-width: 901px) {
   html, body {
-    height: 100%;
-    overflow: hidden;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scroll-padding-top: 80px;
   }
 
   .app-container {
@@ -226,7 +255,7 @@ body {
   box-shadow: var(--shadow-card);
   padding: 1.5rem;
   transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
-  backdrop-filter: blur(12px);
+  /* backdrop-filter removed for clean solid surfaces */
   width: 100%;
   box-sizing: border-box;
 }
@@ -339,18 +368,7 @@ body {
   overflow: hidden;
 }
 
-.metric-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 80px;
-  height: 80px;
-  background: radial-gradient(circle, var(--primary-light) 0%, transparent 70%);
-  opacity: 0.15;
-  border-radius: 50%;
-  pointer-events: none;
-}
+/* radial halo removed */
 
 .metric-icon-box {
   width: 52px;
@@ -830,55 +848,56 @@ body {
 /* ==========================================================================
    KIRO THEME SPECIFIC STYLES & GLOWS (PURPLE & ONYX BLACK AESTHETIC)
    ========================================================================== */
+/* Clean Midnight Dark Mode fintech styling */
 [data-theme-preset="kiro"] body,
 [data-theme-preset="kiro"] .app-container {
-  background-color: #0A0A0F;
-  color: #F8FAFC;
+  background-color: var(--bg-app, #0B0F19);
+  color: var(--text-main, #F9FAFB);
 }
 
 [data-theme-preset="kiro"] .card {
-  background: rgba(15, 12, 27, 0.78);
-  border: 1px solid rgba(168, 85, 247, 0.22);
-  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.8), 0 0 20px -4px rgba(121, 40, 202, 0.16);
-  backdrop-filter: blur(16px);
+  background: var(--bg-card, #111827);
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.09));
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  color: var(--text-main, #F9FAFB);
 }
 
 [data-theme-preset="kiro"] .card:hover {
-  border-color: rgba(168, 85, 247, 0.38);
-  box-shadow: 0 16px 42px -4px rgba(0, 0, 0, 0.9), 0 0 28px rgba(139, 92, 246, 0.25);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme-preset="kiro"] .sidebar {
-  background: #060609;
-  border-right: 1px solid rgba(168, 85, 247, 0.16);
+  background: var(--bg-sidebar, #080C14);
+  border-right: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
 }
 
 [data-theme-preset="kiro"] .app-header {
-  background: rgba(10, 10, 15, 0.88);
-  border-bottom: 1px solid rgba(168, 85, 247, 0.16);
+  background: rgba(11, 15, 25, 0.95);
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
 }
 
 [data-theme-preset="kiro"] .btn-primary {
-  background: linear-gradient(135deg, #8B5CF6 0%, #7928CA 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 18px rgba(121, 40, 202, 0.45);
+  background: var(--primary, #6366F1);
+  color: #FFFFFF;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 [data-theme-preset="kiro"] .btn-primary:hover {
-  background: linear-gradient(135deg, #9D74FF 0%, #8B3BE2 100%);
-  box-shadow: 0 6px 24px rgba(121, 40, 202, 0.65);
+  background: var(--primary-hover, #4F46E5);
 }
 
 [data-theme-preset="kiro"] .badge-income {
-  background: rgba(16, 185, 129, 0.16);
-  color: #34D399;
+  background: var(--income-bg, rgba(16, 185, 129, 0.16));
+  color: var(--income, #10B981);
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 [data-theme-preset="kiro"] .badge-expense {
-  background: rgba(244, 63, 94, 0.16);
-  color: #FB7185;
-  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: var(--expense-bg, rgba(239, 68, 68, 0.16));
+  color: var(--expense, #EF4444);
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 /* Floating animation helper */
@@ -920,7 +939,7 @@ body {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(168, 85, 247, 0.35);
   font-size: 0.9rem;
   font-weight: 600;
-  backdrop-filter: blur(12px);
+  /* backdrop-filter removed for clean solid surfaces */
   animation: slideToastUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -2742,3 +2761,13 @@ select,
 }
 
 
+
+/* Tabular Numerals for Financial Data Alignment */
+.metric-value,
+.account-card-balance,
+.tx-amount,
+.table-num,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}

@@ -16,7 +16,7 @@ import {
   Sparkles,
   Download
 } from 'lucide-react';
-import logoImg from '../assets/kiro-logo.png';
+import KampusKashLogo from './KampusKashLogo';
 import UserAvatar from './UserAvatar';
 import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
@@ -95,23 +95,16 @@ export default function Sidebar({
           <div className="sidebar-brand-wrapper">
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
               <button
+                type="button"
                 onClick={() => {
                   setActiveTab('dashboard');
                   if (isMobileOpen) setIsMobileOpen(false);
                 }}
                 className="sidebar-logo-btn"
-                aria-label="KiroKash - Go to Dashboard"
+                aria-label="KampusKash - Go to Dashboard"
                 title="Go to Dashboard"
               >
-                <img
-                  src={logoImg || `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/')}
-                  alt="KiroKash"
-                  className="sidebar-logo-img"
-                  onError={(e) => {
-                    const fallback = `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/');
-                    if (e.target.src !== fallback) e.target.src = fallback;
-                  }}
-                />
+                <KampusKashLogo size={32} textColor="#FFFFFF" showWordmark={true} />
               </button>
 
               <button
@@ -125,7 +118,7 @@ export default function Sidebar({
             </div>
 
             <span className="sidebar-tagline">
-              Your friendly campus wallet
+              Smart Student Finance
             </span>
           </div>
 

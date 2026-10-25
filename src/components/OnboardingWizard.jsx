@@ -128,7 +128,7 @@ export default function OnboardingWizard({ onCompleteProfile }) {
           <div className="onboarding-brand">
             <img
               src={logoImg || `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/')}
-              alt="KiroKash"
+              alt="KampusKash"
               className="onboarding-brand-logo"
             />
             <span className="onboarding-tagline">Your friendly campus wallet</span>
@@ -151,7 +151,7 @@ export default function OnboardingWizard({ onCompleteProfile }) {
         {/* Card Title & Welcome */}
         <div className="onboarding-intro">
           <h2 id="onboarding-title" className="onboarding-title">
-            Welcome to KiroKash! 🎓
+            Welcome to KampusKash! 🎓
           </h2>
           <p className="onboarding-subtitle">
             Let's personalize your student wallet. Your name, avatar, and campus info will be displayed across your dashboard and statements.

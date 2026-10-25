@@ -10,6 +10,8 @@ import ResetPassword from './components/ResetPassword';
 import GlitterBackground from './components/GlitterBackground';
 import KiroAmbientParticles from './components/KiroAmbientParticles';
 import Auth from './Auth';
+import LandingPage from './components/LandingPage';
+import { setThemeMode } from './utils/themeEngine';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Tutorial from './components/Tutorial';
@@ -408,7 +410,7 @@ function AppLayout({
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const {
     completeTutorial,
     onboardingCompleted,
@@ -424,6 +426,7 @@ function AppContent() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isWelcomeIntroOpen, setIsWelcomeIntroOpen] = useState(() => {
     try {
+      if (user?.isDemoUser) return false;
       const uid = user?.id || user?.uid;
       if (!uid) return false;
       const seen = localStorage.getItem(`kampuskash_welcome_seen_${uid}`);
@@ -450,8 +453,10 @@ function AppContent() {
   // Mandatory Onboarding Flow:
   // Step A: Profile setup (required first, blocks app routes)
   // Step B: Guided interactive tutorial on Dashboard
-  const isOnboardingActive = !onboardingCompleted;
+  const isDemo = Boolean(user?.isDemoUser);
+  const isOnboardingActive = !onboardingCompleted && !isDemo;
   const isTourActive = (isOnboardingActive && onboardingStep === 'tutorial') || isReplayingTutorial;
+  const isDemoDataActive = isDemo || isTourActive;
 
   const handleCompleteWelcomeIntro = () => {
     try {
@@ -473,6 +478,10 @@ function AppContent() {
     try {
       localStorage.removeItem('kirokash_tutorial_current_step');
     } catch {}
+    if (user?.isDemoUser) {
+      if (logout) logout();
+      return;
+    }
     if (isOnboardingActive) {
       completeOnboarding();
     } else {
@@ -483,7 +492,7 @@ function AppContent() {
   };
 
   return (
-    <DemoModeProvider isTourActive={isTourActive} onExitTour={handleExitTour}>
+    <DemoModeProvider isTourActive={isDemoDataActive} onExitTour={handleExitTour}>
       <AppLayout
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -611,7 +620,7 @@ function checkPasswordResetRoute() {
 }
 
 function AppAuthenticator() {
-  const { user, isAuthenticated, isFirebaseConfigured } = useAuth();
+  const { user, isAuthenticated, isFirebaseConfigured, loginAsDemo } = useAuth();
   const [inResetFlow, setInResetFlow] = useState(() => {
     handleRootResetRedirect();
     return checkPasswordResetRoute();
@@ -625,6 +634,19 @@ function AppAuthenticator() {
     }
     return 'signup';
   });
+  const [showAuthForm, setShowAuthForm] = useState(() => {
+    try {
+      const pathname = window.location.pathname.toLowerCase();
+      if (pathname.includes('/login') || pathname.includes('/signup') || pathname.includes('/auth')) return true;
+    } catch {}
+    return false;
+  });
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.getAttribute('data-theme') || 'light';
+    }
+    return 'light';
+  });
 
   // Synchronize on URL changes / back-forward navigation & root redirect
   useEffect(() => {
@@ -636,6 +658,10 @@ function AppAuthenticator() {
       const path = window.location.pathname.toLowerCase();
       if (path.includes('/login')) {
         setAuthInitialMode('login');
+        setShowAuthForm(true);
+      } else if (path.includes('/signup')) {
+        setAuthInitialMode('signup');
+        setShowAuthForm(true);
       }
     };
     window.addEventListener('popstate', handleUrlChange);
@@ -649,6 +675,7 @@ function AppAuthenticator() {
   const handleBackToLogin = () => {
     setInResetFlow(false);
     setAuthInitialMode('login');
+    setShowAuthForm(true);
     try {
       const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
       const loginUrl = `${basePath}/login`;
@@ -680,21 +707,40 @@ function AppAuthenticator() {
     })();
 
     return (
-      <>
-        <GlitterBackground />
-        <KiroAmbientParticles />
-        <ResetPassword oobCode={oobCode} onBackToLogin={handleBackToLogin} />
-      </>
+      <ResetPassword oobCode={oobCode} onBackToLogin={handleBackToLogin} />
     );
   }
 
   if (!isAuthenticated) {
+    if (!showAuthForm) {
+      return (
+        <LandingPage
+          onOpenLogin={() => {
+            setAuthInitialMode('login');
+            setShowAuthForm(true);
+          }}
+          onOpenSignup={() => {
+            setAuthInitialMode('signup');
+            setShowAuthForm(true);
+          }}
+          onTryDemo={() => {
+            loginAsDemo();
+          }}
+          currentTheme={currentTheme}
+          onToggleTheme={() => {
+            const next = currentTheme === 'dark' ? 'light' : 'dark';
+            setThemeMode(next);
+            setCurrentTheme(next);
+          }}
+        />
+      );
+    }
+
     return (
-      <>
-        <GlitterBackground />
-        <KiroAmbientParticles />
-        <Auth initialMode={authInitialMode} />
-      </>
+      <Auth
+        initialMode={authInitialMode}
+        onBackToLanding={() => setShowAuthForm(false)}
+      />
     );
   }
 

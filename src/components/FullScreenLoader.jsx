@@ -1,25 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import logoImg from '../assets/kiro-logo.png';
+import KampusKashLogo from './KampusKashLogo';
 
 /**
- * KampusKash Full-Screen Loading Screen
- * Renders cleanly while Firebase auth session & essential setup resolves.
- * Requirements:
- * 1. Shows KampusKash logo clearly.
- * 2. Subtle fade-in and scale-up entrance.
- * 3. Smooth animated loading indicator.
- * 4. Preserves dark purple visual identity & branding.
- * 5. Prevents flashes or abrupt disappearing via sensible minimum display duration (~500ms).
- * 6. Smoothly fades away into the dashboard.
+ * Official Full Screen Boot Loader for KampusKash
+ * Renders the official ghost mascot logo on a sleek midnight background.
  */
-export default function FullScreenLoader({ isResolved = false, onUnmounted }) {
+export default function FullScreenLoader({ isResolved, onUnmounted }) {
   const [shouldRender, setShouldRender] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
   const mountTimeRef = useRef(Date.now());
 
   useEffect(() => {
     if (isResolved) {
-      const minDuration = 500; // Sensible minimum display to prevent flashing
+      const minDuration = 450;
       const elapsed = Date.now() - mountTimeRef.current;
       const delay = Math.max(0, minDuration - elapsed);
 
@@ -30,7 +23,7 @@ export default function FullScreenLoader({ isResolved = false, onUnmounted }) {
       const unmountTimer = setTimeout(() => {
         setShouldRender(false);
         if (onUnmounted) onUnmounted();
-      }, delay + 420); // 420ms smooth fade transition
+      }, delay + 320);
 
       return () => {
         clearTimeout(fadeTimer);
@@ -40,8 +33,6 @@ export default function FullScreenLoader({ isResolved = false, onUnmounted }) {
   }, [isResolved, onUnmounted]);
 
   if (!shouldRender) return null;
-
-  const publicLogo = `${import.meta.env.BASE_URL || '/'}kiro-logo.png`.replace(/\/{2,}/g, '/');
 
   return (
     <div
@@ -57,39 +48,26 @@ export default function FullScreenLoader({ isResolved = false, onUnmounted }) {
         alignItems: 'center',
         justifyContent: 'center',
         flexDirection: 'column',
-        background: 'var(--bg-app, #624873)',
+        background: '#0A0A0F',
         opacity: fadeOut ? 0 : 1,
         transform: fadeOut ? 'scale(1.02)' : 'scale(1)',
-        transition: 'opacity 420ms cubic-bezier(0.16, 1, 0.3, 1), transform 420ms cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), transform 300ms cubic-bezier(0.16, 1, 0.3, 1)',
         pointerEvents: fadeOut ? 'none' : 'auto',
         userSelect: 'none'
       }}
     >
-      {/* Ambient glowing radial auras */}
+      {/* Subtle radial ambient glow behind logo */}
       <div
         style={{
           position: 'absolute',
-          width: 'min(480px, 80vw)',
-          height: 'min(480px, 80vw)',
+          width: '320px',
+          height: '320px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(168, 85, 247, 0.28) 0%, transparent 70%)',
-          animation: 'loaderAmbientPulse 3.2s ease-in-out infinite',
-          pointerEvents: 'none'
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          width: 'min(640px, 95vw)',
-          height: 'min(640px, 95vw)',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(121, 40, 202, 0.18) 0%, transparent 75%)',
-          animation: 'loaderAmbientPulse 4.2s ease-in-out infinite 0.8s',
+          background: 'radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 70%)',
           pointerEvents: 'none'
         }}
       />
 
-      {/* Center content container */}
       <div
         style={{
           position: 'relative',
@@ -97,128 +75,60 @@ export default function FullScreenLoader({ isResolved = false, onUnmounted }) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '1.25rem',
+          gap: '1.5rem',
           padding: '1.5rem',
-          maxWidth: '90vw',
-          animation: 'loaderContentEnter 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards'
+          maxWidth: '90vw'
         }}
       >
-        {/* Animated App Logo with Subtle Scale-Up and Breathing Aura */}
-        <div
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'loaderBreathing 2.6s ease-in-out infinite 480ms'
-          }}
-        >
-          <img
-            src={logoImg || publicLogo}
-            alt="KampusKash"
-            onError={(e) => {
-              if (e.target.src !== publicLogo) {
-                e.target.src = publicLogo;
-              }
-            }}
-            style={{
-              width: 'clamp(210px, 50vw, 300px)',
-              height: 'auto',
-              maxHeight: '110px',
-              objectFit: 'contain',
-              background: 'transparent',
-              filter: 'drop-shadow(0 12px 32px rgba(139, 92, 246, 0.45))',
-              position: 'relative',
-              zIndex: 2
-            }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <KampusKashLogo size={56} />
         </div>
 
-        {/* Smooth Animated Loading Indicator Bar */}
+        {/* Loading Progress Bar */}
         <div
           style={{
-            width: 'clamp(180px, 48vw, 240px)',
+            width: '200px',
             height: '4px',
-            borderRadius: '4px',
+            borderRadius: '9999px',
             background: 'rgba(255, 255, 255, 0.12)',
             overflow: 'hidden',
             position: 'relative',
-            marginTop: '0.75rem',
-            boxShadow: '0 0 12px rgba(139, 92, 246, 0.2)'
+            boxShadow: '0 0 12px rgba(139, 92, 246, 0.25)'
           }}
         >
           <div
+            className="loader-fill-bar"
             style={{
               position: 'absolute',
               top: 0,
+              left: 0,
               bottom: 0,
               width: '45%',
-              borderRadius: '4px',
-              background: 'linear-gradient(90deg, transparent, var(--primary-light, #E8DEF5), #FFFFFF, var(--primary-light, #E8DEF5), transparent)',
-              animation: 'loaderProgressSweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite'
+              borderRadius: '9999px',
+              background: 'linear-gradient(90deg, #8B5CF6, #A855F7, #EC4899)',
+              animation: 'loaderSlide 1.2s ease-in-out infinite'
             }}
           />
         </div>
 
-        {/* Subtitle / Status */}
-        <div
+        <span
           style={{
-            fontFamily: "'Plus Jakarta Sans', var(--font-sans, sans-serif)",
-            fontSize: '0.8rem',
+            fontSize: '0.84rem',
             fontWeight: 500,
-            color: 'var(--text-muted, #C4B5D4)',
-            letterSpacing: '0.04em',
-            animation: 'loaderTextPulse 2s ease-in-out infinite'
+            color: '#94A3B8',
+            letterSpacing: '0.02em',
+            fontFamily: "'Plus Jakarta Sans', var(--font-sans, sans-serif)"
           }}
         >
           Preparing your financial dashboard...
-        </div>
+        </span>
       </div>
 
       <style>{`
-        @keyframes loaderContentEnter {
-          from {
-            opacity: 0;
-            transform: scale(0.92) translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        @keyframes loaderBreathing {
-          0%, 100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.035);
-          }
-        }
-        @keyframes loaderAmbientPulse {
-          0%, 100% {
-            transform: scale(0.95);
-            opacity: 0.55;
-          }
-          50% {
-            transform: scale(1.1);
-            opacity: 0.9;
-          }
-        }
-        @keyframes loaderProgressSweep {
-          0% {
-            left: -45%;
-          }
-          100% {
-            left: 100%;
-          }
-        }
-        @keyframes loaderTextPulse {
-          0%, 100% {
-            opacity: 0.55;
-          }
-          50% {
-            opacity: 0.95;
-          }
+        @keyframes loaderSlide {
+          0% { left: -45%; }
+          50% { left: 40%; }
+          100% { left: 105%; }
         }
       `}</style>
     </div>

@@ -1,4 +1,4 @@
-# KiroKash — Student Financial Tracker 🎓💰
+# KampusKash — Student Financial Tracker 🎓💰
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -14,7 +14,7 @@
 
 ## 🌟 Overview & Key Features
 
-KiroKash solves the unique financial challenges college and university students face: managing allowances, part-time earnings, loans (e.g. PTPTN), hostel rent, food budgets, and semester savings goals across multiple bank accounts and e-wallets.
+KampusKash solves the unique financial challenges college and university students face: managing allowances, part-time earnings, loans (e.g. PTPTN), hostel rent, food budgets, and semester savings goals across multiple bank accounts and e-wallets.
 
 ### 🏦 1. Multi-Account Foundation (Manual Phase 1)
 - **Account Types Supported**: Savings, Current, E-Wallet (Touch 'n Go, GrabPay, Boost), Cash, Credit Card, and Other.
@@ -113,7 +113,7 @@ For complete architectural details and the planned Phase 2 AWS migration path, r
 
 ## 🔒 Security & Data Isolation Model
 
-KiroKash enforces strict multi-tenant isolation at the database layer via Cloud Firestore Security Rules:
+KampusKash enforces strict multi-tenant isolation at the database layer via Cloud Firestore Security Rules:
 
 ```javascript
 rules_version = '2';
@@ -139,7 +139,7 @@ service cloud.firestore {
 ```
 
 - **Authentication Scoping**: No user can access or alter another student's accounts, transactions, or budgets.
-- **Zero Sensitive Banking Credentials**: In accordance with Phase 1 guidelines, KiroKash does **NOT** ask for, scrape, or store bank passwords, PINs, OTPs, or login credentials.
+- **Zero Sensitive Banking Credentials**: In accordance with Phase 1 guidelines, KampusKash does **NOT** ask for, scrape, or store bank passwords, PINs, OTPs, or login credentials.
 - **Client Sanitization**: All frontend inputs are validated for non-negative balances, proper decimal formatting, and valid category associations.
 
 ---

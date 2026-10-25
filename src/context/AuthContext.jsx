@@ -26,7 +26,34 @@ const LEGACY_KEYS = [
 ];
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('demo') === 'true' || params.get('demo') === '1' || window.location.hash === '#demo') {
+          const demoUser = {
+            id: 'demo-student',
+            username: 'Demo Student',
+            email: 'demo@kampuskash.com',
+            university: 'Universiti Malaya (UM)',
+            avatar: '🎓',
+            isDemoUser: true,
+            currency: 'RM',
+            isFirebaseUser: false
+          };
+          localStorage.setItem('kampuskash_is_demo', 'true');
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(demoUser));
+          return demoUser;
+        }
+      }
+      const saved = localStorage.getItem(STORAGE_KEY_USER);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.isDemoUser) return parsed;
+      }
+    } catch {}
+    return null;
+  });
   const [isAuthResolved, setIsAuthResolved] = useState(!isFirebaseConfigured);
 
   // Initialize theme on app load
@@ -34,26 +61,36 @@ export function AuthProvider({ children }) {
     loadSavedTheme();
   }, []);
 
-  // Purge any session left over from the old local-only auth scheme
+  // Purge any session left over from old scheme if not demo user
   useEffect(() => {
     try {
-      localStorage.removeItem(STORAGE_KEY_USER);
-      LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+      const isDemo = localStorage.getItem('kampuskash_is_demo');
+      if (!isDemo) {
+        LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+      }
     } catch (e) {
       console.error('Failed to clear legacy auth state', e);
     }
   }, []);
 
-  // Firebase is the single source of truth for the session
+  // Firebase is the single source of truth for the real session
   useEffect(() => {
-    if (!isFirebaseConfigured || !auth) return;
+    if (!isFirebaseConfigured || !auth) {
+      setIsAuthResolved(true);
+      return;
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      setIsAuthResolved(true);
+    }, 600);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(fallbackTimer);
       if (firebaseUser) {
         const baseUser = formatFirebaseUser(firebaseUser);
         setUser(baseUser);
 
-        // Fetch cloud profile from Firestore to enrich with bio, monthlyBudget, etc.
+        // Fetch cloud profile from Firestore
         try {
           const cloudProfile = await fetchUserProfile(firebaseUser.uid);
           if (cloudProfile) {
@@ -68,7 +105,11 @@ export function AuthProvider({ children }) {
           console.warn('Failed to load cloud profile on auth state change', err);
         }
       } else {
-        setUser(null);
+        // Only clear if not in demo mode
+        const isDemo = localStorage.getItem('kampuskash_is_demo');
+        if (!isDemo) {
+          setUser(null);
+        }
       }
       setIsAuthResolved(true);
     });
@@ -76,7 +117,7 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  // Cache the resolved profile for offline display only; never for access control
+  // Cache the resolved profile
   useEffect(() => {
     try {
       if (user) {
@@ -92,6 +133,7 @@ export function AuthProvider({ children }) {
   const loginWithFirebase = async (email, password) => {
     const res = await loginWithEmail(email, password);
     if (res.success) {
+      localStorage.removeItem('kampuskash_is_demo');
       setUser(res.user);
       try {
         const cloudProfile = await fetchUserProfile(res.user.id);
@@ -108,6 +150,7 @@ export function AuthProvider({ children }) {
   const signupWithFirebase = async (email, password, displayName, university) => {
     const res = await registerWithEmail(email, password, displayName, university);
     if (res.success) {
+      localStorage.removeItem('kampuskash_is_demo');
       setUser(res.user);
     }
     return res;
@@ -116,6 +159,7 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     const res = await authLoginWithGoogle();
     if (res.success) {
+      localStorage.removeItem('kampuskash_is_demo');
       setUser(res.user);
       try {
         const cloudProfile = await fetchUserProfile(res.user.id);
@@ -129,19 +173,42 @@ export function AuthProvider({ children }) {
     return res;
   };
 
+  const loginAsDemo = useCallback(() => {
+    const demoUser = {
+      id: 'demo-student',
+      username: 'Demo Student',
+      email: 'demo@kampuskash.com',
+      university: 'Universiti Malaya (UM)',
+      avatar: '🎓',
+      isDemoUser: true,
+      currency: 'RM',
+      isFirebaseUser: false
+    };
+    try {
+      localStorage.setItem('kampuskash_is_demo', 'true');
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(demoUser));
+    } catch {}
+    setUser(demoUser);
+    return { success: true, user: demoUser };
+  }, []);
+
   const resetPasswordWithFirebase = async (email) => {
     return await sendPasswordReset(email);
   };
 
   const logout = async () => {
     try {
-      await logoutUser();
+      if (!user?.isDemoUser) {
+        await logoutUser();
+      }
     } catch (e) {
       console.error('Firebase signout failed', e);
     }
     setUser(null);
     try {
       localStorage.removeItem(STORAGE_KEY_USER);
+      localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kirokash_tutorial_current_step');
     } catch (e) {
       console.error('Failed to clear user cache', e);
     }
@@ -168,6 +235,9 @@ export function AuthProvider({ children }) {
   const saveProfile = useCallback(async (profileData) => {
     if (!user?.id) return { success: false, error: 'No user authenticated.' };
     updateUserProfile(profileData);
+    if (user.isDemoUser) {
+      return { success: true };
+    }
     return await saveFullUserProfile(user.id, profileData);
   }, [user, updateUserProfile]);
 
@@ -179,11 +249,12 @@ export function AuthProvider({ children }) {
     loginWithFirebase,
     signupWithFirebase,
     loginWithGoogle,
+    loginAsDemo,
     resetPasswordWithFirebase,
     logout,
     updateUserProfile,
     saveProfile
-  }), [user, isAuthResolved, updateUserProfile, saveProfile]);
+  }), [user, isAuthResolved, updateUserProfile, saveProfile, loginAsDemo]);
 
   return (
     <AuthContext.Provider value={value}>

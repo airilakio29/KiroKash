@@ -70,7 +70,7 @@ export default function Login() {
             color: '#FFFFFF',
             marginBottom: '0.35rem'
           }}>
-            KiroKash
+            KampusKash
           </h1>
           <p style={{
             fontSize: '0.88rem',
