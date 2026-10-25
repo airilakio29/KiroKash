@@ -44,12 +44,13 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     appName: 'KiroKash API',
     currency: 'MYR (RM)',
-    aiAssistant: 'KampusKash AI Financial Intelligence',
+    aiAssistant: 'KampusKash AI Financial Intelligence (Groq LPU)',
+    aiProvider: 'groq',
     timestamp: new Date().toISOString()
   });
 });
 
-// KampusKash AI Chat Assistant Endpoint (Secure Firebase & Gemini Backend)
+// KampusKash AI Chat Assistant Endpoint (Secure Firebase & Groq LPU Backend)
 app.post('/api/ai/chat', async (req, res) => {
   await handleAIChatRequest(req, res);
 });

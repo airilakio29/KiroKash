@@ -10,7 +10,7 @@ import {
   formatContextForPrompt,
   sanitizeUserInput
 } from './financialContextService.js';
-import { executeAIChat } from './geminiProvider.js';
+import { executeAIChat } from './groqProvider.js';
 
 // In-memory rate limiter: uid -> [timestamps]
 const rateLimitMap = new Map();
@@ -164,15 +164,15 @@ export async function handleAIChatRequest(req, res, options = {}) {
       content: cleanMessage
     });
 
-    // 5. Execute AI Generation
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || options.apiKey;
+    // 5. Execute AI Generation (High-speed Groq LPU Backend)
+    const apiKey = process.env.GROQ_API_KEY || options.apiKey || process.env.GEMINI_API_KEY;
     const aiResult = await executeAIChat({
       systemPrompt: SYSTEM_PROMPT,
       financialContext: financialContextText,
       summary,
       messages: formattedHistory,
       apiKey,
-      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
+      model: process.env.GROQ_MODEL || options.model || 'openai/gpt-oss-120b'
     });
 
     // 6. Validate & Register Proposed Action (if any)
