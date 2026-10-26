@@ -30,7 +30,7 @@ function MapLoadingSkeleton() {
   );
 }
 
-export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets }) {
+export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets, onNavigateToCommunity }) {
   const { user } = useAuth();
   const userId = user?.id;
   const { budgets, categories, transactions } = useFinance();

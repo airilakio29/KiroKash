@@ -296,6 +296,16 @@ export default function LandingPage({ onOpenLogin, onOpenSignup, onTryDemo, curr
               per-user Firestore rules, encrypted in transit and at rest.
             </p>
           </div>
+          <div className="feature-card">
+            <div className="feature-icon-wrapper">
+              <UtensilsCrossed size={24} color="#EC4899" />
+            </div>
+            <h3 className="feature-card-title">Makan Murah Campus Food Board</h3>
+            <p className="feature-card-desc">
+              Discover authentic student-vetted budget food spots under RM10–RM15 near your campus.
+              Share reviews, student tips, star ratings, and upvote the tastiest cheap meals.
+            </p>
+          </div>
         </div>
       </section>
 

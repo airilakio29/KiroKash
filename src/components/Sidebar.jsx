@@ -14,6 +14,7 @@ import {
   User as UserIcon,
   Compass,
   Sparkles,
+  UtensilsCrossed,
   Download
 } from 'lucide-react';
 import KampusKashLogo from './KampusKashLogo';
@@ -63,6 +64,7 @@ export default function Sidebar({
     { id: 'budgets', label: 'Budgets', icon: Target },
     { id: 'savings', label: 'Savings Goals', icon: PiggyBank },
     { id: 'explore', label: 'Explore', icon: Compass },
+    { id: 'community', label: 'Makan Murah', icon: UtensilsCrossed, badge: 'New' },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];

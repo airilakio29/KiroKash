@@ -75,7 +75,7 @@ describe('KampusKash Phase 2 — AI Financial Intelligence Test Suite', () => {
         { id: 'c2', date: '2026-10-10', amount: 140.00, type: 'expense', categoryId: 'cat-food' }
       ];
 
-      const comp = calculateMonthToMonthComparison(transactions, categories, '2026-10');
+      const comp = calculateMonthToMonthComparison(transactions, categories, '2026-10', new Date('2026-10-18'));
       assert.equal(comp.prevMonth, '2026-09');
       assert.equal(comp.currentMonth, '2026-10');
       // Like-for-like current is 120 + 140 = 260

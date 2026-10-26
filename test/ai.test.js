@@ -384,7 +384,12 @@ describe('KampusKash AI Financial Assistant Suite', () => {
         json: (data) => { jsonPayload = data; return res; }
       };
 
-      await handleAIChatRequest(req, res);
+      await handleAIChatRequest(req, res, {
+        executeAIChat: async () => ({
+          reply: 'Here is your financial summary. You spent RM35.00 on Campus Meals recently.',
+          provider: 'test-mock'
+        })
+      });
       assert.equal(statusCode, 200);
       assert.equal(jsonPayload.success, true);
       assert.equal(typeof jsonPayload.reply, 'string');

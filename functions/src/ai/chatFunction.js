@@ -166,7 +166,8 @@ export async function handleAIChatRequest(req, res, options = {}) {
 
     // 5. Execute AI Generation (High-speed Groq LPU Backend)
     const apiKey = process.env.GROQ_API_KEY || options.apiKey || process.env.GEMINI_API_KEY;
-    const aiResult = await executeAIChat({
+    const aiExecutor = options.executeAIChat || executeAIChat;
+    const aiResult = await aiExecutor({
       systemPrompt: SYSTEM_PROMPT,
       financialContext: financialContextText,
       summary,

@@ -216,12 +216,215 @@ export function generateDemoTransactions(baseDate = new Date()) {
  * Generates the complete, self-contained mock financial bundle.
  * Purely in-memory; numbers are guaranteed internally consistent.
  */
+
+export function generateDemoThreads(baseDate = new Date()) {
+  const getIso = (daysAgo, hoursAgo = 0) =>
+    new Date(baseDate.getTime() - (daysAgo * 86400000) - (hoursAgo * 3600000)).toISOString();
+
+  return [
+    {
+      id: 'thread-demo-1',
+      authorId: 'student-um-1',
+      authorName: 'Aiman Hafiz',
+      authorAvatar: '👨‍🎓',
+      authorUniversity: 'Universiti Malaya (UM)',
+      campus: 'um',
+      placeName: 'Warung Kak Som Depan Gate 3',
+      title: 'Nasi Lemak Ayam Berempah RM4.50 Sahaja!',
+      body: 'Sambal padu manis pedas, ayam rangup panas-panas. Kalau datang sebelum 8.30 pagi ada paru & sambal sotong. Boleh tapau bungkus daun pisang untuk bawak gi kuliah.',
+      pricePerMeal: 4.50,
+      rating: 5,
+      tags: ['bawah-rm10', 'halal', 'porsi-besar'],
+      upvoteCount: 48,
+      replyCount: 3,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(1, 4),
+      updatedAt: getIso(1, 4),
+      replies: [
+        {
+          id: 'rep-demo-1',
+          authorId: 'student-um-2',
+          authorName: 'Siti Nurhaliza',
+          authorAvatar: '👩‍🎓',
+          authorUniversity: 'Universiti Malaya (UM)',
+          body: 'Setuju sangat! Sambal kerang dia pun RM1.50 je tambah, memang jimat gila.',
+          createdAt: getIso(1, 2)
+        },
+        {
+          id: 'rep-demo-2',
+          authorId: 'student-um-3',
+          authorName: 'Irfan Hakim',
+          authorAvatar: '🎒',
+          authorUniversity: 'Universiti Malaya (UM)',
+          body: 'Buka hari apa je bro? Jumaat buka tak?',
+          createdAt: getIso(0, 18)
+        },
+        {
+          id: 'rep-demo-3',
+          authorId: 'student-um-1',
+          authorName: 'Aiman Hafiz',
+          authorAvatar: '👨‍🎓',
+          authorUniversity: 'Universiti Malaya (UM)',
+          body: 'Isnin sampai Jumaat je, Sabtu Ahad cuti bro.',
+          createdAt: getIso(0, 15)
+        }
+      ]
+    },
+    {
+      id: 'thread-demo-2',
+      authorId: 'student-utp-1',
+      authorName: 'Sarah Dania',
+      authorAvatar: '👩‍💻',
+      authorUniversity: 'Universiti Teknologi PETRONAS (UTP)',
+      campus: 'utp',
+      placeName: 'Restoran Bismillah Seri Iskandar',
+      title: 'Port Roti Canai RM1.50 & Teh Tarik RM2.00 (Plug & Wi-Fi)',
+      body: 'Port lepak study group paling selamat lepas pukul 12 tengah malam. Wi-Fi laju, banyak plug point kat bahagian dalam. Maggi goreng mamak pun baru RM6.50 portion kenyang.',
+      pricePerMeal: 3.50,
+      rating: 5,
+      tags: ['bawah-rm10', 'buka-lewat', 'wifi-plug', 'mamak'],
+      upvoteCount: 62,
+      replyCount: 1,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(2, 6),
+      updatedAt: getIso(2, 6),
+      replies: [
+        {
+          id: 'rep-demo-4',
+          authorId: 'student-utp-2',
+          authorName: 'Danial Haziq',
+          authorAvatar: '🎧',
+          authorUniversity: 'Universiti Teknologi PETRONAS (UTP)',
+          body: 'Milo ais tabur dia padu mat! Owner pun sporting bila budak UTP buat assignment.',
+          createdAt: getIso(1, 22)
+        }
+      ]
+    },
+    {
+      id: 'thread-demo-3',
+      authorId: 'student-uitm-1',
+      authorName: 'Luqman Hakim',
+      authorAvatar: '🏎️',
+      authorUniversity: 'Universiti Teknologi MARA (UiTM)',
+      campus: 'uitm',
+      placeName: 'Ayam Gepuk Pak Gendut Seksyen 7',
+      title: 'Ayam Gepuk Pedas Level 5 + Nasi & Sambal Refill RM9.90',
+      body: 'Student UiTM Shah Alam wajib tahu. Set ayam gepuk crispy + tempe + tauhu RM9.90. Paling best nasi dan kubis goreng boleh refill sampai kenyang. Tunjuk student card.',
+      pricePerMeal: 9.90,
+      rating: 5,
+      tags: ['bawah-rm10', 'halal', 'student-deal', 'porsi-besar'],
+      upvoteCount: 75,
+      replyCount: 2,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(3, 1),
+      updatedAt: getIso(3, 1),
+      replies: [
+        {
+          id: 'rep-demo-5',
+          authorId: 'student-uitm-2',
+          authorName: 'Farah Nadia',
+          authorAvatar: '🌸',
+          authorUniversity: 'Universiti Teknologi MARA (UiTM)',
+          body: 'Level 5 pedas gila berpeluh dahi haha tapi sambal kacang dia memang ketagih.',
+          createdAt: getIso(2, 19)
+        },
+        {
+          id: 'rep-demo-6',
+          authorId: 'student-uitm-3',
+          authorName: 'Khairul Amri',
+          authorAvatar: '👟',
+          authorUniversity: 'Universiti Teknologi MARA (UiTM)',
+          body: 'Air sirap ais refill RM1.50 je jugak!',
+          createdAt: getIso(2, 14)
+        }
+      ]
+    },
+    {
+      id: 'thread-demo-4',
+      authorId: 'student-usm-1',
+      authorName: 'Chong Wei Lun',
+      authorAvatar: '🏸',
+      authorUniversity: 'Universiti Sains Malaysia (USM)',
+      campus: 'usm',
+      placeName: 'Kedai Kopi Chuan Fatt (Halal Corner)',
+      title: 'Chee Cheong Fun & Kopi Peng Kaw RM5.50',
+      body: 'Kopi peng pekat kaw macam zaman dulu. Chee cheong fun sos manis pedas dengan bijan wangi. Owner peramah sangat dengan student Penang.',
+      pricePerMeal: 5.50,
+      rating: 4,
+      tags: ['bawah-rm10', 'aircond'],
+      upvoteCount: 31,
+      replyCount: 0,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(4, 5),
+      updatedAt: getIso(4, 5),
+      replies: []
+    },
+    {
+      id: 'thread-demo-5',
+      authorId: 'student-ukm-1',
+      authorName: 'Nurul Huda',
+      authorAvatar: '📚',
+      authorUniversity: 'Universiti Kebangsaan Malaysia (UKM)',
+      campus: 'ukm',
+      placeName: 'Kafe Sentral Kolej Ibrahim Yaakub',
+      title: 'Nasi Campur 2 Sayur + 1 Lauk Ayam RM6.50',
+      body: 'Budget saver hujung bulan bila elaun dah susut. Air sirap percuma setiap hari Rabu. Kalau nak jimat lagi ambik telur dadar je RM4.00 total.',
+      pricePerMeal: 6.50,
+      rating: 4,
+      tags: ['bawah-rm10', 'halal', 'student-deal'],
+      upvoteCount: 38,
+      replyCount: 0,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(5, 3),
+      updatedAt: getIso(5, 3),
+      replies: []
+    },
+    {
+      id: 'thread-demo-6',
+      authorId: 'student-utp-3',
+      authorName: 'Amirul Asyraf',
+      authorAvatar: '💻',
+      authorUniversity: 'Universiti Teknologi PETRONAS (UTP)',
+      campus: 'utp',
+      placeName: 'The Daily Brew Campus Cafe',
+      title: 'Student Coffee & Croissant Combo RM12 (Aircond & Silent Space)',
+      body: 'Bila stress nak siapkan FYP report, datang sini. Suasana tenang, aircond sejuk gila, kopi sedap. Tunjuk student ID dapat 10% diskaun.',
+      pricePerMeal: 12.00,
+      rating: 5,
+      tags: ['student-deal', 'wifi-plug', 'aircond'],
+      upvoteCount: 44,
+      replyCount: 1,
+      reportCount: 0,
+      status: 'active',
+      createdAt: getIso(6, 8),
+      updatedAt: getIso(6, 8),
+      replies: [
+        {
+          id: 'rep-demo-7',
+          authorId: 'student-utp-4',
+          authorName: 'Syahira',
+          authorAvatar: '☕',
+          authorUniversity: 'Universiti Teknologi PETRONAS (UTP)',
+          body: 'Latte dia best, beans dari roasted tempatan.',
+          createdAt: getIso(6, 2)
+        }
+      ]
+    }
+  ];
+}
+
 export function generateDemoDataset(baseDate = new Date()) {
   const transactions = generateDemoTransactions(baseDate);
   const categories = [...DEMO_CATEGORIES];
   const accounts = [...DEMO_ACCOUNTS];
   const budgets = [...DEMO_BUDGETS];
   const savingsGoals = [...DEMO_SAVINGS_GOALS];
+  const threads = generateDemoThreads(baseDate);
 
   return {
     categories,
@@ -229,6 +432,7 @@ export function generateDemoDataset(baseDate = new Date()) {
     budgets,
     savingsGoals,
     transactions,
+    threads,
     generatedAt: baseDate.toISOString()
   };
 }

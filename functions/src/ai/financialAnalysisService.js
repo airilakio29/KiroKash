@@ -8,8 +8,8 @@
 /**
  * Returns month days information and handles incomplete/current months.
  */
-export function getMonthDaysInfo(yearMonthStr) {
-  const now = new Date();
+export function getMonthDaysInfo(yearMonthStr, referenceDate) {
+  const now = referenceDate ? (referenceDate instanceof Date ? referenceDate : new Date(referenceDate)) : new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-indexed
   const currentYearMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
@@ -50,8 +50,8 @@ export function getPreviousMonthStr(yearMonthStr) {
  * Calculate comprehensive monthly cash flow, category breakdowns,
  * daily averages, and 4-week distribution.
  */
-export function calculateMonthlyCashFlow(transactions = [], categories = [], targetYearMonth) {
-  const monthInfo = getMonthDaysInfo(targetYearMonth);
+export function calculateMonthlyCashFlow(transactions = [], categories = [], targetYearMonth, referenceDate) {
+  const monthInfo = getMonthDaysInfo(targetYearMonth, referenceDate);
   const ym = monthInfo.yearMonth;
 
   const categoryMap = new Map();
@@ -177,10 +177,10 @@ export function calculateMonthlyCashFlow(transactions = [], categories = [], tar
 /**
  * Compare target month against previous month with like-for-like pro-rating.
  */
-export function calculateMonthToMonthComparison(transactions = [], categories = [], targetYearMonth) {
-  const currentFlow = calculateMonthlyCashFlow(transactions, categories, targetYearMonth);
+export function calculateMonthToMonthComparison(transactions = [], categories = [], targetYearMonth, referenceDate) {
+  const currentFlow = calculateMonthlyCashFlow(transactions, categories, targetYearMonth, referenceDate);
   const prevYm = getPreviousMonthStr(currentFlow.monthInfo.yearMonth);
-  const prevFlow = calculateMonthlyCashFlow(transactions, categories, prevYm);
+  const prevFlow = calculateMonthlyCashFlow(transactions, categories, prevYm, referenceDate);
 
   // Like-for-like comparison (same days elapsed range)
   let prevLikeForLikeExpense = 0;

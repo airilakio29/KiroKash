@@ -27,6 +27,7 @@ import AccountsView from './views/AccountsView';
 import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
+import CommunityView from './views/CommunityView';
 import AIChatView from './views/AIChatView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
 import FloatingNavButton from './components/FloatingNavButton';
@@ -46,6 +47,7 @@ function getInitialTabFromUrl() {
     const pathname = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
     if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) return 'ai-chat';
+    if (pathname.includes('/community') || hash === '#community' || pathname.includes('/makan-murah')) return 'community';
     if (pathname.includes('/explore') || hash === '#explore') return 'explore';
     if (pathname.includes('/transactions') || hash === '#transactions') return 'transactions';
     if (pathname.includes('/budgets') || hash === '#budgets') return 'budgets';
@@ -219,11 +221,18 @@ function AppLayout({
             onEditAccount={handleEditAccount}
           />
         );
+      case 'community':
+        return (
+          <CommunityView
+            onNavigateToExplore={() => handleTabChange('explore')}
+          />
+        );
       case 'explore':
         return (
           <ExploreView
             onOpenAddTransaction={handleOpenAddTransaction}
             onNavigateToBudgets={() => handleTabChange('budgets')}
+            onNavigateToCommunity={() => handleTabChange('community')}
           />
         );
       case 'ai-chat':
@@ -267,6 +276,7 @@ function AppLayout({
       case 'budgets': return 'Category Budgets';
       case 'savings': return 'Student Savings Goals';
       case 'accounts': return 'My Accounts';
+      case 'community': return 'Makan Murah (Student Food)';
       case 'explore': return 'Explore Ipoh';
       case 'reports': return 'Reports & Analytics';
       case 'settings': return 'App Settings & Backup';

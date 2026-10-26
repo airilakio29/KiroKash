@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "communityThreads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campus", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "communityThreads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campus", "order": "ASCENDING" },
+        { "fieldPath": "upvoteCount", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "communityThreads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campus", "order": "ASCENDING" },
+        { "fieldPath": "pricePerMeal", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

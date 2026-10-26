@@ -7,6 +7,7 @@ import {
   calculateCategorySpending
 } from '../services/transactionService';
 import { calculateTotalAccountBalance } from '../services/accountService';
+import { buildThreadPayload, buildReplyPayload } from '../services/communityService';
 
 /**
  * DemoModeProvider
@@ -32,6 +33,9 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
 
   // Track demo notification message (e.g. for disabled export actions)
   const [demoNotice, setDemoNotice] = useState(null);
+  // In-memory upvoted thread IDs for demo guest user
+  const [demoUserUpvotes, setDemoUserUpvotes] = useState(() => new Set(['thread-demo-1', 'thread-demo-3']));
+
   const noticeTimeoutRef = useRef(null);
 
   const showDemoNotice = useCallback((message) => {
@@ -66,6 +70,7 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
   const demoAccounts = useMemo(() => demoData?.accounts || [], [demoData?.accounts]);
   const demoBudgets = useMemo(() => demoData?.budgets || [], [demoData?.budgets]);
   const demoSavingsGoals = useMemo(() => demoData?.savingsGoals || [], [demoData?.savingsGoals]);
+  const demoThreads = useMemo(() => demoData?.threads || [], [demoData?.threads]);
 
   const demoTotalIncome = useMemo(() => calculateTotalIncome(demoTransactions), [demoTransactions]);
   const demoTotalExpense = useMemo(() => calculateTotalExpenses(demoTransactions), [demoTransactions]);
@@ -322,6 +327,96 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
     setDemoData(prev => prev ? { ...prev, savingsGoals: prev.savingsGoals.filter(g => g.id !== id) } : null);
   }, []);
 
+  
+  // ==================== In-Memory Demo Community Threads ====================
+  const addDemoCommunityThread = useCallback((inputData, user) => {
+    const payload = buildThreadPayload(user, inputData);
+    const newThread = {
+      ...payload,
+      id: `thread-demo-${Date.now()}`,
+      replies: []
+    };
+    setDemoData(prev => prev ? {
+      ...prev,
+      threads: [newThread, ...(prev.threads || [])]
+    } : null);
+    return newThread;
+  }, []);
+
+  const toggleDemoCommunityVote = useCallback((threadId) => {
+    setDemoUserUpvotes(prev => {
+      const next = new Set(prev);
+      const isVoted = next.has(threadId);
+      if (isVoted) {
+        next.delete(threadId);
+      } else {
+        next.add(threadId);
+      }
+      setDemoData(d => {
+        if (!d || !d.threads) return d;
+        return {
+          ...d,
+          threads: d.threads.map(t => {
+            if (t.id === threadId) {
+              return {
+                ...t,
+                upvoteCount: Math.max(0, (t.upvoteCount || 0) + (isVoted ? -1 : 1))
+              };
+            }
+            return t;
+          })
+        };
+      });
+      return next;
+    });
+  }, []);
+
+  const addDemoCommunityReply = useCallback((threadId, replyText, user) => {
+    const reply = buildReplyPayload(user, replyText);
+    const newReply = {
+      ...reply,
+      id: `rep-demo-${Date.now()}`
+    };
+    setDemoData(prev => {
+      if (!prev || !prev.threads) return prev;
+      return {
+        ...prev,
+        threads: prev.threads.map(t => {
+          if (t.id === threadId) {
+            const existingReplies = Array.isArray(t.replies) ? t.replies : [];
+            return {
+              ...t,
+              replyCount: (t.replyCount || 0) + 1,
+              replies: [...existingReplies, newReply]
+            };
+          }
+          return t;
+        })
+      };
+    });
+    return newReply;
+  }, []);
+
+  const reportDemoCommunityThread = useCallback((threadId) => {
+    setDemoData(prev => {
+      if (!prev || !prev.threads) return prev;
+      return {
+        ...prev,
+        threads: prev.threads.map(t => {
+          if (t.id === threadId) {
+            return {
+              ...t,
+              reportCount: (t.reportCount || 0) + 1
+            };
+          }
+          return t;
+        })
+      };
+    });
+    showDemoNotice('Laporan diterima untuk semakan moderator.');
+    return true;
+  }, [showDemoNotice]);
+
   // Intercepted exports with friendly user guidance
   const interceptedExportPDF = useCallback(() => {
     showDemoNotice('Export PDF is disabled in Tutorial Mode to protect sample data.');
@@ -387,6 +482,19 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
       updateSavingsGoal: updateDemoSavingsGoal,
       depositToSavingsGoal: depositToDemoSavingsGoal,
       deleteSavingsGoal: deleteDemoSavingsGoal,
+    demoThreads,
+    demoUserUpvotes,
+    addDemoCommunityThread,
+    toggleDemoCommunityVote,
+    addDemoCommunityReply,
+    reportDemoCommunityThread,
+      // Overridden In-Memory Community
+      communityThreads: demoThreads,
+      communityUserUpvotes: demoUserUpvotes,
+      addCommunityThread: addDemoCommunityThread,
+      toggleCommunityVote: toggleDemoCommunityVote,
+      addCommunityReply: addDemoCommunityReply,
+      reportCommunityThread: reportDemoCommunityThread,
       // Blocked Export Functions
       exportToPDF: interceptedExportPDF,
       exportToCSV: interceptedExportCSV,

@@ -8,6 +8,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Helper: verify user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     // Each student owns their document at users/{userId} and any subcollections
     // A user can ONLY read and write their own data; never another student's data.
     match /users/{userId} {
@@ -17,6 +22,60 @@ service cloud.firestore {
       match /{allPaths=**} {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    // Community Makan Murah Threads:
+    // Shared public collection for students sharing budget-friendly spots
+    match /communityThreads/{threadId} {
+      // Readable by all signed-in students unless marked hidden by moderation
+      allow read: if isAuthenticated() && (resource == null || resource.data.status != 'hidden');
+
+      // Creation: must be authenticated, authorId must match auth.uid, basic validation
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 1200
+        && request.resource.data.pricePerMeal is number
+        && request.resource.data.pricePerMeal >= 0
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.status in ['active', 'hidden'];
+
+      // Update: author can update content, or atomic counter updates for upvotes/replies/reports
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.authorId
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvoteCount', 'replyCount', 'reportCount', 'status'])
+      );
+
+      // Delete: author only
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+
+      // Nested replies
+      match /replies/{replyId} {
+        allow read: if isAuthenticated() && (resource == null || resource.data.status != 'hidden');
+        allow create: if isAuthenticated()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0
+          && request.resource.data.body.size() <= 800;
+        allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+      }
+
+      // 1 vote per user (doc id is uid)
+      match /votes/{userId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // Community Reports: Create-only for reporting inappropriate content
+    match /communityReports/{reportId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.reporterId == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     // Explicitly deny access to all other paths
