@@ -16,6 +16,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Tutorial from './components/Tutorial';
 import WelcomeIntroModal from './components/WelcomeIntroModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import { DashboardSkeleton } from './components/Skeleton';
 import { ToastProvider } from './context/ToastContext';
 
@@ -537,7 +538,7 @@ function AppContent() {
   );
 }
 
-function FirebaseSetupNotice() {
+function FirebaseSetupNotice({ onBack }) {
   return (
     <div style={{
       display: 'flex',
@@ -566,6 +567,16 @@ function FirebaseSetupNotice() {
             <li key={key}><code>{key}</code></li>
           ))}
         </ul>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="btn btn-secondary"
+            style={{ marginTop: '1.5rem', width: '100%' }}
+          >
+            ← Back to Landing Page / Demo
+          </button>
+        )}
       </div>
     </div>
   );
@@ -694,11 +705,12 @@ function AppAuthenticator() {
     };
   }, []);
 
-  // Reset loaderDone when logged out so next login plays loader
+  // Reset loaderDone when logged out so next login plays loader and reset auth view to landing page
   useEffect(() => {
     if (!isAuthenticated) {
       setLoaderDone(false);
       setIsDataReady(false);
+      setShowAuthForm(false);
     }
   }, [isAuthenticated]);
 
@@ -723,10 +735,6 @@ function AppAuthenticator() {
       window.history.replaceState(null, document.title, loginUrl);
     } catch {}
   };
-
-  if (!isFirebaseConfigured) {
-    return <FirebaseSetupNotice />;
-  }
 
   // Custom Password Reset Page for Firebase Action Emails or /reset-password
   if (inResetFlow) {
@@ -790,12 +798,20 @@ function AppAuthenticator() {
       );
     }
 
+    if (!isFirebaseConfigured) {
+      return <FirebaseSetupNotice onBack={() => setShowAuthForm(false)} />;
+    }
+
     return (
       <Auth
         initialMode={authInitialMode}
         onBackToLanding={() => setShowAuthForm(false)}
       />
     );
+  }
+
+  if (!isFirebaseConfigured && !user?.isDemoUser) {
+    return <FirebaseSetupNotice onBack={() => setShowAuthForm(false)} />;
   }
 
   // Authenticated: show loading screen (minimum 4 seconds) while data loads in parallel,
@@ -828,11 +844,13 @@ function AppAuthenticator() {
 
 function AppRoot() {
   return (
-    <ToastProvider>
-      <OfflineBanner />
-      <PWAInstallPrompt />
-      <AppAuthenticator />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <OfflineBanner />
+        <PWAInstallPrompt />
+        <AppAuthenticator />
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

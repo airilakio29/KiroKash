@@ -10,7 +10,8 @@ import {
   Check,
   LogIn,
   Sun,
-  Moon
+  Moon,
+  UtensilsCrossed
 } from 'lucide-react';
 import KampusKashLogo from './KampusKashLogo';
 

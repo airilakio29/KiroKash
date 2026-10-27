@@ -322,6 +322,12 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('Failed to clear user cache', e);
     }
+    try {
+      const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+      window.history.replaceState({ signedOut: true }, document.title, basePath || '/');
+    } catch (e) {
+      console.error('Failed to reset path on logout', e);
+    }
   };
 
   const updateUserProfile = useCallback((newDetails) => {
