@@ -28,40 +28,50 @@ export const ACTION_TYPES = {
  */
 export function resolveCategory(categoryNameOrId, categories = []) {
   if (!categoryNameOrId) return null;
+  const cats = (categories && categories.length > 0) ? categories : [
+    { id: 'cat-1', name: 'Food & Dining', type: 'expense' },
+    { id: 'cat-2', name: 'Transport & Commute', type: 'expense' },
+    { id: 'cat-3', name: 'Books & Supplies', type: 'expense' },
+    { id: 'cat-4', name: 'Hostel & Rent', type: 'expense' },
+    { id: 'cat-5', name: 'Entertainment & Leisure', type: 'expense' },
+    { id: 'cat-6', name: 'General & Others', type: 'expense' },
+    { id: 'cat-7', name: 'Allowance', type: 'income' },
+    { id: 'cat-8', name: 'Scholarship / Loan', type: 'income' }
+  ];
   const str = String(categoryNameOrId).toLowerCase().trim();
 
   // Direct ID match
-  const byId = categories.find(c => c.id.toLowerCase() === str);
+  const byId = cats.find(c => c.id && c.id.toLowerCase() === str);
   if (byId) return byId;
 
   // Direct Name match
-  const byName = categories.find(c => c.name.toLowerCase() === str);
+  const byName = cats.find(c => c.name && c.name.toLowerCase() === str);
   if (byName) return byName;
 
   // Substring or keyword match
   if (/food|dining|makan|lunch|dinner|breakfast|cafe|coffee|groceries/i.test(str)) {
-    return categories.find(c => /food|dining/i.test(c.name)) || categories[0];
+    return cats.find(c => /food|dining/i.test(c.name)) || cats[0];
   }
   if (/allowance|pocket|money|parents|gaji|salary|income/i.test(str)) {
-    return categories.find(c => /allowance/i.test(c.name)) || categories.find(c => c.type === 'income') || categories[0];
+    return cats.find(c => /allowance/i.test(c.name)) || cats.find(c => c.type === 'income') || cats[0];
   }
   if (/scholarship|ptptn|loan|mara|jpa/i.test(str)) {
-    return categories.find(c => /scholarship|loan/i.test(c.name)) || categories[0];
+    return cats.find(c => /scholarship|loan/i.test(c.name)) || cats[0];
   }
   if (/rent|hostel|room|housing/i.test(str)) {
-    return categories.find(c => /hostel|rent/i.test(c.name)) || categories[0];
+    return cats.find(c => /hostel|rent/i.test(c.name)) || cats[0];
   }
   if (/transport|commute|bus|grab|mrt|lrt|tng|petrol|fuel/i.test(str)) {
-    return categories.find(c => /transport|commute/i.test(c.name)) || categories[0];
+    return cats.find(c => /transport|commute/i.test(c.name)) || cats[0];
   }
   if (/book|stationary|supplies|print|notes/i.test(str)) {
-    return categories.find(c => /book|supplies/i.test(c.name)) || categories[0];
+    return cats.find(c => /book|supplies/i.test(c.name)) || cats[0];
   }
   if (/entertainment|game|movie|outing|mamak|leisure/i.test(str)) {
-    return categories.find(c => /entertainment|leisure/i.test(c.name)) || categories[0];
+    return cats.find(c => /entertainment|leisure/i.test(c.name)) || cats[0];
   }
 
-  return categories.find(c => c.name.toLowerCase().includes(str)) || null;
+  return cats.find(c => c.name && c.name.toLowerCase().includes(str)) || cats[0] || null;
 }
 
 /**
@@ -106,8 +116,25 @@ export function parseDate(dateStr) {
 export function extractActionIntent(queryText, userData = {}) {
   const query = (queryText || '').trim();
   const qLower = query.toLowerCase();
-  const categories = userData.categories || [];
-  const accounts = userData.accounts || [];
+  const DEFAULT_CATEGORIES = [
+    { id: 'cat-1', name: 'Food & Dining', type: 'expense' },
+    { id: 'cat-2', name: 'Transport & Commute', type: 'expense' },
+    { id: 'cat-3', name: 'Books & Supplies', type: 'expense' },
+    { id: 'cat-4', name: 'Hostel & Rent', type: 'expense' },
+    { id: 'cat-5', name: 'Entertainment & Leisure', type: 'expense' },
+    { id: 'cat-6', name: 'General & Others', type: 'expense' },
+    { id: 'cat-7', name: 'Allowance', type: 'income' },
+    { id: 'cat-8', name: 'Scholarship / Loan', type: 'income' }
+  ];
+  const categories = (userData.categories && userData.categories.length > 0)
+    ? userData.categories
+    : DEFAULT_CATEGORIES;
+  const accounts = (userData.accounts && userData.accounts.length > 0)
+    ? userData.accounts
+    : [
+      { accountId: 'acc-1', accountName: 'Cash', type: 'cash' },
+      { accountId: 'acc-2', accountName: 'Bank Account', type: 'bank' }
+    ];
   const budgets = userData.budgets || [];
   const savingsGoals = userData.savingsGoals || [];
   // 0. Filter out inquiry / analytical questions so they don't trigger action creation
@@ -248,18 +275,21 @@ export function extractActionIntent(queryText, userData = {}) {
     // Check if budget already exists for this category
     const existingBudget = budgets.find(b => b.categoryId === cat?.id);
 
+    const catId = cat?.id || 'cat-1';
+    const catName = cat?.name || 'Food & Dining';
+
     if (isUpdate) {
       return {
         hasAction: true,
         actionType: ACTION_TYPES.UPDATE_BUDGET,
         payload: {
-          budgetId: existingBudget?.id || `b-${cat.id}`,
-          categoryId: cat.id,
-          categoryName: cat.name,
+          budgetId: existingBudget?.id || `b-${catId}`,
+          categoryId: catId,
+          categoryName: catName,
           monthlyLimit,
           previousLimit: existingBudget?.monthlyLimit || 0
         },
-        summary: `Update ${cat.name} budget from RM${(existingBudget?.monthlyLimit || 0).toFixed(2)} to RM${monthlyLimit.toFixed(2)} / month`
+        summary: `Update ${catName} budget from RM${(existingBudget?.monthlyLimit || 0).toFixed(2)} to RM${monthlyLimit.toFixed(2)} / month`
       };
     }
 
@@ -267,12 +297,12 @@ export function extractActionIntent(queryText, userData = {}) {
       hasAction: true,
       actionType: ACTION_TYPES.CREATE_BUDGET,
       payload: {
-        categoryId: cat.id,
-        categoryName: cat.name,
+        categoryId: catId,
+        categoryName: catName,
         monthlyLimit,
         period: 'monthly'
       },
-      summary: `Create monthly ${cat.name} budget of RM${monthlyLimit.toFixed(2)}`
+      summary: `Create monthly ${catName} budget of RM${monthlyLimit.toFixed(2)}`
     };
   }
 

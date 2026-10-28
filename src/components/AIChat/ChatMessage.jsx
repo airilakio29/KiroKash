@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, User, Copy, Check } from 'lucide-react';
 import ActionConfirmationCard from './ActionConfirmationCard';
+import UserAvatar from '../UserAvatar';
 
 function formatTimestamp(isoString) {
   if (!isoString) return '';
@@ -13,14 +14,21 @@ function formatTimestamp(isoString) {
 }
 
 /**
- * Sanitize sensitive tokens, JWTs, and API keys from display
+ * Sanitize sensitive tokens, JWTs, Groq/Gemini API keys, reasoning tags, and base64 strings from display
  */
 function sanitizeChatText(str) {
   if (!str || typeof str !== 'string') return '';
   return str
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/<function[\s\S]*?<\/function>/gi, '')
+    .replace(/```action[\s\S]*?```/gi, '')
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/gsk_[a-zA-Z0-9_-]{20,}/g, '[REDACTED_API_KEY]')
     .replace(/AIza[0-9A-Za-z-_]{20,50}/g, '[REDACTED_API_KEY]')
-    .replace(/[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/g, '[REDACTED_TOKEN]');
+    .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]{40,}/gi, '[IMAGE]')
+    .replace(/[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/g, '[REDACTED_TOKEN]')
+    .trim();
 }
 
 /**
@@ -417,34 +425,34 @@ export default function ChatMessage({
       }}
     >
       {/* Avatar Icon */}
-      <div
-        style={{
-          width: '34px',
-          height: '34px',
-          borderRadius: '50%',
-          background: isAI
-            ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)'
-            : 'var(--bg-card-subtle)',
-          border: isAI ? 'none' : '1px solid var(--border-light)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: isAI ? '#FFFFFF' : 'var(--text-main)',
-          fontSize: '0.9rem',
-          flexShrink: 0,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
-        }}
-      >
-        {isAI ? (
+      {isAI ? (
+        <div
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFFFFF',
+            fontSize: '0.9rem',
+            flexShrink: 0,
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+          }}
+        >
           <Sparkles size={17} />
-        ) : (
-          userAvatar ? (
-            <span>{userAvatar}</span>
-          ) : (
-            <User size={17} />
-          )
-        )}
-      </div>
+        </div>
+      ) : (
+        <UserAvatar
+          avatar={userAvatar}
+          size={34}
+          name="You"
+          showBorder={true}
+        />
+      )}
 
       {/* Message Bubble Container */}
       <div

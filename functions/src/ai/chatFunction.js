@@ -171,6 +171,7 @@ export async function handleAIChatRequest(req, res, options = {}) {
       systemPrompt: SYSTEM_PROMPT,
       financialContext: financialContextText,
       summary,
+      userData,
       messages: formattedHistory,
       apiKey,
       model: process.env.GROQ_MODEL || options.model || 'openai/gpt-oss-120b'
@@ -179,9 +180,43 @@ export async function handleAIChatRequest(req, res, options = {}) {
     // 6. Validate & Register Proposed Action (if any)
     let proposedAction = null;
     if (aiResult.proposedAction) {
-      const { validateActionProposal, createPendingAction } = await import('./actionService.js');
+      const {
+        validateActionProposal,
+        createPendingAction,
+        resolveCategory,
+        resolveAccount
+      } = await import('./actionService.js');
       const actionType = aiResult.proposedAction.type || aiResult.proposedAction.actionType;
-      const actionPayload = aiResult.proposedAction.payload || aiResult.proposedAction.details || aiResult.proposedAction;
+      const actionPayload = { ...(aiResult.proposedAction.payload || aiResult.proposedAction.details || aiResult.proposedAction) };
+
+      // Resolve categoryId if missing but categoryName is provided
+      if (!actionPayload.categoryId && (actionPayload.categoryName || actionPayload.category)) {
+        const resolvedCat = resolveCategory(actionPayload.categoryName || actionPayload.category, userData.categories || []);
+        if (resolvedCat) {
+          actionPayload.categoryId = resolvedCat.id;
+          actionPayload.categoryName = resolvedCat.name;
+        } else if (userData.categories && userData.categories.length > 0) {
+          actionPayload.categoryId = userData.categories[0].id;
+          actionPayload.categoryName = actionPayload.categoryName || userData.categories[0].name;
+        } else {
+          actionPayload.categoryId = 'cat-1';
+          actionPayload.categoryName = actionPayload.categoryName || 'Food & Dining';
+        }
+      }
+
+      // Resolve accountId if missing but accountName is provided
+      if (!actionPayload.accountId && (actionPayload.accountName || actionPayload.account)) {
+        const resolvedAcc = resolveAccount(actionPayload.accountName || actionPayload.account, userData.accounts || []);
+        if (resolvedAcc) {
+          actionPayload.accountId = resolvedAcc.accountId;
+          actionPayload.accountName = resolvedAcc.accountName;
+        }
+      }
+
+      // Default transaction date to today if missing
+      if (actionType === 'CREATE_TRANSACTION' && !actionPayload.date) {
+        actionPayload.date = new Date().toISOString().split('T')[0];
+      }
 
       const val = validateActionProposal({
         type: actionType,
@@ -193,8 +228,14 @@ export async function handleAIChatRequest(req, res, options = {}) {
           type: actionType,
           payload: actionPayload,
           userId: authUser.uid,
-          summary: aiResult.proposedAction.summary || val.summary || 'Financial Action Proposal'
+          summary: aiResult.proposedAction.summary || val.summary || 'Financial Action Proposal',
+          amount: val.amount,
+          category: val.category || actionPayload.categoryName,
+          account: val.account || actionPayload.accountName,
+          date: val.date
         });
+      } else {
+        console.warn('[Action Proposal Validation Warning]:', val.error);
       }
     }
 

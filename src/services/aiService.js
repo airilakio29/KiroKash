@@ -164,11 +164,17 @@ export async function saveConversation(userId, conversation) {
     title: conversation.title || 'New Conversation',
     createdAt: conversation.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    messages: (conversation.messages || []).map(m => ({
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp || new Date().toISOString()
-    }))
+    messages: (conversation.messages || []).map(m => {
+      const msgObj = {
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp || new Date().toISOString()
+      };
+      if (m.proposedAction) {
+        msgObj.proposedAction = m.proposedAction;
+      }
+      return msgObj;
+    })
   };
 
   // 1. Sync to Firestore

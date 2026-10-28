@@ -54,6 +54,159 @@ export function formatGroqMessages(systemPrompt, financialContext, messages = []
   return formatted;
 }
 
+export const GROQ_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'create_budget',
+      description: 'Propose creating a new monthly spending budget for a specific category (e.g. Food & Dining, Transport). Asks user confirmation before execution.',
+      parameters: {
+        type: 'object',
+        properties: {
+          categoryName: {
+            type: 'string',
+            description: 'The spending category name, e.g. "Food & Dining", "Transport & Commute", "Books & Supplies", "Entertainment"'
+          },
+          monthlyLimit: {
+            type: 'number',
+            description: 'The monthly spending limit amount in Malaysian Ringgit (RM)'
+          }
+        },
+        required: ['categoryName', 'monthlyLimit']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_budget',
+      description: 'Propose updating an existing monthly spending budget limit for a category.',
+      parameters: {
+        type: 'object',
+        properties: {
+          categoryName: {
+            type: 'string',
+            description: 'The category whose budget to update'
+          },
+          monthlyLimit: {
+            type: 'number',
+            description: 'The new monthly budget limit in RM'
+          }
+        },
+        required: ['categoryName', 'monthlyLimit']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_savings_goal',
+      description: 'Propose creating a new savings goal with a target amount and deadline.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title of the savings goal, e.g. "Emergency Fund", "Laptop Fund", "New Phone"'
+          },
+          targetAmount: {
+            type: 'number',
+            description: 'Target savings amount in RM'
+          },
+          targetDate: {
+            type: 'string',
+            description: 'Target completion date in YYYY-MM-DD format (e.g. "2026-12-31")'
+          },
+          currentAmount: {
+            type: 'number',
+            description: 'Starting or current saved amount in RM (default is 0)'
+          }
+        },
+        required: ['title', 'targetAmount']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_savings_goal',
+      description: 'Propose updating an existing savings goal target amount or target date.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title of the savings goal to update'
+          },
+          targetAmount: {
+            type: 'number',
+            description: 'New target savings amount in RM'
+          },
+          targetDate: {
+            type: 'string',
+            description: 'New target completion date in YYYY-MM-DD format'
+          }
+        },
+        required: ['title']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_transaction',
+      description: 'Propose recording an income or expense transaction.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['expense', 'income'],
+            description: 'Whether this transaction is an expense or income'
+          },
+          amount: {
+            type: 'number',
+            description: 'Transaction amount in RM (positive number)'
+          },
+          title: {
+            type: 'string',
+            description: 'Description or title of the transaction, e.g. "Lunch at Mamak", "Course Notes", "Monthly Allowance"'
+          },
+          categoryName: {
+            type: 'string',
+            description: 'Category name, e.g. "Food & Dining", "Transport", "Allowance"'
+          },
+          date: {
+            type: 'string',
+            description: 'Transaction date in YYYY-MM-DD format (defaults to today)'
+          },
+          accountName: {
+            type: 'string',
+            description: 'Account used, e.g. "Cash", "Bank", "Maybank"'
+          }
+        },
+        required: ['type', 'amount', 'title']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_financial_report',
+      description: 'Propose generating and downloading the student monthly financial statement.',
+      parameters: {
+        type: 'object',
+        properties: {
+          month: {
+            type: 'string',
+            description: 'Month in YYYY-MM format (e.g. "2026-10")'
+          }
+        }
+      }
+    }
+  }
+];
+
 /**
  * Call Groq Cloud API using standard high-performance fetch
  */
@@ -62,7 +215,8 @@ export async function callGroqAPI({
   financialContext,
   messages = [],
   apiKey,
-  model = 'openai/gpt-oss-120b'
+  model = 'openai/gpt-oss-120b',
+  tools = GROQ_TOOLS
 }) {
   const cleanKey = apiKey ? apiKey.trim() : (process.env.GROQ_API_KEY || '').trim();
 
@@ -79,21 +233,46 @@ export async function callGroqAPI({
 
   for (const targetModel of candidateModels) {
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const payloadBody = {
+        model: targetModel,
+        messages: formattedMessages,
+        temperature: 0.7,
+        max_tokens: 1024
+      };
+
+      if (tools && tools.length > 0) {
+        payloadBody.tools = tools;
+        payloadBody.tool_choice = 'auto';
+      }
+
+      let response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${cleanKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model: targetModel,
-          messages: formattedMessages,
-          temperature: 0.7,
-          max_tokens: 1024
-        })
+        body: JSON.stringify(payloadBody)
       });
 
-      const data = await response.json().catch(() => ({}));
+      let data = await response.json().catch(() => ({}));
+
+      // Fallback: If model rejects tools with 400, retry without tools
+      if (!response.ok && response.status === 400 && payloadBody.tools) {
+        const errMsg = String(data?.error?.message || '').toLowerCase();
+        if (errMsg.includes('tool') || errMsg.includes('function')) {
+          delete payloadBody.tools;
+          delete payloadBody.tool_choice;
+          response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${cleanKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payloadBody)
+          });
+          data = await response.json().catch(() => ({}));
+        }
+      }
 
       if (!response.ok) {
         const errorMsg = data?.error?.message || `Groq API responded with HTTP ${response.status}`;
@@ -103,13 +282,19 @@ export async function callGroqAPI({
         throw groqErr;
       }
 
-      const replyText = data.choices?.[0]?.message?.content;
-      if (!replyText || !replyText.trim()) {
+      const choice = data.choices?.[0];
+      const messageObj = choice?.message || {};
+      const replyText = messageObj.content || '';
+      const toolCalls = messageObj.tool_calls || [];
+
+      // Valid if there is text or at least one tool call
+      if ((!replyText || !replyText.trim()) && (!toolCalls || toolCalls.length === 0)) {
         throw new Error('Groq API returned an empty response.');
       }
 
       return {
-        reply: replyText.trim(),
+        reply: replyText ? replyText.trim() : '',
+        toolCalls,
         provider: 'groq',
         model: targetModel,
         usage: data.usage || null
@@ -137,16 +322,18 @@ export async function callGroqAPI({
 
 /**
  * Main AI Execution Controller
- * Dispatches to Groq API, parses proposed actions, and handles errors honestly.
+ * Dispatches to Groq API, parses proposed actions via tools or intent, and handles errors honestly.
  * NEVER returns hardcoded, fake, or simulated responses.
  */
 export async function executeAIChat({
   systemPrompt,
   financialContext,
   summary,
+  userData,
   messages = [],
   apiKey,
-  model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
+  model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+  tools = GROQ_TOOLS
 }) {
   const cleanKey = apiKey !== undefined ? apiKey : (process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY);
 
@@ -168,32 +355,151 @@ export async function executeAIChat({
       financialContext,
       messages,
       apiKey: cleanKey,
-      model
+      model,
+      tools
     });
 
     let cleanReply = groqResult.reply;
     let proposedAction = null;
 
-    // Check if Groq generated an action block
-    const actionMatch = cleanReply.match(/```action\s*([\s\S]*?)\s*```/);
-    if (actionMatch) {
+    // 1. Check if Groq called any official tools
+    if (groqResult.toolCalls && groqResult.toolCalls.length > 0) {
+      const primaryCall = groqResult.toolCalls[0];
+      const fnName = primaryCall?.function?.name;
+      let fnArgs = {};
       try {
-        proposedAction = JSON.parse(actionMatch[1]);
-        cleanReply = cleanReply.replace(/```action\s*[\s\S]*?\s*```/, '').trim();
-      } catch (jsonErr) {
-        console.warn('[Groq Action Parser] Failed to parse action json:', jsonErr.message);
+        fnArgs = typeof primaryCall?.function?.arguments === 'string'
+          ? JSON.parse(primaryCall.function.arguments)
+          : (primaryCall.function.arguments || {});
+      } catch (parseErr) {
+        console.warn('[Groq Tool Parser] Failed to parse tool call arguments:', parseErr.message);
+      }
+
+      if (fnName === 'create_budget') {
+        const catName = fnArgs.categoryName || 'General';
+        const limit = Number(fnArgs.monthlyLimit) || 0;
+        proposedAction = {
+          type: 'CREATE_BUDGET',
+          payload: {
+            categoryName: catName,
+            monthlyLimit: limit,
+            period: 'monthly'
+          },
+          summary: `Create monthly ${catName} budget of RM${limit.toFixed(2)}`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared a monthly ${catName} budget of RM${limit.toFixed(2)}. Please confirm below to save it to your records.`;
+        }
+      } else if (fnName === 'update_budget') {
+        const catName = fnArgs.categoryName || 'General';
+        const limit = Number(fnArgs.monthlyLimit) || 0;
+        proposedAction = {
+          type: 'UPDATE_BUDGET',
+          payload: {
+            categoryName: catName,
+            monthlyLimit: limit
+          },
+          summary: `Update ${catName} budget to RM${limit.toFixed(2)} / month`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared an update for your ${catName} budget to RM${limit.toFixed(2)}. Please confirm below.`;
+        }
+      } else if (fnName === 'create_savings_goal') {
+        const title = fnArgs.title || 'Savings Goal';
+        const targetAmount = Number(fnArgs.targetAmount) || 0;
+        const targetDate = fnArgs.targetDate || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+        const currentAmount = Number(fnArgs.currentAmount) || 0;
+        proposedAction = {
+          type: 'CREATE_SAVINGS_GOAL',
+          payload: {
+            title,
+            targetAmount,
+            targetDate,
+            currentAmount
+          },
+          summary: `Create savings goal: "${title}" of RM${targetAmount.toFixed(2)} by ${targetDate}`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared your savings goal "${title}" with a target of RM${targetAmount.toFixed(2)} by ${targetDate}. Please review and confirm below.`;
+        }
+      } else if (fnName === 'update_savings_goal') {
+        const title = fnArgs.title || 'Savings Goal';
+        const targetAmount = fnArgs.targetAmount !== undefined ? Number(fnArgs.targetAmount) : undefined;
+        const targetDate = fnArgs.targetDate || undefined;
+        proposedAction = {
+          type: 'UPDATE_SAVINGS_GOAL',
+          payload: {
+            title,
+            targetAmount,
+            targetDate
+          },
+          summary: `Update savings goal: "${title}"`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared the update for your savings goal "${title}". Please confirm below.`;
+        }
+      } else if (fnName === 'create_transaction') {
+        const type = fnArgs.type === 'income' ? 'income' : 'expense';
+        const amt = Number(fnArgs.amount) || 0;
+        const title = fnArgs.title || (type === 'income' ? 'Allowance' : 'Expense');
+        const catName = fnArgs.categoryName || (type === 'income' ? 'Allowance' : 'General');
+        const date = fnArgs.date || new Date().toISOString().split('T')[0];
+        proposedAction = {
+          type: 'CREATE_TRANSACTION',
+          payload: {
+            type,
+            amount: amt,
+            title,
+            categoryName: catName,
+            date,
+            accountName: fnArgs.accountName || null
+          },
+          summary: `Record ${type}: RM${amt.toFixed(2)} for "${title}"`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared to record this ${type} of RM${amt.toFixed(2)} for "${title}". Please confirm below to save it.`;
+        }
+      } else if (fnName === 'generate_financial_report') {
+        const month = fnArgs.month || new Date().toISOString().slice(0, 7);
+        proposedAction = {
+          type: 'GENERATE_FINANCIAL_REPORT',
+          payload: { month },
+          summary: `Generate and download Monthly Financial Intelligence Statement for ${month}`
+        };
+        if (!cleanReply) {
+          cleanReply = `I've prepared your financial statement for ${month}. Please confirm below to export it.`;
+        }
       }
     }
 
-    // Secondary fallback action intent detection for natural student inputs
-    if (!proposedAction && summary) {
-      const intent = extractActionIntent(lastUserMessage, summary);
+    // 2. Check if Groq generated an action block in Markdown text
+    if (!proposedAction) {
+      const actionMatch = cleanReply.match(/```action\s*([\s\S]*?)\s*```/);
+      if (actionMatch) {
+        try {
+          proposedAction = JSON.parse(actionMatch[1]);
+          cleanReply = cleanReply.replace(/```action\s*[\s\S]*?\s*```/, '').trim();
+        } catch (jsonErr) {
+          console.warn('[Groq Action Parser] Failed to parse action json:', jsonErr.message);
+        }
+      }
+    }
+
+    // 3. Fallback action intent detection using user data (categories, accounts, budgets, goals)
+    if (!proposedAction) {
+      const dataForExtraction = userData && Object.keys(userData).length > 0 ? userData : (summary || {});
+      const intent = extractActionIntent(lastUserMessage, dataForExtraction);
       if (intent.hasAction) {
         proposedAction = {
           type: intent.actionType,
           payload: intent.payload,
           summary: intent.summary
         };
+        if (!cleanReply) {
+          cleanReply = intent.summary ? `I've prepared this action for you: ${intent.summary}. Please confirm below.` : 'Please review and confirm below.';
+        }
+      } else if (intent.missingInfo && intent.promptReply && (!cleanReply || cleanReply.length < 15)) {
+        cleanReply = intent.promptReply;
       }
     }
 
