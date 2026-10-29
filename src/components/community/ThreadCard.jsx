@@ -1,267 +1,314 @@
 import React from 'react';
 import {
-  MapPin,
-  Heart,
+  Star,
+  ChevronUp,
   MessageSquare,
-  Store,
-  Clock,
+  MapPin,
+  Flag,
   Bookmark,
-  GraduationCap,
-  Lightbulb,
-  Pencil,
-  Trash2,
-  Navigation
+  Navigation,
+  GraduationCap
 } from 'lucide-react';
-import { getAvatarSvg } from '../Avatars';
+import { COMMUNITY_TAGS, CAMPUS_OPTIONS } from '../../services/communityService';
 import { SPOT_CATEGORIES, SPOT_BUDGET_TAGS } from '../../config/appConstants';
 import TagIcon from './TagIcon';
+import StudentAvatar from './StudentAvatar';
 
 export function formatRelativeTime(isoString) {
-  if (!isoString) return 'Just now';
-  const date = new Date(isoString);
+  if (!isoString) return '';
   const now = new Date();
-  const diffSeconds = Math.floor((now - date) / 1000);
+  const date = new Date(isoString);
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffSeconds < 60) return 'Just now';
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffSec < 60) return 'Baru tadi';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m lalu`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}j lalu`;
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) return `${diffDays}d ago`;
-  return date.toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
+  if (diffDays < 7) return `${diffDays}h lalu`;
+
+  return date.toLocaleDateString('ms-MY', {
+    day: 'numeric',
+    month: 'short'
+  });
 }
 
 export default function ThreadCard({
   thread,
-  isUpvoted,
+  isUpvoted = false,
   isSaved = false,
-  currentUserId = null,
-  onSelectThread,
   onToggleUpvote,
   onToggleSave,
+  onClick,
+  onSelectThread,
   onOpenAuthorProfile,
-  onEditSpot,
-  onDeleteSpot
+  onReport
 }) {
-  const replyCount = Array.isArray(thread.replies)
-    ? thread.replies.length
-    : thread.replyCount || 0;
+  if (!thread) return null;
+
+  const {
+    id,
+    placeName: rawPlaceName,
+    stallName,
+    title,
+    body,
+    shortTip,
+    pricePerMeal,
+    priceRM,
+    price,
+    rating = 5,
+    campus,
+    campusArea,
+    category = 'makan',
+    budgetTag,
+    studentPrice = false,
+    photoUrl = null,
+    tags = [],
+    authorId,
+    authorName = 'Pelajar',
+    authorUsername,
+    authorHandle,
+    authorUniversity,
+    createdAt,
+    upvoteCount,
+    upvotes,
+    replyCount: rawReplyCount,
+    replies,
+    address,
+    locationAddress,
+    distanceKm,
+    isCuratedStarter = false
+  } = thread;
+
+  const placeName = rawPlaceName || stallName || 'Spot Kampus';
+  const resolvedPrice = Number(pricePerMeal ?? priceRM ?? price ?? 0);
+  const resolvedUpvotes = Number(upvoteCount ?? upvotes ?? 0);
+  const resolvedReplies = Array.isArray(replies)
+    ? replies.length
+    : Number(rawReplyCount || 0);
+  const resolvedAddress = address || locationAddress || null;
+  const resolvedHandle = authorUsername || authorHandle || '';
+
+  const campusObj = CAMPUS_OPTIONS.find((c) => c.id === campus);
+  const campusLabel = campusObj
+    ? campusObj.label.split('(')[0].trim()
+    : campus === 'all'
+    ? 'Umum'
+    : campusArea || campus || 'Kampus';
 
   const categoryMeta =
-    SPOT_CATEGORIES.find((c) => c.id === (thread.category || 'makan')) ||
-    SPOT_CATEGORIES[0];
+    SPOT_CATEGORIES.find((c) => c.id === (category || 'makan')) || SPOT_CATEGORIES[0];
+  const budgetMeta = SPOT_BUDGET_TAGS.find((b) => b.id === budgetTag);
 
-  const budgetMeta =
-    SPOT_BUDGET_TAGS.find((b) => b.id === thread.budgetTag) ||
-    SPOT_BUDGET_TAGS[1];
-
-  const placeName = thread.placeName || thread.stallName || 'Campus Spot';
-  const priceNumber = Number(thread.priceRM || 0);
-  const displayPrice =
-    thread.priceRange ||
-    (priceNumber === 0 ? 'FREE (RM0)' : `RM${priceNumber.toFixed(2)}`);
-
-  const isOwner = Boolean(currentUserId && thread.authorId === currentUserId);
-  const handleDisplay = thread.authorHandle
-    ? `@${String(thread.authorHandle).replace(/^@/, '')}`
-    : '';
+  const handleCardOpen = () => {
+    if (onClick) onClick(thread);
+    else if (onSelectThread) onSelectThread(thread);
+  };
 
   const handleUpvoteClick = (e) => {
     e.stopPropagation();
-    onToggleUpvote(thread.id);
+    if (onToggleUpvote) onToggleUpvote(id);
   };
 
   const handleSaveClick = (e) => {
     e.stopPropagation();
-    if (onToggleSave) onToggleSave(thread.id);
+    if (onToggleSave) onToggleSave(id);
+  };
+
+  const handleReportClick = (e) => {
+    e.stopPropagation();
+    if (onReport) onReport(thread);
   };
 
   const handleAuthorClick = (e) => {
     e.stopPropagation();
     if (onOpenAuthorProfile) {
-      onOpenAuthorProfile(thread.authorId || thread.authorHandle || thread.authorName, thread);
+      onOpenAuthorProfile(authorId || resolvedHandle || authorName, thread);
     }
-  };
-
-  const handleEditClick = (e) => {
-    e.stopPropagation();
-    if (onEditSpot) onEditSpot(thread);
-  };
-
-  const handleDeleteClick = (e) => {
-    e.stopPropagation();
-    if (onDeleteSpot) onDeleteSpot(thread);
   };
 
   return (
     <article
-      className="community-thread-card card"
-      onClick={() => onSelectThread(thread)}
-      role="button"
+      className="community-thread-card"
+      onClick={handleCardOpen}
       tabIndex={0}
+      role="button"
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelectThread(thread);
+          handleCardOpen();
         }
       }}
     >
-      {/* Optional Spot Photo Banner */}
-      {thread.photoUrl && (
-        <div className="spot-card-photo-wrap">
-          <img
-            src={thread.photoUrl}
-            alt={thread.title}
-            className="spot-card-photo"
-            loading="lazy"
-          />
-          <div className="spot-card-photo-badges">
-            <span className="spot-category-badge">
-              <TagIcon iconName={categoryMeta.icon} size={12} />
+      {/* Top Header: Place Name + Price Badge (Exact 6c4f2e9 structure) */}
+      <div className="thread-card-header">
+        <div className="thread-place-meta">
+          <div className="thread-place-title-row">
+            <h3 className="thread-place-name">{placeName}</h3>
+            <span className="thread-category-badge" title={categoryMeta.description}>
+              <TagIcon tagId={categoryMeta.id} iconName={categoryMeta.iconName} size={10} />
               <span>{categoryMeta.label}</span>
             </span>
-            {thread.studentPrice && (
-              <span className="spot-student-price-badge">
-                <GraduationCap size={12} />
-                <span>Student Price</span>
+            {isCuratedStarter && (
+              <span className="thread-curated-badge" title="Cadangan Spot Siswa">
+                Pilihan Pelajar
               </span>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Top Row: Category + Campus + Price & Budget Badge */}
-      <div className="community-card-header">
-        <div className="spot-card-top-pills">
-          {!thread.photoUrl && (
-            <span className="spot-category-badge inline">
-              <TagIcon iconName={categoryMeta.icon} size={12} />
-              <span>{categoryMeta.label}</span>
-            </span>
-          )}
-          <div className="community-campus-badge">
-            <MapPin size={13} />
-            <span>{thread.campusArea || 'Malaysia Campus'}</span>
+          <div className="thread-meta-subrow">
+            {campusLabel && (
+              <span className="thread-campus-badge">
+                <MapPin size={11} className="flex-shrink-0" />
+                <span>{campusLabel}</span>
+              </span>
+            )}
+            {typeof distanceKm === 'number' && Number.isFinite(distanceKm) && distanceKm < 9000 && (
+              <span className="thread-campus-badge" title="Anggaran jarak dari lokasi anda">
+                <Navigation size={10} className="flex-shrink-0" />
+                <span>{distanceKm < 1 ? `${Math.round(distanceKm * 1000)}m` : `${distanceKm.toFixed(1)} km`}</span>
+              </span>
+            )}
+            <div className="thread-stars-row" aria-label={`Rating: ${rating} daripada 5`}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  size={12}
+                  className={`thread-star ${star <= rating ? 'filled' : 'empty'}`}
+                />
+              ))}
+              <span className="thread-rating-num">{Number(rating).toFixed(1)}</span>
+            </div>
           </div>
-          {typeof thread.distanceKm === 'number' && Number.isFinite(thread.distanceKm) && (
-            <span className="spot-distance-badge" title="Approximate distance from your location">
-              <Navigation size={11} />
-              <span>{thread.distanceKm < 1 ? `${Math.round(thread.distanceKm * 1000)}m` : `${thread.distanceKm.toFixed(1)} km`}</span>
-            </span>
-          )}
         </div>
 
-        <div className="spot-price-stack">
-          <div className="community-price-badge">
-            <span className="price-value">{displayPrice}</span>
-          </div>
-          <span className="spot-budget-pill">{budgetMeta.label}</span>
+        <div className="thread-price-pill" title={budgetMeta ? budgetMeta.label : 'Anggaran harga'}>
+          <span className="price-currency">RM</span>
+          <span className="price-amount">{resolvedPrice.toFixed(2)}</span>
+          <span className="price-sub">/pax</span>
         </div>
       </div>
 
-      {/* Title & Place Name */}
-      <h3 className="community-thread-title">{thread.title}</h3>
-
-      <div className="community-stall-row">
-        <Store size={14} className="stall-icon" />
-        <span className="stall-name">{placeName}</span>
-        {thread.locationAddress && (
-          <span className="stall-location">• {thread.locationAddress}</span>
+      {/* Review Content */}
+      <div className="thread-card-body">
+        <h4 className="thread-post-title">{title}</h4>
+        <p className="thread-post-snippet">{body || shortTip}</p>
+        {photoUrl && (
+          <img
+            src={photoUrl}
+            alt={title}
+            className="thread-photo-thumb"
+            loading="lazy"
+          />
         )}
       </div>
 
-      {/* Student Price + Short Tip */}
-      {(!thread.photoUrl && thread.studentPrice) && (
-        <div className="spot-inline-student-row">
-          <span className="spot-student-price-badge inline">
-            <GraduationCap size={12} />
-            <span>Student Price Available</span>
+      {/* Micro-Icon Tags + Budget Tag + Student Price */}
+      <div className="thread-tags-list">
+        {budgetMeta && (
+          <span className="thread-tag-pill">
+            <TagIcon tagId="bawah-rm10" iconName="Banknote" size={11} className="tag-icon" />
+            <span className="tag-label">{budgetMeta.label}</span>
           </span>
+        )}
+        {studentPrice && !tags.includes('student-deal') && (
+          <span className="thread-tag-pill">
+            <GraduationCap size={11} className="tag-icon" />
+            <span className="tag-label">Harga Pelajar</span>
+          </span>
+        )}
+        {tags.map((tagId) => {
+          const meta = COMMUNITY_TAGS.find((t) => t.id === tagId);
+          if (!meta) return null;
+          return (
+            <span key={tagId} className="thread-tag-pill">
+              <TagIcon tagId={tagId} iconName={meta.iconName} size={11} className="tag-icon" />
+              <span className="tag-label">{meta.label}</span>
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Optional Address */}
+      {resolvedAddress && (
+        <div className="thread-address-row">
+          <MapPin size={11} className="text-muted flex-shrink-0" />
+          <span className="thread-address-text">{resolvedAddress}</span>
         </div>
       )}
 
-      {thread.shortTip && (
-        <div className="spot-short-tip-box">
-          <Lightbulb size={14} className="spot-tip-icon" />
-          <span><strong>Tip:</strong> {thread.shortTip}</span>
-        </div>
-      )}
-
-      {/* Body Preview */}
-      <p className="community-thread-excerpt">{thread.body}</p>
-
-      {/* Footer: Author, Timestamp, Likes, Comments, Save, Owner Actions */}
-      <div className="community-card-footer">
-        <button
-          type="button"
-          className="community-author-info clickable-author"
+      {/* Card Footer: Reddit-style Vote Pill, Comment Count, Save Button, and Student Monogram */}
+      <div className="thread-card-footer">
+        <div
+          className="thread-author-info"
           onClick={handleAuthorClick}
-          title={`View ${thread.authorName}'s public profile`}
+          role={onOpenAuthorProfile ? 'button' : undefined}
+          tabIndex={onOpenAuthorProfile ? 0 : undefined}
+          style={{ cursor: onOpenAuthorProfile ? 'pointer' : 'default' }}
+          title={onOpenAuthorProfile ? `Lihat profil awam ${authorName}` : undefined}
         >
-          <div className="community-author-avatar">
-            {getAvatarSvg(thread.authorAvatar || 'cat')}
-          </div>
-          <div className="community-author-meta">
+          <StudentAvatar name={authorName} size={26} />
+          <div className="thread-author-text">
             <span className="author-name">
-              {thread.authorName || 'Student'}
-              {handleDisplay && <span className="author-handle-inline"> {handleDisplay}</span>}
+              {authorName}
+              {resolvedHandle ? ` (@${String(resolvedHandle).replace(/^@/, '')})` : ''}
             </span>
-            <span className="post-time">
-              <Clock size={11} />
-              {formatRelativeTime(thread.createdAt)}
+            <span className="author-sub">
+              {authorUniversity ? `${authorUniversity} • ` : ''}
+              {formatRelativeTime(createdAt)}
             </span>
           </div>
-        </button>
+        </div>
 
-        <div className="community-card-actions">
-          {isOwner && (
-            <>
-              <button
-                type="button"
-                className="spot-owner-icon-btn"
-                onClick={handleEditClick}
-                title="Edit your spot"
-                aria-label="Edit spot"
-              >
-                <Pencil size={13} />
-              </button>
-              <button
-                type="button"
-                className="spot-owner-icon-btn danger"
-                onClick={handleDeleteClick}
-                title="Delete your spot"
-                aria-label="Delete spot"
-              >
-                <Trash2 size={13} />
-              </button>
-            </>
-          )}
-
+        <div className="thread-actions-group">
+          {/* Reddit-style Upvote Pill */}
           <button
             type="button"
-            className={`community-upvote-btn ${isUpvoted ? 'upvoted' : ''}`}
+            className={`reddit-upvote-pill ${isUpvoted ? 'active' : ''}`}
             onClick={handleUpvoteClick}
-            aria-label={`Like (${thread.upvotes || 0})`}
-            title="Like this spot"
+            aria-label={isUpvoted ? 'Batalkan sukaan' : 'Upvote spot ini'}
           >
-            <Heart size={14} fill={isUpvoted ? 'currentColor' : 'none'} />
-            <span>{thread.upvotes || 0}</span>
+            <ChevronUp size={15} className="upvote-chevron" />
+            <span className="upvote-count">{resolvedUpvotes}</span>
           </button>
 
-          <div className="community-reply-count" title={`${replyCount} comments`}>
-            <MessageSquare size={14} />
-            <span>{replyCount}</span>
-          </div>
-
+          {/* Reply Count Button */}
           <button
             type="button"
-            className={`spot-save-btn ${isSaved ? 'saved' : ''}`}
-            onClick={handleSaveClick}
-            aria-label={isSaved ? 'Remove from saved spots' : 'Save spot to bookmarks'}
-            title={isSaved ? 'Saved to bookmarks' : 'Save to bookmarks'}
+            className="thread-action-btn comment-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCardOpen();
+            }}
+            aria-label={`${resolvedReplies} komen`}
           >
-            <Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} />
+            <MessageSquare size={13} />
+            <span className="action-count">{resolvedReplies}</span>
+          </button>
+
+          {/* Save / Bookmark Button */}
+          {onToggleSave && (
+            <button
+              type="button"
+              className={`thread-action-btn save-btn ${isSaved ? 'active' : ''}`}
+              onClick={handleSaveClick}
+              title={isSaved ? 'Disimpan ke penanda buku' : 'Simpan spot'}
+              aria-label={isSaved ? 'Buang dari simpanan' : 'Simpan spot'}
+            >
+              <Bookmark size={13} fill={isSaved ? 'currentColor' : 'none'} />
+            </button>
+          )}
+
+          {/* Report Button */}
+          <button
+            type="button"
+            className="thread-report-btn"
+            onClick={handleReportClick}
+            title="Lapor ulasan"
+            aria-label="Lapor ulasan"
+          >
+            <Flag size={12} />
           </button>
         </div>
       </div>
