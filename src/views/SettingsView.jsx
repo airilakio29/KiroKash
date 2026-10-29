@@ -468,7 +468,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
               onChange={(e) => toggleAutoSyncTracker(e.target.checked)}
             />
             <span>
-              <strong>Auto-sync KampusKash Wallet transfers to Finance Tracker</strong> (automatically logs completed wallet transfers under the <em>&ldquo;Wallet transfer&rdquo;</em> category)
+              <strong>Auto-sync KampusKash transfers to Finance Tracker</strong> (automatically logs completed transfers under the <em>&ldquo;Transfer&rdquo;</em> category)
             </span>
           </label>
         </div>

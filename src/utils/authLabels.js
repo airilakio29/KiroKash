@@ -18,8 +18,12 @@ export const AUTH_LABELS = {
     // Navigation & Page Titles
     spotFeedTitle: SPOT_FEED_NAME,
     spotFeedPageTitle: `${SPOT_FEED_NAME} (Student Spots)`,
-    walletNavLabel: 'KampusKash Wallet',
-    walletPageTitle: 'KampusKash Wallet (Demo)',
+    scanPayBtnLabel: 'Scan / Pay',
+    scanTabLabel: 'Scan',
+    myQrTabLabel: 'My QR',
+    transferTabLabel: 'Transfer',
+    addMoneyBtnLabel: 'Add money',
+    kampusKashAccountLabel: 'KampusKash',
 
     // Spot Jimat Feed
     spotFeedSubtitle: 'Budget makan, thrift, sports, study spots & student promos across campus',
@@ -83,7 +87,7 @@ export const AUTH_LABELS = {
     splitWithFriendBtn: 'Split Bill (50/50)',
     myQrBtn: 'My QR & Pay Code',
     pasteCodeBtn: 'Paste Code to Pay',
-    autoSyncTrackerLabel: 'Auto-log transfers to Finance Tracker ("Wallet transfer" category)',
+    autoSyncTrackerLabel: 'Auto-log transfers to Finance Tracker ("Transfer" category)',
     setPinTitle: 'Set Your 4-Digit Demo PIN',
     enterPinTitle: 'Enter 4-Digit Demo PIN to Confirm',
     limitPerTransferNote: 'Max per transfer: RM200.00 • Daily limit: RM500.00',
@@ -108,8 +112,12 @@ export const AUTH_LABELS = {
     // Navigation & Page Titles
     spotFeedTitle: SPOT_FEED_NAME,
     spotFeedPageTitle: `${SPOT_FEED_NAME} (Port Pelajar)`,
-    walletNavLabel: 'Dompet KampusKash',
-    walletPageTitle: 'Dompet KampusKash (Demo)',
+    scanPayBtnLabel: 'Imbas / Bayar',
+    scanTabLabel: 'Imbas',
+    myQrTabLabel: 'QR Saya',
+    transferTabLabel: 'Pindah Wang',
+    addMoneyBtnLabel: 'Tambah nilai',
+    kampusKashAccountLabel: 'KampusKash',
 
     // Spot Jimat Feed
     spotFeedSubtitle: 'Port makan, thrift, sukan, study spot & diskaun pelajar seluruh kampus',
@@ -173,7 +181,7 @@ export const AUTH_LABELS = {
     splitWithFriendBtn: 'Bahagi Bil (50/50)',
     myQrBtn: 'Kod QR Saya',
     pasteCodeBtn: 'Tampal Kod Bayaran',
-    autoSyncTrackerLabel: 'Rekod pemindahan secara automatik ke Penjejak Kewangan (kategori "Wallet transfer")',
+    autoSyncTrackerLabel: 'Rekod pemindahan secara automatik ke Penjejak Kewangan (kategori "Transfer")',
     setPinTitle: 'Tetapkan PIN Demo 4-Digit Anda',
     enterPinTitle: 'Masukkan PIN Demo 4-Digit',
     limitPerTransferNote: 'Had setiap transaksi: RM200.00 • Had harian: RM500.00',

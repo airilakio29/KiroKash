@@ -62,7 +62,7 @@ export default function NotificationBell({ onNavigateTab }) {
       openWalletReceiptById(notif.receiptId);
     } else if (notif.type === 'wallet_request' || notif.type === 'wallet_request_declined') {
       setIsOpen(false);
-      if (onNavigateTab) onNavigateTab('wallet');
+      if (onNavigateTab) onNavigateTab('accounts');
     } else if (notif.type === 'follow' && notif.actorId) {
       setIsOpen(false);
       setSelectedPublicProfileId(notif.actorId);
@@ -137,7 +137,7 @@ export default function NotificationBell({ onNavigateTab }) {
                       </span>
                       {(notif.type === 'wallet_received' || notif.type === 'wallet_request') && (
                         <span className="notification-item-cta">
-                          {notif.type === 'wallet_received' ? 'View Receipt' : 'Review in Wallet'} <ExternalLink size={11} />
+                          {notif.type === 'wallet_received' ? 'View Receipt' : 'Review in My Accounts'} <ExternalLink size={11} />
                         </span>
                       )}
                     </div>

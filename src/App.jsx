@@ -31,7 +31,6 @@ import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
 import CommunityView from './views/CommunityView';
-import WalletView from './views/WalletView';
 import AIChatView from './views/AIChatView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
 import FloatingNavButton from './components/FloatingNavButton';
@@ -44,6 +43,7 @@ import AccountModal from './components/AccountModal';
 import ProfileModal from './components/ProfileModal';
 import PublicProfileModal from './components/social/PublicProfileModal';
 import WalletReceiptModal from './components/wallet/WalletReceiptModal';
+import ScanPaySheet from './components/wallet/ScanPaySheet';
 import OnboardingWizard from './components/OnboardingWizard';
 import { DemoModeProvider } from './context/DemoModeProvider';
 import TutorialDemoBanner from './components/TutorialDemoBanner';
@@ -63,12 +63,11 @@ function getInitialTabFromUrl() {
     ) {
       return 'community';
     }
-    if (pathname.includes('/wallet') || hash === '#wallet') return 'wallet';
     if (pathname.includes('/explore') || hash === '#explore') return 'explore';
     if (pathname.includes('/transactions') || hash === '#transactions') return 'transactions';
     if (pathname.includes('/budgets') || hash === '#budgets') return 'budgets';
     if (pathname.includes('/savings') || hash === '#savings') return 'savings';
-    if (pathname.includes('/accounts') || hash === '#accounts') return 'accounts';
+    if (pathname.includes('/accounts') || hash === '#accounts' || pathname.includes('/wallet') || hash === '#wallet') return 'accounts';
     if (pathname.includes('/reports') || hash === '#reports') return 'reports';
     if (pathname.includes('/settings') || hash === '#settings') return 'settings';
   } catch {}
@@ -247,8 +246,6 @@ function AppLayout({
             onNavigateToExplore={() => handleTabChange('explore')}
           />
         );
-      case 'wallet':
-        return <WalletView />;
       case 'explore':
         return (
           <ExploreView
@@ -292,7 +289,6 @@ function AppLayout({
       case 'savings': return 'Student Savings Goals';
       case 'accounts': return 'My Accounts';
       case 'community': return `${SPOT_FEED_NAME} (Student Spots)`;
-      case 'wallet': return 'KampusKash Demo Wallet';
       case 'explore': return 'Explore Ipoh';
       case 'reports': return 'Reports & Analytics';
       case 'settings': return 'App Settings & Backup';
@@ -392,6 +388,9 @@ function AppLayout({
 
       {/* Global Social Public Profile Modal */}
       <PublicProfileModal />
+
+      {/* Global Scan / Pay & Transfer Sheet */}
+      <ScanPaySheet />
 
       {/* Global KampusKash Demo Wallet Receipt Modal */}
       <WalletReceiptModal
@@ -695,7 +694,13 @@ function AppAuthenticator() {
     return 'light';
   });
 
-  const [loaderDone, setLoaderDone] = useState(false);
+  const [loaderDone, setLoaderDone] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('skipLoader') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [isDataReady, setIsDataReady] = useState(false);
 
   useEffect(() => {
