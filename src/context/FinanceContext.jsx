@@ -8,8 +8,12 @@ import {
   calculateCategorySpending
 } from '../services/transactionService';
 import {
-  calculateTotalAccountBalance
+  calculateTotalAccountBalance,
+  ensureKampusKashAccount,
+  KAMPUSKASH_ACCOUNT_ID,
+  KAMPUSKASH_ACCOUNT_TYPE
 } from '../services/accountService';
+import { getUserWallet } from '../services/walletService';
 import {
   setTutorialCompletion,
   setOnboardingStatus,
@@ -30,7 +34,7 @@ const STORAGE_KEYS = {
 
 const WALLET_TRANSFER_CATEGORY = {
   id: 'cat-wallet-transfer',
-  name: 'Wallet transfer',
+  name: 'Transfer',
   type: 'expense',
   color: '#0EA5E9',
   icon: 'Wallet'
@@ -51,8 +55,13 @@ const defaultCategories = [
 
 function ensureWalletTransferCategory(catList = []) {
   const list = Array.isArray(catList) && catList.length > 0 ? [...catList] : [...defaultCategories];
-  if (!list.some((c) => c.id === 'cat-wallet-transfer' || c.name?.toLowerCase() === 'wallet transfer')) {
+  const existingIdx = list.findIndex(
+    (c) => c.id === 'cat-wallet-transfer' || c.name?.toLowerCase() === 'wallet transfer' || c.name?.toLowerCase() === 'transfer'
+  );
+  if (existingIdx === -1) {
     list.push(WALLET_TRANSFER_CATEGORY);
+  } else {
+    list[existingIdx] = { ...list[existingIdx], id: 'cat-wallet-transfer', name: 'Transfer' };
   }
   return list;
 }
@@ -96,8 +105,12 @@ export function FinanceProvider({ children }) {
   const [accounts, setAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEYS.ACCOUNTS}_${userId}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
+      const parsed = saved ? JSON.parse(saved) : [];
+      const walletBal = userId ? getUserWallet(userId)?.balance : null;
+      return ensureKampusKashAccount(parsed, walletBal);
+    } catch {
+      return ensureKampusKashAccount([], null);
+    }
   });
 
   const [tutorialCompleted, setTutorialCompleted] = useState(() => {
@@ -147,7 +160,8 @@ export function FinanceProvider({ children }) {
       setSavingsGoals(savedSav ? JSON.parse(savedSav) : []);
 
       const savedAcc = localStorage.getItem(`${STORAGE_KEYS.ACCOUNTS}_${targetUid}`);
-      setAccounts(savedAcc ? JSON.parse(savedAcc) : []);
+      const walletBal = getUserWallet(targetUid)?.balance ?? null;
+      setAccounts(ensureKampusKashAccount(savedAcc ? JSON.parse(savedAcc) : [], walletBal));
 
       const savedTut = localStorage.getItem(`${STORAGE_KEYS.TUTORIAL}_${targetUid}`);
       const savedOnb = localStorage.getItem(`${ONBOARDING_KEY_PREFIX}${targetUid}`);
@@ -201,7 +215,10 @@ export function FinanceProvider({ children }) {
         if (data.transactions) setTransactions(data.transactions);
         if (data.budgets) setBudgets(data.budgets);
         if (data.savingsGoals) setSavingsGoals(data.savingsGoals);
-        if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+        if (Array.isArray(data.accounts)) {
+          const walletBal = getUserWallet(userId)?.balance ?? null;
+          setAccounts(ensureKampusKashAccount(data.accounts, walletBal));
+        }
 
         // Synchronize onboarding & tutorial status
         if (typeof data.onboardingCompleted === 'boolean') {
@@ -409,16 +426,26 @@ export function FinanceProvider({ children }) {
   }, [accounts, categories, transactions, budgets, savingsGoals, persistUserData]);
 
   const updateAccount = useCallback((accountId, updates) => {
-    const updated = accounts.map(a =>
-      a.accountId === accountId
-        ? { ...a, ...updates, balance: Number(updates.balance ?? a.balance), updatedAt: new Date().toISOString() }
-        : a
-    );
+    const updated = accounts.map(a => {
+      if (a.accountId !== accountId) return a;
+      if (a.accountId === KAMPUSKASH_ACCOUNT_ID || a.accountType === KAMPUSKASH_ACCOUNT_TYPE || a.cannotDelete) {
+        return {
+          ...a,
+          balance: Number(updates.balance ?? a.balance),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return { ...a, ...updates, balance: Number(updates.balance ?? a.balance), updatedAt: new Date().toISOString() };
+    });
     setAccounts(updated);
     persistUserData(categories, transactions, budgets, savingsGoals, updated);
   }, [accounts, categories, transactions, budgets, savingsGoals, persistUserData]);
 
   const deleteAccount = useCallback((accountId) => {
+    if (accountId === KAMPUSKASH_ACCOUNT_ID) return;
+    const targetAcc = accounts.find(a => a.accountId === accountId);
+    if (targetAcc && (targetAcc.accountType === KAMPUSKASH_ACCOUNT_TYPE || targetAcc.cannotDelete)) return;
+
     const updatedTx = transactions.map(t =>
       t.accountId === accountId ? { ...t, accountId: null } : t
     );
