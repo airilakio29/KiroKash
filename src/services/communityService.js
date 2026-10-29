@@ -29,6 +29,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  getDocs,
   setDoc,
   onSnapshot,
   query,
@@ -533,7 +534,13 @@ export function filterAndSortThreads(threads = [], options = {}) {
 /**
  * Creates a clean Spot Jimat / thread object formatted for persistence.
  */
-export function buildThreadPayload(user, inputData) {
+export function buildThreadPayload(arg1, arg2) {
+  const isFirstInput =
+    arg1 &&
+    typeof arg1 === 'object' &&
+    (arg1.title !== undefined || arg1.placeName !== undefined || arg1.stallName !== undefined);
+  const user = isFirstInput ? arg2 : arg1;
+  const inputData = (isFirstInput ? arg1 : arg2) || {};
   const validation = validateThreadInput(inputData);
   if (!validation.valid) {
     throw new Error(validation.errors.join(' '));
@@ -634,7 +641,10 @@ export function validateReplyInput(replyText) {
 /**
  * Builds a validated reply / comment payload.
  */
-export function buildReplyPayload(user, replyText) {
+export function buildReplyPayload(arg1, arg2) {
+  const isFirstText = typeof arg1 === 'string';
+  const user = isFirstText ? arg2 : arg1;
+  const replyText = isFirstText ? arg1 : arg2;
   const val = validateReplyInput(replyText);
   if (!val.valid) {
     throw new Error(val.errors.join(' '));
