@@ -21,6 +21,7 @@ import {
   fetchUserProfile,
   saveFullUserProfile
 } from '../services/profileService';
+import { PITCH_DEMO_USERS } from '../demo/pitchSeedData';
 
 const AuthContext = createContext();
 
@@ -39,9 +40,12 @@ export function AuthProvider({ children }) {
           const demoUser = {
             id: 'demo-student',
             username: 'Demo Student',
+            name: 'Demo Student',
+            handle: 'demo_student',
             email: 'demo@kampuskash.com',
             university: 'Universiti Malaya (UM)',
             avatar: '🎓',
+            avatarId: 'cat',
             isDemoUser: true,
             currency: 'RM',
             isFirebaseUser: false
@@ -125,12 +129,13 @@ export function AuthProvider({ children }) {
       // 2. Listen to onAuthStateChanged
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (!isMounted) return;
-        if (firebaseUser) {
+        // If user switched to a Pitch Mode demo account, don't overwrite unless signing out
+        const isPitchSwitch = localStorage.getItem('kk_pitch_switched_account') === 'true';
+        if (firebaseUser && !isPitchSwitch) {
           localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
           const baseUser = formatFirebaseUser(firebaseUser);
           setUser(prev => prev ? { ...prev, ...baseUser } : baseUser);
 
-          // If there is a pending Microsoft credential to link to this existing account:
           if (pendingLinkCredential && pendingLinkCredential.credential) {
             try {
               await linkWithCredential(firebaseUser, pendingLinkCredential.credential);
@@ -141,7 +146,6 @@ export function AuthProvider({ children }) {
             }
           }
 
-          // Fetch cloud profile from Firestore
           try {
             const cloudProfile = await fetchUserProfile(firebaseUser.uid);
             if (cloudProfile && isMounted) {
@@ -155,8 +159,7 @@ export function AuthProvider({ children }) {
           } catch (err) {
             console.warn('Failed to load cloud profile on auth state change', err);
           }
-        } else {
-          // Only clear if not in demo mode
+        } else if (!firebaseUser) {
           const isDemo = localStorage.getItem('kampuskash_is_demo');
           if (!isDemo) {
             localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'out');
@@ -210,6 +213,7 @@ export function AuthProvider({ children }) {
     const res = await loginWithEmail(email, password);
     if (res.success) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kk_pitch_switched_account');
       localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
       if (auth.currentUser) {
@@ -231,6 +235,7 @@ export function AuthProvider({ children }) {
     const res = await registerWithEmail(email, password, displayName, university);
     if (res.success) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kk_pitch_switched_account');
       localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
       if (auth.currentUser) {
@@ -244,6 +249,7 @@ export function AuthProvider({ children }) {
     const res = await authLoginWithGoogle();
     if (res.success && res.user) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kk_pitch_switched_account');
       localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
       if (auth.currentUser) {
@@ -265,6 +271,7 @@ export function AuthProvider({ children }) {
     const res = await authLoginWithMicrosoft();
     if (res.success && res.user) {
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kk_pitch_switched_account');
       localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
       setUser(res.user);
       try {
@@ -285,9 +292,12 @@ export function AuthProvider({ children }) {
     const demoUser = {
       id: 'demo-student',
       username: 'Demo Student',
+      name: 'Demo Student',
+      handle: 'demo_student',
       email: 'demo@kampuskash.com',
       university: 'Universiti Malaya (UM)',
       avatar: '🎓',
+      avatarId: 'cat',
       isDemoUser: true,
       currency: 'RM',
       isFirebaseUser: false
@@ -299,6 +309,46 @@ export function AuthProvider({ children }) {
     } catch {}
     setUser(demoUser);
     return { success: true, user: demoUser };
+  }, []);
+
+  /**
+   * Switches the active session between Pitch Mode demo accounts (e.g., @aiman_utp and @sarah_um)
+   * so the presenter can record a live transfer between two student accounts in one recording.
+   */
+  const switchPitchAccount = useCallback((targetDemoUserId) => {
+    const target = PITCH_DEMO_USERS.find((u) => u.id === targetDemoUserId) || PITCH_DEMO_USERS[0];
+    if (!target) return null;
+
+    const pitchUser = {
+      id: target.id,
+      username: target.displayName,
+      name: target.displayName,
+      displayName: target.displayName,
+      handle: target.handle,
+      email: `${target.handle}@kampuskash.demo`,
+      university: target.university,
+      bio: target.bio,
+      avatar: target.avatarId || 'cat',
+      avatarId: target.avatarId || 'cat',
+      isDemoUser: true,
+      isPitchDemo: true,
+      currency: 'RM',
+      isFirebaseUser: false
+    };
+
+    try {
+      localStorage.setItem('kampuskash_is_demo', 'true');
+      localStorage.setItem('kk_pitch_switched_account', 'true');
+      localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'in');
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(pitchUser));
+      // Ensure onboarding & tutorial are marked complete for the pitch demo account
+      localStorage.setItem(`kirokash_onboarding_completed_${pitchUser.id}`, 'true');
+      localStorage.setItem(`kirokash_onboarding_step_${pitchUser.id}`, 'completed');
+      localStorage.setItem(`kirokash_tutorial_completed_${pitchUser.id}`, 'true');
+    } catch {}
+
+    setUser(pitchUser);
+    return pitchUser;
   }, []);
 
   const resetPasswordWithFirebase = async (email) => {
@@ -317,6 +367,7 @@ export function AuthProvider({ children }) {
     try {
       localStorage.removeItem(STORAGE_KEY_USER);
       localStorage.removeItem('kampuskash_is_demo');
+      localStorage.removeItem('kk_pitch_switched_account');
       localStorage.removeItem('kirokash_tutorial_current_step');
       localStorage.setItem(STORAGE_KEY_AUTH_HINT, 'out');
     } catch (e) {
@@ -336,8 +387,10 @@ export function AuthProvider({ children }) {
       const updated = {
         ...prev,
         ...newDetails,
-        username: newDetails.username || prev.username,
-        avatar: newDetails.avatar || prev.avatar
+        username: newDetails.username || newDetails.displayName || prev.username,
+        name: newDetails.username || newDetails.displayName || prev.name || prev.username,
+        handle: newDetails.handle || prev.handle,
+        avatar: newDetails.avatar || newDetails.avatarId || prev.avatar
       };
       try {
         localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated));
@@ -375,6 +428,7 @@ export function AuthProvider({ children }) {
     redirectError,
     clearRedirectError,
     loginAsDemo,
+    switchPitchAccount,
     resetPasswordWithFirebase,
     logout,
     updateUserProfile,
@@ -387,7 +441,8 @@ export function AuthProvider({ children }) {
     clearRedirectError,
     updateUserProfile,
     saveProfile,
-    loginAsDemo
+    loginAsDemo,
+    switchPitchAccount
   ]);
 
   return (

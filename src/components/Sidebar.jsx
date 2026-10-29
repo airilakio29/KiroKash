@@ -15,12 +15,14 @@ import {
   Compass,
   Sparkles,
   UtensilsCrossed,
+  Wallet,
   Download
 } from 'lucide-react';
 import KampusKashLogo from './KampusKashLogo';
 import UserAvatar from './UserAvatar';
 import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
+import { SPOT_FEED_NAME, DEMO_WALLET } from '../config/appConstants';
 
 export default function Sidebar({
   activeTab,
@@ -59,12 +61,13 @@ export default function Sidebar({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'ai-chat', label: 'KampusKash AI', icon: Sparkles, badge: 'AI' },
+    { id: 'community', label: SPOT_FEED_NAME, icon: UtensilsCrossed, badge: 'New' },
+    ...(DEMO_WALLET ? [{ id: 'wallet', label: 'KampusKash Wallet', icon: Wallet, badge: 'DEMO' }] : []),
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
     { id: 'accounts', label: 'Accounts', icon: Landmark },
     { id: 'budgets', label: 'Budgets', icon: Target },
     { id: 'savings', label: 'Savings Goals', icon: PiggyBank },
     { id: 'explore', label: 'Explore', icon: Compass },
-    { id: 'community', label: 'Makan Murah', icon: UtensilsCrossed, badge: 'New' },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -73,12 +76,9 @@ export default function Sidebar({
   const displayName = (() => {
     const name = user?.username;
     if (!name) return 'Student';
-    // Reject anything that looks like a UID/hash (32+ hex chars)
     if (/^[a-f0-9]{20,}$/i.test(name.replace(/[\s-]/g, ''))) return 'Student';
     return name;
   })();
-
-
 
   return (
     <>

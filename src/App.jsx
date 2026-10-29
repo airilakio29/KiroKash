@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
+import { SocialWalletProvider, useSocialWallet } from './context/SocialWalletContext';
 import { missingFirebaseKeys } from './firebase';
+import { SPOT_FEED_NAME } from './config/appConstants';
 
 import FullScreenLoader from './components/FullScreenLoader';
 import OfflineBanner from './components/OfflineBanner';
@@ -29,6 +31,7 @@ import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
 import CommunityView from './views/CommunityView';
+import WalletView from './views/WalletView';
 import AIChatView from './views/AIChatView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
 import FloatingNavButton from './components/FloatingNavButton';
@@ -39,6 +42,8 @@ import SavingsModal from './components/SavingsModal';
 import CategoryModal from './components/CategoryModal';
 import AccountModal from './components/AccountModal';
 import ProfileModal from './components/ProfileModal';
+import PublicProfileModal from './components/social/PublicProfileModal';
+import WalletReceiptModal from './components/wallet/WalletReceiptModal';
 import OnboardingWizard from './components/OnboardingWizard';
 import { DemoModeProvider } from './context/DemoModeProvider';
 import TutorialDemoBanner from './components/TutorialDemoBanner';
@@ -48,7 +53,17 @@ function getInitialTabFromUrl() {
     const pathname = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
     if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) return 'ai-chat';
-    if (pathname.includes('/community') || hash === '#community' || pathname.includes('/makan-murah')) return 'community';
+    if (
+      pathname.includes('/community') ||
+      pathname.includes('/spot-jimat') ||
+      pathname.includes('/spots') ||
+      pathname.includes('/makan-murah') ||
+      hash === '#community' ||
+      hash === '#spot-jimat'
+    ) {
+      return 'community';
+    }
+    if (pathname.includes('/wallet') || hash === '#wallet') return 'wallet';
     if (pathname.includes('/explore') || hash === '#explore') return 'explore';
     if (pathname.includes('/transactions') || hash === '#transactions') return 'transactions';
     if (pathname.includes('/budgets') || hash === '#budgets') return 'budgets';
@@ -79,6 +94,9 @@ function AppLayout({
   isLoading,
   loadError
 }) {
+  const { user } = useAuth();
+  const { activeReceiptModal, setActiveReceiptModal } = useSocialWallet();
+
   // Block route navigation during Step A profile setup
   const handleTabChange = (newTab) => {
     if (isOnboardingActive && onboardingStep === 'profile') {
@@ -87,7 +105,8 @@ function AppLayout({
     setActiveTab(newTab);
     try {
       const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
-      const targetUrl = newTab === 'dashboard' ? (basePath || '/') : `${basePath}/${newTab}`;
+      const urlSlug = newTab === 'community' ? 'spot-jimat' : newTab;
+      const targetUrl = newTab === 'dashboard' ? (basePath || '/') : `${basePath}/${urlSlug}`;
       window.history.pushState({ tab: newTab }, document.title, targetUrl);
     } catch {}
   };
@@ -228,6 +247,8 @@ function AppLayout({
             onNavigateToExplore={() => handleTabChange('explore')}
           />
         );
+      case 'wallet':
+        return <WalletView />;
       case 'explore':
         return (
           <ExploreView
@@ -241,13 +262,6 @@ function AppLayout({
       case 'reports':
         return <ReportsView />;
       case 'settings':
-        return (
-          <SettingsView
-            onOpenAddCategory={handleOpenAddCategory}
-            onReplayTutorial={onReplayTutorial}
-            onOpenProfileModal={handleOpenProfileModal}
-          />
-        );
       case 'profile':
         return (
           <SettingsView
@@ -277,7 +291,8 @@ function AppLayout({
       case 'budgets': return 'Category Budgets';
       case 'savings': return 'Student Savings Goals';
       case 'accounts': return 'My Accounts';
-      case 'community': return 'Makan Murah (Student Food)';
+      case 'community': return `${SPOT_FEED_NAME} (Student Spots)`;
+      case 'wallet': return 'KampusKash Demo Wallet';
       case 'explore': return 'Explore Ipoh';
       case 'reports': return 'Reports & Analytics';
       case 'settings': return 'App Settings & Backup';
@@ -305,6 +320,7 @@ function AppLayout({
           title={getPageTitle()}
           onOpenMobileMenu={() => setIsMobileOpen(true)}
           onOpenProfileModal={handleOpenProfileModal}
+          onNavigateTab={handleTabChange}
         />
 
         <main className="content-area">
@@ -372,6 +388,16 @@ function AppLayout({
       <ProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      {/* Global Social Public Profile Modal */}
+      <PublicProfileModal />
+
+      {/* Global KampusKash Demo Wallet Receipt Modal */}
+      <WalletReceiptModal
+        receipt={activeReceiptModal}
+        currentUserId={user?.id}
+        onClose={() => setActiveReceiptModal(null)}
       />
 
       {/* Floating KampusKash AI Assistant Button & Popup Panel (Bottom-Right) */}
@@ -504,36 +530,38 @@ function AppContent() {
 
   return (
     <DemoModeProvider isTourActive={isDemoDataActive} onExitTour={handleExitTour}>
-      <AppLayout
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isMobileOpen={isMobileOpen}
-        setIsMobileOpen={setIsMobileOpen}
-        isProfileModalOpen={isProfileModalOpen}
-        setIsProfileModalOpen={setIsProfileModalOpen}
-        isOnboardingActive={isOnboardingActive}
-        onboardingStep={onboardingStep}
-        updateOnboardingStep={updateOnboardingStep}
-        isTourActive={isTourActive}
-        onExitTour={handleExitTour}
-        onReplayTutorial={() => {
-          try {
-            const uid = user?.id || user?.uid;
-            if (uid) {
-              localStorage.setItem(`kirokash_tutorial_step_${uid}`, '0');
-              localStorage.setItem('kirokash_tutorial_current_step', '0');
-            }
-          } catch {}
-          setIsWelcomeIntroOpen(true);
-          setIsReplayingTutorial(true);
-          setActiveTab('dashboard');
-        }}
-        isWelcomeIntroOpen={isWelcomeIntroOpen}
-        onCompleteWelcomeIntro={handleCompleteWelcomeIntro}
-        onSkipWelcomeIntro={handleSkipWelcomeIntro}
-        isLoading={isLoading}
-        loadError={loadError}
-      />
+      <SocialWalletProvider onNavigateTab={setActiveTab}>
+        <AppLayout
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
+          isProfileModalOpen={isProfileModalOpen}
+          setIsProfileModalOpen={setIsProfileModalOpen}
+          isOnboardingActive={isOnboardingActive}
+          onboardingStep={onboardingStep}
+          updateOnboardingStep={updateOnboardingStep}
+          isTourActive={isTourActive}
+          onExitTour={handleExitTour}
+          onReplayTutorial={() => {
+            try {
+              const uid = user?.id || user?.uid;
+              if (uid) {
+                localStorage.setItem(`kirokash_tutorial_step_${uid}`, '0');
+                localStorage.setItem('kirokash_tutorial_current_step', '0');
+              }
+            } catch {}
+            setIsWelcomeIntroOpen(true);
+            setIsReplayingTutorial(true);
+            setActiveTab('dashboard');
+          }}
+          isWelcomeIntroOpen={isWelcomeIntroOpen}
+          onCompleteWelcomeIntro={handleCompleteWelcomeIntro}
+          onSkipWelcomeIntro={handleSkipWelcomeIntro}
+          isLoading={isLoading}
+          loadError={loadError}
+        />
+      </SocialWalletProvider>
     </DemoModeProvider>
   );
 }
@@ -582,13 +610,6 @@ function FirebaseSetupNotice({ onBack }) {
   );
 }
 
-/**
- * Root Redirect Fallback:
- * If query parameters mode === 'resetPassword' and oobCode are detected at the root URL
- * (e.g. https://kampuskash.vercel.app/?mode=resetPassword&oobCode=...),
- * automatically redirect the user to /reset-password?oobCode=${oobCode}
- * without rendering the default landing page.
- */
 function handleRootResetRedirect() {
   try {
     if (typeof window === 'undefined') return false;
@@ -611,7 +632,6 @@ function handleRootResetRedirect() {
   return false;
 }
 
-// Perform root redirect synchronously on evaluation
 handleRootResetRedirect();
 
 function checkPasswordResetRoute() {
@@ -622,11 +642,9 @@ function checkPasswordResetRoute() {
     const mode = searchParams.get('mode');
     const oobCode = searchParams.get('oobCode');
 
-    // Dedicated /reset-password route
     if (pathname.includes('/reset-password') || pathname.endsWith('reset-password')) {
       return true;
     }
-    // Action code query parameters
     if (mode === 'resetPassword' || Boolean(oobCode)) {
       return true;
     }
@@ -677,11 +695,9 @@ function AppAuthenticator() {
     return 'light';
   });
 
-  // Track if loader has finished for current signed-in session
   const [loaderDone, setLoaderDone] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
 
-  // Synchronize on URL changes / back-forward navigation & root redirect
   useEffect(() => {
     handleRootResetRedirect();
 
@@ -705,7 +721,6 @@ function AppAuthenticator() {
     };
   }, []);
 
-  // Reset loaderDone when logged out so next login plays loader and reset auth view to landing page
   useEffect(() => {
     if (!isAuthenticated) {
       setLoaderDone(false);
@@ -714,7 +729,6 @@ function AppAuthenticator() {
     }
   }, [isAuthenticated]);
 
-  // Prevent back navigation from re-triggering the loading page once inside the app
   useEffect(() => {
     if (isAuthenticated && loaderDone) {
       const handlePopStateGuard = () => {
@@ -736,7 +750,6 @@ function AppAuthenticator() {
     } catch {}
   };
 
-  // Custom Password Reset Page for Firebase Action Emails or /reset-password
   if (inResetFlow) {
     const oobCode = (() => {
       try {
@@ -756,8 +769,6 @@ function AppAuthenticator() {
     );
   }
 
-  // TASK 1: While Firebase auth state is resolving, render ONLY a plain full screen
-  // background taken from the saved theme tokens (no logo, no text) so nothing wrong can flash.
   if (!isAuthResolved) {
     return (
       <div
@@ -772,7 +783,6 @@ function AppAuthenticator() {
     );
   }
 
-  // Signed out visitors: go straight to home page (or auth form), NO loading page
   if (!isAuthenticated) {
     if (!showAuthForm) {
       return (
@@ -814,8 +824,6 @@ function AppAuthenticator() {
     return <FirebaseSetupNotice onBack={() => setShowAuthForm(false)} />;
   }
 
-  // Authenticated: show loading screen (minimum 4 seconds) while data loads in parallel,
-  // then transition into main UI or onboarding.
   if (!loaderDone) {
     return (
       <FinanceProvider key={user.id}>
@@ -834,7 +842,6 @@ function AppAuthenticator() {
     );
   }
 
-  // Main UI (or onboarding for brand new users)
   return (
     <FinanceProvider key={user.id}>
       <AppContent />

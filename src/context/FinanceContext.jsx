@@ -28,6 +28,14 @@ const STORAGE_KEYS = {
   TUTORIAL: 'kirokash_tutorial_completed'
 };
 
+const WALLET_TRANSFER_CATEGORY = {
+  id: 'cat-wallet-transfer',
+  name: 'Wallet transfer',
+  type: 'expense',
+  color: '#0EA5E9',
+  icon: 'Wallet'
+};
+
 const defaultCategories = [
   { id: 'cat-1', name: 'Allowance', type: 'income', color: '#10B981', icon: 'Wallet' },
   { id: 'cat-2', name: 'Scholarship / Loan', type: 'income', color: '#059669', icon: 'Award' },
@@ -37,8 +45,17 @@ const defaultCategories = [
   { id: 'cat-6', name: 'Food & Dining', type: 'expense', color: '#8B5CF6', icon: 'Utensils' },
   { id: 'cat-7', name: 'Books & Supplies', type: 'expense', color: '#EC4899', icon: 'BookOpen' },
   { id: 'cat-8', name: 'Transport & Commute', type: 'expense', color: '#14B8A6', icon: 'Bus' },
-  { id: 'cat-9', name: 'Entertainment & Leisure', type: 'expense', color: '#6366F1', icon: 'Film' }
+  { id: 'cat-9', name: 'Entertainment & Leisure', type: 'expense', color: '#6366F1', icon: 'Film' },
+  WALLET_TRANSFER_CATEGORY
 ];
+
+function ensureWalletTransferCategory(catList = []) {
+  const list = Array.isArray(catList) && catList.length > 0 ? [...catList] : [...defaultCategories];
+  if (!list.some((c) => c.id === 'cat-wallet-transfer' || c.name?.toLowerCase() === 'wallet transfer')) {
+    list.push(WALLET_TRANSFER_CATEGORY);
+  }
+  return list;
+}
 
 export function FinanceProvider({ children }) {
   const { user, updateUserProfile } = useAuth();
@@ -51,7 +68,7 @@ export function FinanceProvider({ children }) {
   const [categories, setCategories] = useState(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEYS.CATEGORIES}_${userId}`);
-      return saved ? JSON.parse(saved) : defaultCategories;
+      return ensureWalletTransferCategory(saved ? JSON.parse(saved) : defaultCategories);
     } catch { return defaultCategories; }
   });
 
@@ -114,6 +131,44 @@ export function FinanceProvider({ children }) {
     userRef.current = user;
   }, [user]);
 
+  const reloadFinanceFromStorage = useCallback((targetUid = userId) => {
+    if (!targetUid) return;
+    try {
+      const savedCat = localStorage.getItem(`${STORAGE_KEYS.CATEGORIES}_${targetUid}`);
+      setCategories(ensureWalletTransferCategory(savedCat ? JSON.parse(savedCat) : defaultCategories));
+
+      const savedTx = localStorage.getItem(`${STORAGE_KEYS.TRANSACTIONS}_${targetUid}`);
+      setTransactions(savedTx ? JSON.parse(savedTx) : []);
+
+      const savedBud = localStorage.getItem(`${STORAGE_KEYS.BUDGETS}_${targetUid}`);
+      setBudgets(savedBud ? JSON.parse(savedBud) : []);
+
+      const savedSav = localStorage.getItem(`${STORAGE_KEYS.SAVINGS}_${targetUid}`);
+      setSavingsGoals(savedSav ? JSON.parse(savedSav) : []);
+
+      const savedAcc = localStorage.getItem(`${STORAGE_KEYS.ACCOUNTS}_${targetUid}`);
+      setAccounts(savedAcc ? JSON.parse(savedAcc) : []);
+
+      const savedTut = localStorage.getItem(`${STORAGE_KEYS.TUTORIAL}_${targetUid}`);
+      const savedOnb = localStorage.getItem(`${ONBOARDING_KEY_PREFIX}${targetUid}`);
+      const savedStep = localStorage.getItem(`${ONBOARDING_STEP_PREFIX}${targetUid}`);
+      const isPitchUser = Boolean(userRef.current?.isPitchDemo);
+
+      setTutorialCompleted(isPitchUser || savedTut === 'true' || savedOnb === 'true');
+      setOnboardingCompleted(isPitchUser || savedOnb === 'true' || savedTut === 'true');
+      setOnboardingStep(isPitchUser ? 'completed' : (savedStep || (savedOnb === 'true' ? 'completed' : 'profile')));
+    } catch {
+      // ignore storage errors
+    }
+  }, [userId]);
+
+  // Reload local user finance data whenever userId changes (e.g. Pitch Mode account switching)
+  useEffect(() => {
+    if (userId) {
+      reloadFinanceFromStorage(userId);
+    }
+  }, [userId, reloadFinanceFromStorage]);
+
   // Real-time Firestore Sync per User UID
   useEffect(() => {
     if (!userId || user?.isDemoUser) {
@@ -142,7 +197,7 @@ export function FinanceProvider({ children }) {
             updateUserProfile(p);
           }
         }
-        if (data.categories) setCategories(data.categories);
+        if (data.categories) setCategories(ensureWalletTransferCategory(data.categories));
         if (data.transactions) setTransactions(data.transactions);
         if (data.budgets) setBudgets(data.budgets);
         if (data.savingsGoals) setSavingsGoals(data.savingsGoals);
@@ -162,8 +217,6 @@ export function FinanceProvider({ children }) {
             console.error('LocalStorage write error', e);
           }
         } else {
-          // Graceful handling for existing accounts:
-          // Existing users with accounts should not be forced through onboarding unless profile is empty
           const isProfileSet = Boolean(
             data.profile?.username &&
             data.profile.username !== 'Student' &&
@@ -185,7 +238,6 @@ export function FinanceProvider({ children }) {
               localStorage.setItem(`${ONBOARDING_STEP_PREFIX}${userId}`, 'completed');
               localStorage.setItem(`${STORAGE_KEYS.TUTORIAL}_${userId}`, 'true');
             } catch (_e) {}
-            // Gracefully persist to Firestore
             setDoc(userDocRef, {
               onboardingCompleted: true,
               onboardingStep: 'completed',
@@ -201,7 +253,6 @@ export function FinanceProvider({ children }) {
           }
         }
       } else if (currentUser) {
-        // Initial Seed for New Firestore User
         setDoc(userDocRef, {
           profile: {
             username: currentUser.username,
@@ -290,7 +341,36 @@ export function FinanceProvider({ children }) {
         updatedAt: new Date().toISOString()
       }, { merge: true }).catch(e => console.warn('Firestore sync error', e));
     }
-  }, [userId, categories, transactions, budgets, savingsGoals, accounts]);
+  }, [userId, user?.isDemoUser, categories, transactions, budgets, savingsGoals, accounts]);
+
+  /**
+   * Syncs a completed wallet transfer into the active user's Finance Tracker
+   * under the "Wallet transfer" category (`cat-wallet-transfer`).
+   */
+  const recordWalletTransferInTracker = useCallback((txItem) => {
+    if (!txItem || !userId) return;
+    const catList = ensureWalletTransferCategory(categories);
+    setCategories(catList);
+    setTransactions((prev) => {
+      if (prev.some((t) => t.id === txItem.id || (t.walletReceiptId && t.walletReceiptId === txItem.walletReceiptId && t.type === txItem.type))) {
+        return prev;
+      }
+      const updated = [txItem, ...prev];
+      try {
+        localStorage.setItem(`${STORAGE_KEYS.CATEGORIES}_${userId}`, JSON.stringify(catList));
+        localStorage.setItem(`${STORAGE_KEYS.TRANSACTIONS}_${userId}`, JSON.stringify(updated));
+      } catch {}
+      if (userId && db && !user?.isDemoUser) {
+        const userDocRef = doc(db, 'users', userId);
+        setDoc(userDocRef, {
+          categories: catList,
+          transactions: updated,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+      }
+      return updated;
+    });
+  }, [userId, user?.isDemoUser, categories]);
 
   // ==================== Financial Calculations (centralized) ====================
   const totalIncome = useMemo(() => calculateTotalIncome(transactions), [transactions]);
@@ -339,7 +419,6 @@ export function FinanceProvider({ children }) {
   }, [accounts, categories, transactions, budgets, savingsGoals, persistUserData]);
 
   const deleteAccount = useCallback((accountId) => {
-    // When deleting an account, set transactions' accountId to null (don't delete transactions)
     const updatedTx = transactions.map(t =>
       t.accountId === accountId ? { ...t, accountId: null } : t
     );
@@ -356,12 +435,11 @@ export function FinanceProvider({ children }) {
       id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       amount: Number(newTx.amount),
       accountId: newTx.accountId || null,
-      source: 'manual',
+      source: newTx.source || 'manual',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    // Adjust account balance
     let updatedAccounts = accounts;
     if (created.accountId) {
       updatedAccounts = accounts.map(a => {
@@ -386,7 +464,6 @@ export function FinanceProvider({ children }) {
     let updatedAccounts = [...accounts];
 
     if (oldTx) {
-      // Reverse the old transaction's effect on its account
       if (oldTx.accountId) {
         updatedAccounts = updatedAccounts.map(a => {
           if (a.accountId === oldTx.accountId) {
@@ -398,7 +475,6 @@ export function FinanceProvider({ children }) {
           return a;
         });
       }
-      // Apply the new transaction's effect
       const newAccountId = updatedTx.accountId || null;
       if (newAccountId) {
         updatedAccounts = updatedAccounts.map(a => {
@@ -575,7 +651,7 @@ export function FinanceProvider({ children }) {
         t.type,
         `"${(t.title || '').replace(/"/g, '""')}"`,
         Number(t.amount).toFixed(2),
-        `"${cat ? cat.name : 'Uncategorized'}"`,
+        `"${cat ? cat.name : (t.category || 'Uncategorized')}"`,
         `"${acc ? acc.accountName : 'Unassigned'}"`,
         t.source || 'manual',
         t.isRecurring ? 'Yes' : 'No',
@@ -617,7 +693,7 @@ export function FinanceProvider({ children }) {
 
   const importJSONBackup = useCallback((jsonData) => {
     try {
-      const newCat = jsonData.categories || categories;
+      const newCat = ensureWalletTransferCategory(jsonData.categories || categories);
       const newTx = jsonData.transactions || transactions;
       const newBud = jsonData.budgets || budgets;
       const newSav = jsonData.savingsGoals || savingsGoals;
@@ -659,6 +735,8 @@ export function FinanceProvider({ children }) {
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    recordWalletTransferInTracker,
+    reloadFinanceFromStorage,
     // Category CRUD
     addCategory,
     deleteCategory,
@@ -687,7 +765,7 @@ export function FinanceProvider({ children }) {
     categories, transactions, budgets, savingsGoals, accounts, isLoading, loadError,
     totalBalance, totalIncome, totalExpense, totalAccountBalance, totalSavedInGoals, categorySpendingBreakdown,
     addAccount, updateAccount, deleteAccount,
-    addTransaction, updateTransaction, deleteTransaction,
+    addTransaction, updateTransaction, deleteTransaction, recordWalletTransferInTracker, reloadFinanceFromStorage,
     addCategory, deleteCategory,
     upsertBudget, deleteBudget,
     addSavingsGoal, updateSavingsGoal, depositToSavingsGoal, deleteSavingsGoal,

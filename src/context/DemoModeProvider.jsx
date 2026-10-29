@@ -545,4 +545,5 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
   );
 }
 
+export const useDemoMode = useFinance;
 export default DemoModeProvider;

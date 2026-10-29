@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useSocialWallet } from '../context/SocialWalletContext';
 import { filterTransactions } from '../services/transactionService';
 import ConfirmModal from '../components/ConfirmModal';
 import EmptyState from '../components/EmptyState';
@@ -17,13 +18,15 @@ import {
   ArrowDownRight,
   Filter,
   X,
-  ReceiptText
+  ReceiptText,
+  Wallet
 } from 'lucide-react';
 
 export default function TransactionsView({ onOpenAddTransaction, onEditTransaction }) {
   const { transactions, categories, accounts, deleteTransaction, exportToPDF, isLoading } = useFinance();
   const { user } = useAuth();
   const { showSuccess } = useToast();
+  const { openWalletReceiptById } = useSocialWallet();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -177,7 +180,6 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
             border: '1px solid var(--border-light)',
             animation: 'fadeIn 0.2s ease-out'
           }}>
-            {/* Category Select */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>Category</label>
               <select
@@ -193,7 +195,6 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               </select>
             </div>
 
-            {/* Account Select */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>Account</label>
               <select
@@ -209,7 +210,6 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               </select>
             </div>
 
-            {/* Date From */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>From Date</label>
               <input
@@ -221,7 +221,6 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
               />
             </div>
 
-            {/* Date To */}
             <div>
               <label className="form-label" style={{ fontSize: '0.75rem' }}>To Date</label>
               <input
@@ -260,7 +259,7 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Title & Notes</th>
+                    <th>Title &amp; Notes</th>
                     <th>Category</th>
                     <th>Account</th>
                     <th>Type</th>
@@ -293,6 +292,17 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                                 Sample
                               </span>
                             )}
+                            {t.walletReceiptId && (
+                              <button
+                                type="button"
+                                className="wallet-tracker-receipt-link"
+                                onClick={() => openWalletReceiptById(t.walletReceiptId)}
+                                title="View KampusKash Demo Wallet Receipt"
+                              >
+                                <Wallet size={11} />
+                                <span>View Wallet Receipt</span>
+                              </button>
+                            )}
                             {t.isRecurring && (
                               <span className="badge badge-recurring" title="Recurring Monthly">
                                 <Repeat size={12} /> Recurring
@@ -323,6 +333,10 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                               }} />
                               {cat.name}
                             </span>
+                          ) : t.category ? (
+                            <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>
+                              {t.category}
+                            </span>
                           ) : (
                             <span style={{ color: 'var(--text-light)', fontSize: '0.82rem' }}>Uncategorized</span>
                           )}
@@ -331,6 +345,10 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                           {acc ? (
                             <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                               {acc.accountName}
+                            </span>
+                          ) : t.paymentMethod ? (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {t.paymentMethod}
                             </span>
                           ) : (
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>—</span>
@@ -412,10 +430,20 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
                             Sample
                           </span>
                         )}
+                        {t.walletReceiptId && (
+                          <button
+                            type="button"
+                            className="wallet-tracker-receipt-link"
+                            onClick={() => openWalletReceiptById(t.walletReceiptId)}
+                          >
+                            <Wallet size={11} />
+                            <span>Receipt</span>
+                          </button>
+                        )}
                         {t.isRecurring && <Repeat size={12} color="var(--primary)" />}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        {t.date} · {cat ? cat.name : 'Uncategorized'}
+                        {t.date} · {cat ? cat.name : (t.category || 'Uncategorized')}
                         {acc ? ` · ${acc.accountName}` : ''}
                       </div>
                     </div>
@@ -464,6 +492,24 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
       <style>{`
         .desktop-table { display: block; }
         .mobile-tx-list { display: none; }
+        .wallet-tracker-receipt-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.14rem 0.5rem;
+          border-radius: 999px;
+          border: 1px solid var(--primary);
+          background: var(--primary-light);
+          color: var(--accent-fg);
+          font-size: 0.7rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .wallet-tracker-receipt-link:hover {
+          background: var(--primary);
+          color: #FFFFFF;
+        }
         @media (max-width: 768px) {
           .desktop-table { display: none; }
           .mobile-tx-list { display: block; }

@@ -29,7 +29,10 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where
+  where,
+  runTransaction,
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 
 // Credentials come exclusively from Vite env vars (.env), which you fill in
@@ -104,7 +107,10 @@ export {
   updateDoc,
   deleteDoc,
   query,
-  where
+  where,
+  runTransaction,
+  increment,
+  writeBatch
 };
 
 export default app;
