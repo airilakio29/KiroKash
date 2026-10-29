@@ -1,6 +1,6 @@
 import React from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Sparkles, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function TutorialDemoBanner({ onExitTour }) {
   const { isDemoMode, demoNotice, exitTour } = useFinance();
@@ -10,8 +10,11 @@ export default function TutorialDemoBanner({ onExitTour }) {
   const handleExit = onExitTour || exitTour;
 
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 998, marginBottom: '1rem' }}>
-      {/* Clean Fintech Tutorial / Demo Banner */}
+    <div
+      className="tutorial-demo-banner-flow"
+      style={{ position: 'relative', zIndex: 1, marginBottom: '1.25rem' }}
+    >
+      {/* Clean Fintech Tutorial / Demo Banner in normal document flow */}
       <aside
         role="status"
         aria-label="Tutorial demo mode notice"
@@ -30,22 +33,26 @@ export default function TutorialDemoBanner({ onExitTour }) {
           color: 'var(--text-main)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '28px',
-            height: '28px',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--primary-light)',
-            color: 'var(--primary)',
-            flexShrink: 0
-          }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 240px', minWidth: 0 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--primary-light)',
+              color: 'var(--primary)',
+              flexShrink: 0
+            }}
+          >
             <Sparkles size={16} />
           </span>
-          <div style={{ fontSize: '0.88rem', lineHeight: 1.4 }}>
-            <strong style={{ color: 'var(--text-main)', marginRight: '0.35rem' }}>Live Demo Mode:</strong>
+          <div style={{ fontSize: '0.88rem', lineHeight: 1.4, minWidth: 0 }}>
+            <strong style={{ color: 'var(--text-main)', marginRight: '0.35rem' }}>
+              Live Demo Mode:
+            </strong>
             <span style={{ color: 'var(--text-muted)' }}>
               Exploring with Malaysian student sample data (RM). Test any button or add transactions freely.
             </span>
@@ -62,7 +69,8 @@ export default function TutorialDemoBanner({ onExitTour }) {
               gap: '0.4rem',
               fontSize: '0.82rem',
               fontWeight: 600,
-              padding: '0.4rem 0.85rem'
+              padding: '0.4rem 0.85rem',
+              flexShrink: 0
             }}
             aria-label="Exit tutorial"
           >
@@ -72,7 +80,7 @@ export default function TutorialDemoBanner({ onExitTour }) {
         )}
       </aside>
 
-      {/* Floating Action Notice */}
+      {/* Action Notice */}
       {demoNotice && (
         <div
           role="alert"
