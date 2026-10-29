@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSocialWallet } from '../context/SocialWalletContext';
 import {
   X,
   Camera,
@@ -9,7 +10,9 @@ import {
   Sparkles,
   Loader2,
   Upload,
-  RotateCcw
+  RotateCcw,
+  AtSign,
+  ShieldCheck
 } from 'lucide-react';
 import UserAvatar from './UserAvatar';
 import {
@@ -19,6 +22,7 @@ import {
   fileToDataUrl,
   saveFullUserProfile
 } from '../services/profileService';
+import { normalizeHandle } from '../utils/safetyUtils';
 
 export default function ProfileModal({ isOpen, onClose }) {
   const { user } = useAuth();
@@ -36,15 +40,17 @@ export default function ProfileModal({ isOpen, onClose }) {
 
 function ProfileModalContent({ user, onClose }) {
   const { updateUserProfile } = useAuth();
+  const { publicProfile, updateSocialProfile } = useSocialWallet();
   const fileInputRef = useRef(null);
 
-  // Form State initialized directly from user prop
-  const [username, setUsername] = useState(() => user?.username || '');
-  const [bio, setBio] = useState(() => user?.bio || '');
-  const [university, setUniversity] = useState(() => user?.university || '');
+  // Form State initialized directly from user / publicProfile prop
+  const [username, setUsername] = useState(() => publicProfile?.displayName || user?.username || '');
+  const [handle, setHandle] = useState(() => publicProfile?.handle || user?.handle || normalizeHandle(user?.username || 'student'));
+  const [bio, setBio] = useState(() => publicProfile?.bio || user?.bio || '');
+  const [university, setUniversity] = useState(() => publicProfile?.university || user?.university || '');
   const [monthlyBudget, setMonthlyBudget] = useState(() => user?.monthlyBudget ? String(user.monthlyBudget) : '');
   const [currency, setCurrency] = useState(() => user?.currency || 'RM');
-  const [selectedAvatar, setSelectedAvatar] = useState(() => user?.avatar || 'preset-scholar');
+  const [selectedAvatar, setSelectedAvatar] = useState(() => user?.avatar || publicProfile?.avatarId || 'preset-scholar');
 
   // UI state
   const [avatarTab, setAvatarTab] = useState('presets'); // 'presets' | 'upload'
@@ -104,8 +110,12 @@ function ProfileModalContent({ user, onClose }) {
     setErrorMsg('');
     setSuccessMsg('');
 
+    const cleanHandle = normalizeHandle(handle || username);
+
     const profileData = {
       username: username.trim(),
+      displayName: username.trim(),
+      handle: cleanHandle,
       bio: bio.trim(),
       university: university.trim(),
       monthlyBudget: monthlyBudget ? Math.max(0, Number(monthlyBudget)) : 0,
@@ -114,21 +124,31 @@ function ProfileModalContent({ user, onClose }) {
     };
 
     try {
-      // 1. Optimistic update to global React context so header & dashboard reflect immediately
+      // 1. Update public social profile (validates unique @handle and strips financial data)
+      if (updateSocialProfile) {
+        await updateSocialProfile({
+          displayName: username.trim(),
+          handle: cleanHandle,
+          bio: bio.trim(),
+          university: university.trim(),
+          avatarId: selectedAvatar
+        });
+      }
+
+      // 2. Optimistic update to global React context so header & dashboard reflect immediately
       if (updateUserProfile) {
         updateUserProfile(profileData);
       }
 
-      // 2. Persist to Firestore & sync with Firebase Auth
+      // 3. Persist to Firestore & sync with Firebase Auth
       await saveFullUserProfile(user?.id, profileData);
 
-      setSuccessMsg('Profile updated successfully! ✨');
+      setSuccessMsg('Profile & public @username updated! ✨');
       setTimeout(() => {
         onClose();
       }, 700);
     } catch (err) {
-      console.error('Failed to save profile:', err);
-      setErrorMsg('Failed to sync profile to cloud. Changes saved locally.');
+      setErrorMsg(err?.message || 'Failed to update profile.');
     } finally {
       setIsSaving(false);
     }
@@ -162,10 +182,10 @@ function ProfileModalContent({ user, onClose }) {
             </div>
             <div>
               <h3 id="profile-modal-title" style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 800 }}>
-                Student Profile & Customization
+                Student Social Profile &amp; Customization
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Customize your identity, avatar, motto, and campus details
+                Customize your display name, unique @username, avatar, bio, and campus details
               </p>
             </div>
           </div>
@@ -273,6 +293,9 @@ function ProfileModalContent({ user, onClose }) {
 
             <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-main)', fontFamily: 'Plus Jakarta Sans' }}>
               {username || 'Student Name'}
+            </div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary)', marginTop: '0.1rem' }}>
+              @{normalizeHandle(handle || username || 'student')}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
               {bio ? `"${bio}"` : (university || 'Campus Student')}
@@ -387,28 +410,43 @@ function ProfileModalContent({ user, onClose }) {
           </div>
 
           {/* Form Fields */}
-          <div className="form-group" data-tour="profile-fields">
-            <label className="form-label" htmlFor="profile-username">
-              Full / Display Name *
-            </label>
-            <input
-              id="profile-username"
-              type="text"
-              className="form-control"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. Airil Asyraff"
-              required
-              maxLength={50}
-            />
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '0.25rem' }}>
-              Displayed across dashboard greeting, reports, and PDF exports.
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} data-tour="profile-fields">
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-username">
+                Full / Display Name *
+              </label>
+              <input
+                id="profile-username"
+                type="text"
+                className="form-control"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. Airil Asyraff"
+                required
+                maxLength={50}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-handle">
+                <AtSign size={13} style={{ verticalAlign: 'middle' }} /> Unique @username *
+              </label>
+              <input
+                id="profile-handle"
+                type="text"
+                className="form-control"
+                value={handle}
+                onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                placeholder="e.g. airil_um"
+                required
+                maxLength={24}
+              />
             </div>
           </div>
 
           <div className="form-group">
             <label className="form-label" htmlFor="profile-bio">
-              Short Bio / Financial Motto
+              Short Bio / Campus Motto
             </label>
             <input
               id="profile-bio"
@@ -416,12 +454,9 @@ function ProfileModalContent({ user, onClose }) {
               className="form-control"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g. CS Student | Saving for MacBook Pro"
-              maxLength={80}
+              placeholder="e.g. CS Student | Spot Jimat hunter & coffee lover"
+              maxLength={140}
             />
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '0.25rem' }}>
-              A short tagline to keep you motivated on your financial journey.
-            </div>
           </div>
 
           <div className="form-group">
@@ -434,7 +469,7 @@ function ProfileModalContent({ user, onClose }) {
               className="form-control"
               value={university}
               onChange={(e) => setUniversity(e.target.value)}
-              placeholder="e.g. Universiti Teknologi MARA (UiTM)"
+              placeholder="e.g. Universiti Malaya (UM)"
               maxLength={60}
             />
           </div>
@@ -442,7 +477,7 @@ function ProfileModalContent({ user, onClose }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label className="form-label" htmlFor="profile-budget">
-                Monthly Budget Target ({currency})
+                Private Monthly Budget ({currency})
               </label>
               <input
                 id="profile-budget"
@@ -475,13 +510,31 @@ function ProfileModalContent({ user, onClose }) {
             </div>
           </div>
 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 0.85rem',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--bg-card-subtle)',
+            border: '1px solid var(--border-light)',
+            fontSize: '0.76rem',
+            color: 'var(--text-muted)',
+            marginTop: '0.5rem'
+          }}>
+            <ShieldCheck size={15} color="var(--primary)" />
+            <span>
+              <strong>Financial Privacy:</strong> Your budget target, balances, tracker transactions, and wallet history are private and never shown on your public profile.
+            </span>
+          </div>
+
           {/* Modal Actions */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
             gap: '0.75rem',
-            marginTop: '1.75rem',
+            marginTop: '1.5rem',
             paddingTop: '1rem',
             borderTop: '1px solid var(--border-light)'
           }}>

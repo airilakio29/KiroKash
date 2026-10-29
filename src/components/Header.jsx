@@ -1,13 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Calendar, ShieldCheck, FileText, LogOut, ChevronDown, User, Palette } from 'lucide-react';
+import { Menu, Calendar, ShieldCheck, FileText, LogOut, ChevronDown, User, Palette, Sparkles, Globe } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
+import { useSocialWallet } from '../context/SocialWalletContext';
 import { PRESET_THEMES, loadSavedTheme, saveTheme } from '../utils/themeEngine';
 import UserAvatar from './UserAvatar';
+import NotificationBell from './social/NotificationBell';
 
-export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "Dashboard" }) {
+export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigateTab, title = "Dashboard" }) {
   const { user, logout } = useAuth();
   const { exportToPDF } = useFinance();
+  const {
+    publicProfile,
+    setSelectedPublicProfileId,
+    pitchModeLoaded,
+    switchPitchDemoAccount
+  } = useSocialWallet();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [currentThemeId, setCurrentThemeId] = useState(() => {
@@ -40,12 +48,13 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
 
   // Derive a clean display name — never show UID or technical identifiers
   const displayName = (() => {
-    const name = user?.username;
+    const name = publicProfile?.displayName || user?.username;
     if (!name) return 'Student';
-    // Reject anything that looks like a UID/hash (20+ hex chars)
     if (/^[a-f0-9]{20,}$/i.test(name.replace(/[\s-]/g, ''))) return 'Student';
     return name;
   })();
+
+  const handleStr = publicProfile?.handle || user?.handle;
 
   const todayStr = new Date().toLocaleDateString('en-MY', {
     weekday: 'short',
@@ -109,10 +118,13 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
             {title}
           </h2>
           <div className="header-subtitle" data-tour="header-greeting">
-            <span>Welcome back, <strong>{displayName}</strong> 👋</span>
-            {user?.bio && (
-              <span className="header-bio-pill" title={user.bio}>
-                · "{user.bio}"
+            <span>
+              Welcome back, <strong>{displayName}</strong>
+              {handleStr ? <span style={{ opacity: 0.8 }}> (@{handleStr})</span> : ''} 👋
+            </span>
+            {(publicProfile?.bio || user?.bio) && (
+              <span className="header-bio-pill" title={publicProfile?.bio || user?.bio}>
+                · &ldquo;{publicProfile?.bio || user?.bio}&rdquo;
               </span>
             )}
           </div>
@@ -121,6 +133,27 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
 
       {/* Right Desktop: Action Bar */}
       <div className="header-desktop-actions">
+        {/* Pitch Mode Live Account Switcher Pill */}
+        {(pitchModeLoaded || user?.isPitchDemo) && (
+          <div className="header-pitch-switcher" title="Pitch Mode Quick Account Switcher">
+            <Sparkles size={13} />
+            <button
+              type="button"
+              className={`header-pitch-btn ${user?.id === 'demo_user_aiman' ? 'active' : ''}`}
+              onClick={() => switchPitchDemoAccount('demo_user_aiman')}
+            >
+              @aiman_utp
+            </button>
+            <button
+              type="button"
+              className={`header-pitch-btn ${user?.id === 'demo_user_sarah' ? 'active' : ''}`}
+              onClick={() => switchPitchDemoAccount('demo_user_sarah')}
+            >
+              @sarah_um
+            </button>
+          </div>
+        )}
+
         {/* Date Display Pill */}
         <div style={{
           display: 'flex',
@@ -139,11 +172,8 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
           <span>{todayStr}</span>
         </div>
 
-        {/* Signed-in Status Badge */}
-        <div className="badge badge-income" style={{ whiteSpace: 'nowrap' }}>
-          <ShieldCheck size={13} />
-          <span>Signed In</span>
-        </div>
+        {/* Notifications Bell */}
+        <NotificationBell onNavigateTab={onNavigateTab} />
 
         {/* Navbar Theme Selector */}
         <div style={{ position: 'relative' }} ref={themeDropdownRef}>
@@ -233,6 +263,20 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
           )}
         </div>
 
+        {/* Public Social Profile Button */}
+        {user?.id && (
+          <button
+            type="button"
+            onClick={() => setSelectedPublicProfileId(user.id)}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.7rem' }}
+            title="View Your Public Social Profile & Saved Spots"
+          >
+            <Globe size={14} />
+            <span>Public Profile</span>
+          </button>
+        )}
+
         {/* Profile Pill Button */}
         {onOpenProfileModal && (
           <button
@@ -243,7 +287,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
             title="Edit Profile & Avatar"
             aria-label="Edit Profile"
           >
-            <UserAvatar avatar={user?.avatar} name={displayName} size={24} showBorder={false} />
+            <UserAvatar avatar={publicProfile?.avatarId || user?.avatar} name={displayName} size={24} showBorder={false} />
             <span style={{ fontWeight: 600 }}>Profile</span>
           </button>
         )}
@@ -272,24 +316,27 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
         </button>
       </div>
 
-      {/* Right Mobile: Avatar / Profile Dropdown Trigger */}
+      {/* Right Mobile: Notifications + Avatar / Profile Dropdown Trigger */}
       <div className="header-mobile-actions" ref={dropdownRef}>
-        <button
-          data-tour="profile-btn"
-          onClick={() => setIsProfileOpen(prev => !prev)}
-          className="mobile-profile-trigger"
-          aria-expanded={isProfileOpen}
-          aria-label="User profile and quick actions menu"
-        >
-          <UserAvatar avatar={user?.avatar} name={displayName} size={32} showBorder={false} />
-          <ChevronDown
-            size={16}
-            style={{
-              transition: 'transform var(--transition-fast)',
-              transform: isProfileOpen ? 'rotate(180deg)' : 'none'
-            }}
-          />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <NotificationBell onNavigateTab={onNavigateTab} />
+          <button
+            data-tour="profile-btn"
+            onClick={() => setIsProfileOpen(prev => !prev)}
+            className="mobile-profile-trigger"
+            aria-expanded={isProfileOpen}
+            aria-label="User profile and quick actions menu"
+          >
+            <UserAvatar avatar={publicProfile?.avatarId || user?.avatar} name={displayName} size={32} showBorder={false} />
+            <ChevronDown
+              size={16}
+              style={{
+                transition: 'transform var(--transition-fast)',
+                transform: isProfileOpen ? 'rotate(180deg)' : 'none'
+              }}
+            />
+          </button>
+        </div>
 
         {/* Mobile Dropdown Menu */}
         {isProfileOpen && (
@@ -302,19 +349,50 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
               padding: '0.85rem 1rem',
               borderBottom: '1px solid var(--border-light)'
             }}>
-              <UserAvatar avatar={user?.avatar} name={displayName} size={40} />
+              <UserAvatar avatar={publicProfile?.avatarId || user?.avatar} name={displayName} size={40} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {displayName}
+                  {displayName} {handleStr ? `(@${handleStr})` : ''}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.bio || user?.university || 'Student'}
+                  {publicProfile?.bio || user?.bio || user?.university || 'Student'}
                 </div>
               </div>
               <span className="badge badge-income" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>
                 <ShieldCheck size={11} /> Active
               </span>
             </div>
+
+            {/* Pitch Mode Account Switcher inside Mobile Dropdown */}
+            {(pitchModeLoaded || user?.isPitchDemo) && (
+              <div style={{
+                padding: '0.6rem 0.85rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                gap: '0.4rem'
+              }}>
+                <button
+                  type="button"
+                  className={`header-pitch-btn ${user?.id === 'demo_user_aiman' ? 'active' : ''}`}
+                  onClick={() => {
+                    switchPitchDemoAccount('demo_user_aiman');
+                    setIsProfileOpen(false);
+                  }}
+                >
+                  @aiman_utp
+                </button>
+                <button
+                  type="button"
+                  className={`header-pitch-btn ${user?.id === 'demo_user_sarah' ? 'active' : ''}`}
+                  onClick={() => {
+                    switchPitchDemoAccount('demo_user_sarah');
+                    setIsProfileOpen(false);
+                  }}
+                >
+                  @sarah_um
+                </button>
+              </div>
+            )}
 
             {/* Date Pill inside Dropdown */}
             <div style={{
@@ -361,8 +439,21 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
               </div>
             </div>
 
-            {/* Actions List with Accessible >= 44px Touch Targets */}
+            {/* Actions List */}
             <div style={{ padding: '0.5rem' }}>
+              {user?.id && (
+                <button
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setSelectedPublicProfileId(user.id);
+                  }}
+                  className="dropdown-action-btn"
+                >
+                  <Globe size={17} color="var(--primary-light)" />
+                  <span>Public Profile &amp; Saved Spots</span>
+                </button>
+              )}
+
               {onOpenProfileModal && (
                 <button
                   onClick={() => {
@@ -373,7 +464,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
                   aria-label="Edit Profile & Avatar"
                 >
                   <User size={17} color="var(--primary-light)" />
-                  <span>Edit Profile & Avatar</span>
+                  <span>Edit Profile &amp; Avatar</span>
                 </button>
               )}
 
@@ -444,8 +535,37 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, title = "
         .header-desktop-actions {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.65rem;
           flex-shrink: 0;
+        }
+
+        .header-pitch-switcher {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          padding: 0.25rem 0.5rem;
+          border-radius: 999px;
+          background: var(--bg-card-subtle);
+          border: 1px solid var(--border-light);
+          color: var(--text-main);
+          font-size: 0.74rem;
+        }
+
+        .header-pitch-btn {
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 0.74rem;
+          font-weight: 700;
+          padding: 0.2rem 0.5rem;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .header-pitch-btn.active {
+          background: var(--primary);
+          color: #FFFFFF;
         }
 
         .header-mobile-actions {

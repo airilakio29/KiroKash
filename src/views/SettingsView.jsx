@@ -2,8 +2,10 @@ import React, { useRef, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useSocialWallet } from '../context/SocialWalletContext';
 import ConfirmModal from '../components/ConfirmModal';
 import { PRESET_THEMES, loadSavedTheme, saveTheme } from '../utils/themeEngine';
+import { PITCH_MODE_ENABLED } from '../config/appConstants';
 import {
   PlusCircle,
   Trash2,
@@ -16,7 +18,13 @@ import {
   Sparkles,
   Check,
   BookOpen,
-  User
+  User,
+  ShieldCheck,
+  Globe,
+  Users,
+  Database,
+  RefreshCw,
+  AtSign
 } from 'lucide-react';
 import UserAvatar from '../components/UserAvatar';
 
@@ -50,18 +58,35 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
   } = useFinance();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
+  const {
+    publicProfile,
+    updateSocialProfile,
+    wallet,
+    toggleAutoSyncTracker,
+    setSelectedPublicProfileId,
+    pitchModeLoaded,
+    loadPitchDemoData,
+    resetPitchDemoData,
+    switchPitchDemoAccount,
+    pitchDemoUsers
+  } = useSocialWallet();
 
   const fileInputRef = useRef(null);
   const [msg, setMsg] = useState({ text: '', isError: false });
   const [categoryToDelete, setCategoryToDelete] = useState(null);
 
   const [activeThemeConfig, setActiveThemeConfig] = useState(() => loadSavedTheme());
-  const [useCustomColors, setUseCustomColors] = useState(() => Boolean(activeThemeConfig.customColors));
+  const [, setUseCustomColors] = useState(() => Boolean(activeThemeConfig.customColors));
   const [customColors, setCustomColors] = useState(() => activeThemeConfig.customColors || getPresetColors(activeThemeConfig.presetId));
+
+  // Inline Social Handle / Bio quick editor state
+  const [editHandle, setEditHandle] = useState(() => publicProfile?.handle || user?.handle || 'student');
+  const [editDisplayName, setEditDisplayName] = useState(() => publicProfile?.displayName || user?.username || 'Student');
+  const [editBio, setEditBio] = useState(() => publicProfile?.bio || user?.bio || '');
 
   // Derive a clean display name
   const displayName = (() => {
-    const name = user?.username;
+    const name = publicProfile?.displayName || user?.username;
     if (!name) return 'Student';
     if (/^[a-f0-9]{20,}$/i.test(name.replace(/[\s-]/g, ''))) return 'Student';
     return name;
@@ -115,14 +140,52 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
     reader.readAsText(file);
   };
 
+  const handleSaveQuickSocialProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const updated = await updateSocialProfile({
+        displayName: editDisplayName,
+        handle: editHandle,
+        bio: editBio
+      });
+      setEditHandle(updated.handle);
+      setEditDisplayName(updated.displayName);
+      setEditBio(updated.bio);
+      setMsg({ text: `Social profile @${updated.handle} saved!`, isError: false });
+      showSuccess(`Updated social profile @${updated.handle}`);
+    } catch (err) {
+      setMsg({ text: err?.message || 'Could not update social profile.', isError: true });
+      showError(err?.message || 'Could not update social profile.');
+    }
+  };
+
+  const handleLoadPitchData = () => {
+    const res = loadPitchDemoData();
+    setMsg({
+      text: `Pitch Mode seeded: ${res.usersCount} fictional student accounts, ${res.spotsCount} Spot Jimat posts across all 6 categories, follows, and demo wallet transfers!`,
+      isError: false
+    });
+    showSuccess('Pitch Mode demo data loaded!');
+  };
+
+  const handleResetPitchData = () => {
+    resetPitchDemoData();
+    setMsg({
+      text: 'Pitch Mode demo data has been cleanly removed.',
+      isError: false
+    });
+    showSuccess('Pitch Mode demo data reset.');
+  };
+
   return (
     <div className="view-fade-in">
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-          Settings & Customization
+          Settings &amp; Customization
         </h3>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Logged in as <strong>{displayName}</strong> ({user?.email || 'Local User'}). Customize theme appearance, manage categories, or export backups.
+          Logged in as <strong>{displayName}</strong> (@{publicProfile?.handle || user?.handle || 'student'} · {user?.email || 'Local User'}).
+          Customize your public social profile, privacy settings, theme appearance, or Pitch Mode demo tools.
         </p>
       </div>
 
@@ -144,17 +207,139 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
         </div>
       )}
 
-      {/* Student Profile & Identity Section */}
+      {/* PART 4: Pitch Mode Section (Development / Pitch Recording Tools) */}
+      {PITCH_MODE_ENABLED && (
+        <div className="card" style={{ marginBottom: '1.5rem', border: '1.5px solid var(--primary)' }}>
+          <div className="card-title" style={{ marginBottom: '0.75rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Sparkles size={18} color="var(--primary)" /> Pitch Mode (Developer &amp; Live Recording Tools)
+            </span>
+            <span className="badge badge-income" style={{ fontSize: '0.72rem' }}>
+              {pitchModeLoaded ? 'Demo Data Active' : 'Ready to Seed'}
+            </span>
+          </div>
+
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            Seed 8 clearly fictional Malaysian student profiles, 28 varied <strong>Spot Jimat</strong> posts across all 6 categories,
+            social follows, comments, likes, and demo wallet transactions. Use the <strong>Quick Account Switcher</strong> below
+            to demonstrate a live transfer from <code>@aiman_utp</code> to <code>@sarah_um</code> in a single recording.
+          </p>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleLoadPitchData}
+            >
+              <Database size={16} />
+              <span>Load demo data (8 Users &amp; 28 Spots)</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleResetPitchData}
+            >
+              <RefreshCw size={16} />
+              <span>Reset demo data</span>
+            </button>
+          </div>
+
+          {/* Quick Account Switcher between Two Primary Demo Accounts + All 8 Fictional Students */}
+          <div style={{
+            padding: '1rem',
+            background: 'var(--bg-card-subtle)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-light)'
+          }}>
+            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Users size={16} color="var(--primary)" /> Quick Account Switcher (Single-Recording Live Transfer Demo)
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${user?.id === 'demo_user_aiman' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => {
+                  const switched = switchPitchDemoAccount('demo_user_aiman');
+                  setEditHandle(switched.handle);
+                  setEditDisplayName(switched.displayName);
+                  setEditBio(switched.bio);
+                  showSuccess('Switched to Account A: Aiman Hakim (@aiman_utp)');
+                }}
+              >
+                Account A: Aiman Hakim (@aiman_utp) — PIN: 1234
+              </button>
+
+              <button
+                type="button"
+                className={`btn btn-sm ${user?.id === 'demo_user_sarah' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => {
+                  const switched = switchPitchDemoAccount('demo_user_sarah');
+                  setEditHandle(switched.handle);
+                  setEditDisplayName(switched.displayName);
+                  setEditBio(switched.bio);
+                  showSuccess('Switched to Account B: Sarah Lim (@sarah_um)');
+                }}
+              >
+                Account B: Sarah Lim (@sarah_um) — PIN: 1234
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+              <span>Other seeded campus students:</span>
+              {pitchDemoUsers.slice(2).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    const switched = switchPitchDemoAccount(u.id);
+                    setEditHandle(switched.handle);
+                    setEditDisplayName(switched.displayName);
+                    setEditBio(switched.bio);
+                    showSuccess(`Switched to @${u.handle}`);
+                  }}
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '999px',
+                    border: user?.id === u.id ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                    background: user?.id === u.id ? 'var(--primary)' : 'transparent',
+                    color: user?.id === u.id ? '#FFFFFF' : 'var(--text-main)',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  @{u.handle}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PART 2: Student Social Profile & Financial Privacy Section */}
       <div className="card" data-tour="settings-profile-card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-title" style={{ marginBottom: '1.25rem' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <User size={18} color="var(--primary)" /> Student Profile & Customization
+            <User size={18} color="var(--primary)" /> Social Profile, Avatar &amp; Privacy Settings
           </span>
-          {onOpenProfileModal && (
-            <button data-tour="settings-edit-profile-btn" onClick={onOpenProfileModal} className="btn btn-primary btn-sm">
-              Edit Profile & Avatar
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {user?.id && (
+              <button
+                type="button"
+                onClick={() => setSelectedPublicProfileId(user.id)}
+                className="btn btn-secondary btn-sm"
+              >
+                <Globe size={14} /> View Public Profile
+              </button>
+            )}
+            {onOpenProfileModal && (
+              <button data-tour="settings-edit-profile-btn" onClick={onOpenProfileModal} className="btn btn-primary btn-sm">
+                Edit Avatar &amp; Full Profile
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{
@@ -165,29 +350,127 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
           padding: '1.25rem',
           background: 'var(--bg-card-subtle)',
           borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-light)'
+          border: '1px solid var(--border-light)',
+          marginBottom: '1rem'
         }}>
-          <UserAvatar avatar={user?.avatar} name={displayName} size={64} />
+          <UserAvatar avatar={publicProfile?.avatarId || user?.avatar} name={displayName} size={64} />
 
           <div style={{ flex: '1 1 180px', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
               <h4 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 {displayName}
               </h4>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)' }}>
+                @{publicProfile?.handle || user?.handle || 'student'}
+              </span>
               <span className="badge badge-income" style={{ fontSize: '0.72rem' }}>
                 {user?.currency || 'RM'} Student Account
               </span>
             </div>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.25rem 0 0.5rem' }}>
-              {user?.bio ? `"${user.bio}"` : 'No financial motto set yet.'}
+              {(publicProfile?.bio || user?.bio) ? `"${publicProfile?.bio || user?.bio}"` : 'No campus bio set yet.'}
             </p>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--text-light)' }}>
-              <span>🏫 <strong>Campus:</strong> {user?.university || 'Campus Student'}</span>
-              <span>🎯 <strong>Monthly Target:</strong> {user?.currency || 'RM'} {Number(user?.monthlyBudget || 0).toFixed(2)}</span>
+              <span>🏫 <strong>Campus:</strong> {publicProfile?.university || user?.university || 'Campus Student'}</span>
+              <span>👥 <strong>Followers:</strong> {publicProfile?.followerCount || 0}</span>
+              <span>🧭 <strong>Following:</strong> {publicProfile?.followingCount || 0}</span>
             </div>
           </div>
+        </div>
+
+        {/* Quick Social Handle & Bio Editor */}
+        <form onSubmit={handleSaveQuickSocialProfile} style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '0.75rem',
+          alignItems: 'end',
+          marginBottom: '1rem'
+        }}>
+          <div>
+            <label className="form-label" style={{ fontSize: '0.75rem' }}>Display Name</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editDisplayName}
+              onChange={(e) => setEditDisplayName(e.target.value)}
+              maxLength={50}
+              required
+            />
+          </div>
+          <div>
+            <label className="form-label" style={{ fontSize: '0.75rem' }}>
+              <AtSign size={12} style={{ verticalAlign: 'middle' }} /> Unique @username
+            </label>
+            <input
+              type="text"
+              className="form-control"
+              value={editHandle}
+              onChange={(e) => setEditHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              maxLength={24}
+              required
+            />
+          </div>
+          <div>
+            <label className="form-label" style={{ fontSize: '0.75rem' }}>Public Bio</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editBio}
+              onChange={(e) => setEditBio(e.target.value)}
+              maxLength={140}
+              placeholder="Campus spot hunter..."
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ height: '40px' }}>
+            <Check size={15} /> Save Social Profile
+          </button>
+        </form>
+
+        {/* Explicit Privacy Guarantee Statement */}
+        <div style={{
+          padding: '1rem',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-card-subtle)',
+          border: '1px solid var(--border-light)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.65rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+            <ShieldCheck size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                Financial Privacy Guarantee
+              </strong>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
+                Your financial data — including <strong>balances, budgets, tracker transactions, savings goals, and wallet history</strong> — is
+                strictly private and <strong>never appears on your public profile</strong>. Other students can only see your public avatar,
+                display name, @username, bio, follower counts, and the Spot Jimat posts you share.
+              </p>
+            </div>
+          </div>
+
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            fontSize: '0.83rem',
+            color: 'var(--text-main)',
+            cursor: 'pointer',
+            paddingTop: '0.5rem',
+            borderTop: '1px solid var(--border-light)'
+          }}>
+            <input
+              type="checkbox"
+              checked={Boolean(wallet?.autoSyncTracker ?? true)}
+              onChange={(e) => toggleAutoSyncTracker(e.target.checked)}
+            />
+            <span>
+              <strong>Auto-sync KampusKash Wallet transfers to Finance Tracker</strong> (automatically logs completed wallet transfers under the <em>&ldquo;Wallet transfer&rdquo;</em> category)
+            </span>
+          </label>
         </div>
       </div>
 
@@ -195,7 +478,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-title" style={{ marginBottom: '1rem' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Palette size={18} color="var(--primary)" /> Appearance & Theme Customization
+            <Palette size={18} color="var(--primary)" /> Appearance &amp; Theme Customization
           </span>
           <button onClick={handleResetTheme} className="btn btn-secondary btn-sm">
             <RotateCcw size={14} /> Reset Theme
@@ -268,7 +551,6 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
                   overflow: 'hidden',
                   position: 'relative'
                 }}>
-                  {/* Mini Sidebar */}
                   <div style={{
                     width: '18px',
                     height: '100%',
@@ -283,7 +565,6 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: preset.tokens['--primary'] }} />
                     <span style={{ width: '8px', height: '2px', borderRadius: '1px', background: preset.tokens['--sidebar-text-muted'] || '#999' }} />
                   </div>
-                  {/* Mini Content with Card */}
                   <div style={{
                     flex: 1,
                     display: 'flex',
@@ -410,7 +691,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
         {/* Data Backup & Restore */}
         <div className="card" data-tour="backup-manager">
           <div className="card-title">
-            <span>Data Backup & Management</span>
+            <span>Data Backup &amp; Management</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -450,7 +731,7 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
               className="btn btn-secondary"
               style={{ justifyContent: 'center' }}
             >
-              <BookOpen size={16} /> Replay Tutorial & Onboarding
+              <BookOpen size={16} /> Replay Tutorial &amp; Onboarding
             </button>
           </div>
         </div>
