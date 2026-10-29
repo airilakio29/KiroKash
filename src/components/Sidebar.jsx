@@ -26,6 +26,9 @@ import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
 import { SPOT_FEED_NAME, DEMO_WALLET, PAY_SECTION_NAME } from '../config/appConstants';
 import { useSocialWallet } from '../context/SocialWalletContext';
+import { getAuthLabel } from '../utils/authLabels';
+
+const t = (key) => getAuthLabel(key);
 
 export default function Sidebar({
   activeTab,
