@@ -1,557 +1,583 @@
+import '../styles/community.css';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  Sparkles,
-  Plus,
-  Users,
-  Heart,
-  RefreshCw,
-  Compass,
-  Bookmark,
-  WifiOff
-} from 'lucide-react';
+import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
-import { useDemoMode } from '../context/DemoModeProvider';
 import {
   useSocialWallet,
   getStoredPitchSpots,
   saveStoredPitchSpots
 } from '../context/SocialWalletContext';
 import {
-  generateInitialCommunityThreads,
-  migrateExistingMakanMurahPosts,
-  migrateLegacyThreadToSpot,
   filterAndSortThreads,
-  createThreadObject,
-  createReplyObject,
-  fetchFirestoreCommunityThreads,
+  migrateLegacyThreadToSpot,
+  subscribeToCommunityThreads,
   createFirestoreCommunityThread,
   updateFirestoreCommunityThread,
   deleteFirestoreCommunityThread,
-  addFirestoreThreadReply,
-  toggleFirestoreThreadVote,
-  reportFirestoreCommunityThread
+  toggleFirestoreCommunityVote,
+  addFirestoreCommunityReply,
+  reportFirestoreCommunityThread,
+  subscribeToCommunityReplies
 } from '../services/communityService';
-import { SPOT_FEED_NAME, SPOT_CATEGORIES } from '../config/appConstants';
+import { SPOT_FEED_NAME } from '../config/appConstants';
+import { generateDemoThreads } from '../demo/demoData';
 import CommunityFilters from '../components/community/CommunityFilters';
 import ThreadCard from '../components/community/ThreadCard';
 import CreateThreadModal from '../components/community/CreateThreadModal';
 import ThreadDetailModal from '../components/community/ThreadDetailModal';
-import '../styles/community.css';
+import {
+  Utensils,
+  Plus,
+  Compass,
+  AlertTriangle,
+  CheckCircle2,
+  Sparkles,
+  DownloadCloud
+} from 'lucide-react';
 
-const STORAGE_KEY_THREADS = 'kampuskash_community_threads_v1';
-const STORAGE_KEY_UPVOTES = 'kampuskash_community_upvotes_v1';
-const PAGE_SIZE = 9;
+export default function CommunityView({ onNavigateToExplore, initialSearchQuery = '' }) {
+  const { user } = useAuth();
+  const finance = useFinance() || {};
+  const socialWallet = useSocialWallet() || {};
 
-export default function CommunityView() {
-  const { user, isAuthenticated, isFirebaseConfigured } = useAuth();
-  const { isDemoMode } = useDemoMode();
   const {
     publicProfile,
-    followingIds,
-    savedSpotIds,
-    blockedUserIds,
+    followingIds = [],
+    savedSpotIds = [],
+    blockedUserIds = [],
     toggleSave,
     notifySocialInteraction,
     setSelectedPublicProfileId,
     pitchModeLoaded,
-    pitchSpotsVersion,
-    loadPitchDemoData
-  } = useSocialWallet();
+    pitchSpotsVersion
+  } = socialWallet;
 
-  // Offline state
-  const [isOffline, setIsOffline] = useState(
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  );
+  const isDemo = Boolean(finance.isDemoMode);
 
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+  // Live Firestore State (when not in demo mode)
+  const [liveThreads, setLiveThreads] = useState([]);
+  const [liveUserUpvotes, setLiveUserUpvotes] = useState(() => new Set());
+  const [isLoadingLive, setIsLoadingLive] = useState(!isDemo);
+  const [liveError, setLiveError] = useState(null);
+  const [isSeeding, setIsSeeding] = useState(false);
 
-  // State: Base threads (migrated Makan Murah + user posts)
-  const [threads, setThreads] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_THREADS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return migrateExistingMakanMurahPosts(parsed);
-        }
-      }
-    } catch {
-      // fallback to initial seed
-    }
-    return generateInitialCommunityThreads();
-  });
-
-  // State: Upvoted thread IDs for current user
-  const [upvotedIds, setUpvotedIds] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_UPVOTES);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
-
-  // Filters & Feed Tabs
+  // Active Filter States (6c4f2e9 + Spot Jimat categories/tabs)
   const [feedTab, setFeedTab] = useState('explore'); // 'explore' | 'following' | 'saved'
   const [category, setCategory] = useState('all');
   const [budgetTag, setBudgetTag] = useState('all');
-  const [studentPriceOnly, setStudentPriceOnly] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [campusArea, setCampusArea] = useState('All Campuses');
+  const [campus, setCampus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
+  const [maxPrice, setMaxPrice] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [sortBy, setSortBy] = useState('trending');
+  const [sortBy, setSortBy] = useState('newest');
 
-  // Geolocation state for "Nearest" sort
+  // Geolocation state for Nearest sort
   const [userCoords, setUserCoords] = useState(null);
-  const [locationStatus, setLocationStatus] = useState('idle'); // 'idle' | 'requesting' | 'granted' | 'denied'
+  const [locationStatus, setLocationStatus] = useState('idle');
   const [locationMessage, setLocationMessage] = useState('');
 
-  // Pagination state
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  // Modals & Loading state
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Modal States
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingSpot, setEditingSpot] = useState(null);
-  const [selectedThreadId, setSelectedThreadId] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [activeReplies, setActiveReplies] = useState([]);
 
-  // Combine user/migrated threads with Pitch Mode spots if Pitch Mode is loaded
-  const combinedThreads = useMemo(() => {
+  // Toast Notification
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  // Curated student starter spots (used as fallback when database is fresh)
+  const starterCuratedThreads = useMemo(() => {
+    return generateDemoThreads().map((t) =>
+      migrateLegacyThreadToSpot({ ...t, isCuratedStarter: true })
+    );
+  }, []);
+
+  // Subscribe to live Firestore threads when not in demo mode
+  useEffect(() => {
+    if (isDemo) {
+      setIsLoadingLive(false);
+      return;
+    }
+
+    setIsLoadingLive(true);
+    setLiveError(null);
+
+    const unsubscribe = subscribeToCommunityThreads(
+      (threads) => {
+        setLiveThreads(threads);
+        setIsLoadingLive(false);
+      },
+      (err) => {
+        console.error('Failed to load community threads from Firestore:', err);
+        setLiveError('Gagal memuat turun ulasan komuniti.');
+        setIsLoadingLive(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [isDemo]);
+
+  // Combine demo/live threads with Pitch Mode spots if loaded, preserving all existing Makan Murah posts
+  const allThreads = useMemo(() => {
+    const baseList = isDemo
+      ? finance.communityThreads || []
+      : liveThreads.length > 0
+      ? liveThreads
+      : starterCuratedThreads;
+
     const pitchSpots = getStoredPitchSpots();
     const map = new Map();
+    for (const item of baseList) {
+      const migrated = migrateLegacyThreadToSpot(item);
+      map.set(migrated.id, migrated);
+    }
     for (const s of pitchSpots) {
       const migrated = migrateLegacyThreadToSpot(s);
-      map.set(migrated.id, migrated);
-    }
-    for (const t of threads) {
-      const migrated = migrateLegacyThreadToSpot(t);
-      map.set(migrated.id, migrated);
+      if (!map.has(migrated.id)) {
+        map.set(migrated.id, migrated);
+      }
     }
     return Array.from(map.values());
-  }, [threads, pitchModeLoaded, pitchSpotsVersion]);
+  }, [isDemo, finance.communityThreads, liveThreads, starterCuratedThreads, pitchModeLoaded, pitchSpotsVersion]);
 
-  // Persist base threads and upvotes locally
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_THREADS, JSON.stringify(threads));
-    } catch {
-      // ignore storage quota errors
-    }
-  }, [threads]);
+  const isShowingStarterFallbacks = !isDemo && liveThreads.length === 0;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_UPVOTES, JSON.stringify(upvotedIds));
-    } catch {
-      // ignore
-    }
-  }, [upvotedIds]);
-
-  // Load Firestore threads when configured and not in demo mode
-  const loadThreads = useCallback(async () => {
-    if (!isFirebaseConfigured || isDemoMode) return;
-    setIsLoading(true);
-    try {
-      const remoteThreads = await fetchFirestoreCommunityThreads();
-      if (Array.isArray(remoteThreads) && remoteThreads.length > 0) {
-        setThreads((prev) => {
-          const map = new Map();
-          prev.forEach((t) => map.set(t.id, migrateLegacyThreadToSpot(t)));
-          remoteThreads.forEach((t) => map.set(t.id, migrateLegacyThreadToSpot(t)));
-          return Array.from(map.values());
-        });
+  // Handle Sort Change (including Geolocation permission request for "nearest")
+  const handleSortChange = useCallback(
+    (nextSort) => {
+      if (nextSort !== 'nearest') {
+        setSortBy(nextSort);
+        setLocationMessage('');
+        return;
       }
-    } catch (err) {
-      console.warn('CommunityView: Falling back to cached Spot Jimat threads', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isFirebaseConfigured, isDemoMode]);
 
-  useEffect(() => {
-    loadThreads();
-  }, [loadThreads]);
-
-  // Reset pagination when filters change
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [feedTab, category, budgetTag, studentPriceOnly, searchQuery, campusArea, selectedTags, sortBy]);
-
-  // Handle Sort Change (including Geolocation permission request for "Nearest")
-  const handleSortChange = useCallback((nextSort) => {
-    if (nextSort !== 'nearest') {
-      setSortBy(nextSort);
-      setLocationMessage('');
-      return;
-    }
-
-    setSortBy('nearest');
-    if (userCoords) {
-      setLocationStatus('granted');
-      setLocationMessage('Sorted by distance from your current location.');
-      return;
-    }
-
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setLocationStatus('denied');
-      setLocationMessage('Geolocation is not supported by this browser. Falling back to Trending spots.');
-      return;
-    }
-
-    setLocationStatus('requesting');
-    setLocationMessage('Requesting location permission to find the nearest student spots...');
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserCoords({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
+      setSortBy('nearest');
+      if (userCoords) {
         setLocationStatus('granted');
-        setLocationMessage('Showing spots closest to your current location.');
-      },
-      () => {
-        // Fallback gracefully to UM Kuala Lumpur campus center coordinates or trending
-        setLocationStatus('denied');
-        setUserCoords({ lat: 3.1209, lng: 101.6538 });
-        setLocationMessage(
-          'Location permission was denied — gracefully falling back to central Kuala Lumpur campus coordinates.'
-        );
-      },
-      { timeout: 6000, maximumAge: 60000 }
-    );
-  }, [userCoords]);
+        setLocationMessage('Disusun mengikut jarak terdekat');
+        return;
+      }
 
-  // Filtered & sorted threads
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        setLocationStatus('denied');
+        setLocationMessage('Geolokasi tidak disokong — guna koordinat kampus');
+        return;
+      }
+
+      setLocationStatus('requesting');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+          setLocationStatus('granted');
+          setLocationMessage('Disusun mengikut lokasi semasa anda');
+        },
+        () => {
+          setLocationStatus('denied');
+          setUserCoords({ lat: 3.1209, lng: 101.6538 });
+          setLocationMessage('Lokasi ditolak — guna pusat kampus KL');
+        },
+        { timeout: 6000, maximumAge: 60000 }
+      );
+    },
+    [userCoords]
+  );
+
+  // Filter & Sort Threads
   const filteredThreads = useMemo(() => {
-    return filterAndSortThreads(combinedThreads, {
+    return filterAndSortThreads(allThreads, {
       feedTab,
       followingIds,
       savedSpotIds,
       blockedUserIds,
       category,
       budgetTag,
-      studentPriceOnly,
-      searchQuery,
-      campusArea,
+      campus,
+      maxPrice,
       selectedTags,
-      sortBy,
+      sort: sortBy,
+      searchQuery,
       userCoords
     });
   }, [
-    combinedThreads,
+    allThreads,
     feedTab,
     followingIds,
     savedSpotIds,
     blockedUserIds,
     category,
     budgetTag,
-    studentPriceOnly,
-    searchQuery,
-    campusArea,
+    campus,
+    maxPrice,
     selectedTags,
     sortBy,
+    searchQuery,
     userCoords
   ]);
 
-  const paginatedThreads = useMemo(
-    () => filteredThreads.slice(0, visibleCount),
-    [filteredThreads, visibleCount]
+  // Set of user-upvoted thread IDs
+  const userUpvotesSet = useMemo(() => {
+    if (isDemo && finance.communityUserUpvotes instanceof Set) {
+      return finance.communityUserUpvotes;
+    }
+    return liveUserUpvotes;
+  }, [isDemo, finance.communityUserUpvotes, liveUserUpvotes]);
+
+  // Toggle Upvote Handler
+  const handleToggleUpvote = useCallback(
+    async (threadId) => {
+      const targetSpot = allThreads.find((t) => t.id === threadId);
+      const alreadyUpvoted = userUpvotesSet.has(threadId);
+
+      if (isDemo || isShowingStarterFallbacks) {
+        if (finance.toggleCommunityVote) {
+          finance.toggleCommunityVote(threadId);
+        } else {
+          setLiveUserUpvotes((prev) => {
+            const next = new Set(prev);
+            if (next.has(threadId)) next.delete(threadId);
+            else next.add(threadId);
+            return next;
+          });
+        }
+      } else {
+        if (!user) {
+          showToast('Sila log masuk untuk mengundi ulasan.');
+          return;
+        }
+        try {
+          const isNowVoted = await toggleFirestoreCommunityVote(threadId, user.id || user.uid);
+          setLiveUserUpvotes((prev) => {
+            const next = new Set(prev);
+            if (isNowVoted) next.add(threadId);
+            else next.delete(threadId);
+            return next;
+          });
+        } catch (err) {
+          console.error('Upvote error:', err);
+          showToast('Gagal mengemas kini undian.');
+        }
+      }
+
+      if (!alreadyUpvoted && targetSpot && user?.id && targetSpot.authorId !== user.id && notifySocialInteraction) {
+        notifySocialInteraction({
+          recipientId: targetSpot.authorId,
+          type: 'like',
+          actorId: user.id,
+          actorName: publicProfile?.displayName || user.username || 'Pelajar',
+          actorHandle: publicProfile?.handle || user.handle || 'student',
+          spotId: targetSpot.id,
+          spotTitle: targetSpot.title,
+          message: `@${publicProfile?.handle || 'student'} menyukai spot "${targetSpot.title}"`
+        });
+      }
+    },
+    [isDemo, isShowingStarterFallbacks, finance, user, showToast, allThreads, userUpvotesSet, notifySocialInteraction, publicProfile]
   );
 
-  const selectedThread = useMemo(
-    () => combinedThreads.find((t) => t.id === selectedThreadId) || null,
-    [combinedThreads, selectedThreadId]
+  // Toggle Save / Bookmark Handler
+  const handleToggleSave = useCallback(
+    async (spotId) => {
+      if (!toggleSave) return;
+      const nowSaved = await toggleSave(spotId);
+      showToast(nowSaved ? 'Spot disimpan ke senarai Disimpan!' : 'Spot dikeluarkan dari simpanan.');
+    },
+    [toggleSave, showToast]
   );
 
-  // Stats for banner
-  const stats = useMemo(() => {
-    const totalSpots = combinedThreads.length;
-    const studentDealsCount = combinedThreads.filter((t) => t.studentPrice || Number(t.priceRM) <= 10).length;
-    const totalLikes = combinedThreads.reduce((sum, t) => sum + Number(t.upvotes || 0), 0);
-    return { totalSpots, studentDealsCount, totalLikes };
-  }, [combinedThreads]);
+  // Create or Update Thread Handler
+  const handleCreateThread = useCallback(
+    async (formData, editingSpotId = null) => {
+      if (editingSpotId) {
+        const pitchSpots = getStoredPitchSpots();
+        if (pitchSpots.some((s) => s.id === editingSpotId)) {
+          saveStoredPitchSpots(
+            pitchSpots.map((s) =>
+              s.id === editingSpotId ? migrateLegacyThreadToSpot({ ...s, ...formData }) : s
+            )
+          );
+        }
+        if (!isDemo && user) {
+          await updateFirestoreCommunityThread(editingSpotId, user, formData).catch(() => {});
+        }
+        setEditingSpot(null);
+        showToast('Spot berjaya dikemaskini!');
+        return;
+      }
 
-  // Handlers
+      if (isDemo) {
+        if (finance.addCommunityThread) {
+          finance.addCommunityThread(formData, user);
+          showToast(`${SPOT_FEED_NAME} berjaya dikongsi dalam mod demo!`);
+        }
+        return;
+      }
+
+      try {
+        await createFirestoreCommunityThread(user, formData);
+        showToast(`${SPOT_FEED_NAME} berjaya dikongsi ke komuniti!`);
+      } catch (err) {
+        console.error('Create thread error:', err);
+        throw err;
+      }
+    },
+    [isDemo, finance, user, showToast]
+  );
+
+  const handleDeleteSpot = useCallback(
+    async (spot) => {
+      if (!spot) return;
+      if (typeof window !== 'undefined' && !window.confirm(`Padam spot "${spot.title}"?`)) {
+        return;
+      }
+      const pitchSpots = getStoredPitchSpots();
+      if (pitchSpots.some((s) => s.id === spot.id)) {
+        saveStoredPitchSpots(pitchSpots.filter((s) => s.id !== spot.id));
+      }
+      if (!isDemo && user) {
+        await deleteFirestoreCommunityThread(spot.id, user).catch(() => {});
+      }
+      setSelectedThread(null);
+      showToast('Spot telah dipadam.');
+    },
+    [isDemo, user, showToast]
+  );
+
+  // One-click Seed Starter Spots into Live Firestore
+  const handleSeedStarterSpots = async () => {
+    if (!user) {
+      showToast('Sila log masuk terlebih dahulu.');
+      return;
+    }
+    try {
+      setIsSeeding(true);
+      for (const starter of starterCuratedThreads) {
+        await createFirestoreCommunityThread(user, {
+          placeName: starter.placeName,
+          category: starter.category || 'makan',
+          title: starter.title,
+          body: starter.body,
+          pricePerMeal: starter.pricePerMeal,
+          rating: starter.rating,
+          campus: starter.campus,
+          tags: starter.tags,
+          address: starter.address || null
+        });
+      }
+      showToast(`6 ${SPOT_FEED_NAME} starter berjaya dimuatkan ke komuniti live!`);
+    } catch (err) {
+      console.error('Failed to seed starter spots:', err);
+      showToast('Gagal memuatkan spot starter: ' + err.message);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  // Add Reply Handler
+  const handleAddReply = useCallback(
+    async (threadId, replyText) => {
+      const targetSpot = allThreads.find((t) => t.id === threadId);
+
+      if (isDemo || isShowingStarterFallbacks) {
+        if (finance.addCommunityReply) {
+          const newReply = finance.addCommunityReply(threadId, replyText, user);
+          setActiveReplies((prev) => [...prev, newReply]);
+        } else {
+          const mockReply = {
+            id: `rep-local-${Date.now()}`,
+            authorId: user?.id || 'guest',
+            authorName: publicProfile?.displayName || user?.username || 'Saya',
+            authorUsername: publicProfile?.handle || user?.handle || 'student',
+            authorUniversity: user?.university || 'Pelajar',
+            body: replyText,
+            createdAt: new Date().toISOString()
+          };
+          setActiveReplies((prev) => [...prev, mockReply]);
+        }
+        showToast('Komen berjaya dihantar!');
+      } else {
+        try {
+          const newReply = await addFirestoreCommunityReply(threadId, user, replyText);
+          setActiveReplies((prev) => [...prev, newReply]);
+          showToast('Komen berjaya dihantar!');
+        } catch (err) {
+          console.error('Add reply error:', err);
+          throw err;
+        }
+      }
+
+      if (targetSpot && user?.id && targetSpot.authorId !== user.id && notifySocialInteraction) {
+        notifySocialInteraction({
+          recipientId: targetSpot.authorId,
+          type: 'comment',
+          actorId: user.id,
+          actorName: publicProfile?.displayName || user.username || 'Pelajar',
+          actorHandle: publicProfile?.handle || user.handle || 'student',
+          spotId: targetSpot.id,
+          spotTitle: targetSpot.title,
+          message: `@${publicProfile?.handle || 'student'} mengulas pada "${targetSpot.title}"`
+        });
+      }
+    },
+    [isDemo, isShowingStarterFallbacks, finance, user, showToast, allThreads, publicProfile, notifySocialInteraction]
+  );
+
+  // Report Thread Handler
+  const handleReportThread = useCallback(
+    async (thread) => {
+      const confirmed = window.confirm(
+        `Adakah anda pasti ingin melaporkan ulasan "${thread.placeName}" untuk semakan pihak moderator kampus?`
+      );
+      if (!confirmed) return;
+
+      if (isDemo || isShowingStarterFallbacks) {
+        showToast('Laporan diterima untuk semakan moderator kampus.');
+        return;
+      }
+
+      try {
+        await reportFirestoreCommunityThread(
+          thread.id,
+          user,
+          'Inappropriate or inaccurate information'
+        );
+        showToast('Laporan dihantar kepada moderator.');
+      } catch (err) {
+        console.error('Report error:', err);
+        showToast('Gagal menghantar laporan.');
+      }
+    },
+    [isDemo, isShowingStarterFallbacks, user, showToast]
+  );
+
+  // Live replies listener when detail modal is open
+  useEffect(() => {
+    if (!selectedThread) {
+      setActiveReplies([]);
+      return;
+    }
+
+    if (isDemo || isShowingStarterFallbacks) {
+      const current = allThreads.find((t) => t.id === selectedThread.id);
+      setActiveReplies(current?.replies || selectedThread.replies || []);
+      return;
+    }
+
+    const unsub = subscribeToCommunityReplies(
+      selectedThread.id,
+      (replies) => setActiveReplies(replies),
+      (err) => console.error('Replies listener error:', err)
+    );
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [selectedThread, isDemo, isShowingStarterFallbacks, allThreads]);
+
   const handleToggleTag = (tagId) => {
     setSelectedTags((prev) =>
-      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+      prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]
     );
   };
 
   const handleResetFilters = () => {
+    setCampus('all');
     setCategory('all');
     setBudgetTag('all');
-    setStudentPriceOnly(false);
     setSearchQuery('');
-    setCampusArea('All Campuses');
+    setMaxPrice(null);
     setSelectedTags([]);
-    setSortBy('trending');
+    setSortBy('newest');
     setLocationMessage('');
   };
 
-  const updateSpotAcrossStores = (spotId, updater) => {
-    setThreads((prev) =>
-      prev.map((t) => (t.id === spotId ? updater(t) : t))
-    );
-    const pitchSpots = getStoredPitchSpots();
-    if (pitchSpots.some((s) => s.id === spotId)) {
-      const updatedPitch = pitchSpots.map((s) => (s.id === spotId ? updater(s) : s));
-      saveStoredPitchSpots(updatedPitch);
-    }
-  };
-
-  const handleToggleUpvote = async (threadId) => {
-    const alreadyUpvoted = upvotedIds.includes(threadId);
-    const delta = alreadyUpvoted ? -1 : 1;
-
-    setUpvotedIds((prev) =>
-      alreadyUpvoted ? prev.filter((id) => id !== threadId) : [...prev, threadId]
-    );
-
-    const targetSpot = combinedThreads.find((t) => t.id === threadId);
-
-    updateSpotAcrossStores(threadId, (t) => ({
-      ...t,
-      upvotes: Math.max(0, Number(t.upvotes || 0) + delta)
-    }));
-
-    if (!alreadyUpvoted && targetSpot && user?.id && targetSpot.authorId !== user.id) {
-      notifySocialInteraction({
-        recipientId: targetSpot.authorId,
-        type: 'like',
-        actorId: user.id,
-        actorName: publicProfile?.displayName || user.username || 'Student',
-        actorHandle: publicProfile?.handle || user.handle || 'student',
-        spotId: targetSpot.id,
-        spotTitle: targetSpot.title,
-        message: `@${publicProfile?.handle || 'student'} liked your spot "${targetSpot.title}"`
-      });
-    }
-
-    if (isFirebaseConfigured && !isDemoMode && user?.id) {
-      await toggleFirestoreThreadVote(threadId, user.id, !alreadyUpvoted);
-    }
-  };
-
-  const handleToggleSaveSpot = async (spotId) => {
-    try {
-      await toggleSave(spotId);
-    } catch (err) {
-      console.warn('Save spot failed:', err);
-    }
-  };
-
-  const handleCreateOrUpdateSpot = async (formData, editingSpotId = null) => {
-    setIsSubmitting(true);
-    try {
-      const authorMeta = {
-        id: user?.id || 'guest-student',
-        username: publicProfile?.displayName || user?.username || 'Campus Student',
-        handle: publicProfile?.handle || user?.handle || 'student',
-        avatar: publicProfile?.avatarId || user?.avatar || 'cat',
-        university: publicProfile?.university || user?.university || formData.campusArea
-      };
-
-      if (editingSpotId) {
-        updateSpotAcrossStores(editingSpotId, (existing) =>
-          migrateLegacyThreadToSpot({
-            ...existing,
-            ...formData,
-            id: editingSpotId,
-            updatedAt: new Date().toISOString()
-          })
-        );
-        if (isFirebaseConfigured && !isDemoMode && user?.id) {
-          await updateFirestoreCommunityThread(editingSpotId, formData, user.id);
-        }
-        setEditingSpot(null);
-        return;
-      }
-
-      const newThread = createThreadObject(formData, authorMeta);
-      setThreads((prev) => [newThread, ...prev]);
-
-      if (isFirebaseConfigured && !isDemoMode) {
-        await createFirestoreCommunityThread(newThread);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteSpot = async (spot) => {
-    if (!spot || !user?.id || spot.authorId !== user.id) return;
-    if (typeof window !== 'undefined' && !window.confirm(`Delete spot "${spot.title}"?`)) {
-      return;
-    }
-
-    setThreads((prev) => prev.filter((t) => t.id !== spot.id));
-    const pitchSpots = getStoredPitchSpots();
-    if (pitchSpots.some((s) => s.id === spot.id)) {
-      saveStoredPitchSpots(pitchSpots.filter((s) => s.id !== spot.id));
-    }
-
-    if (selectedThreadId === spot.id) {
-      setSelectedThreadId(null);
-    }
-
-    if (isFirebaseConfigured && !isDemoMode) {
-      await deleteFirestoreCommunityThread(spot.id, user.id);
-    }
-  };
-
-  const handleAddReply = async (threadId, replyText) => {
-    const authorMeta = {
-      id: user?.id || 'guest-student',
-      username: publicProfile?.displayName || user?.username || 'Campus Student',
-      handle: publicProfile?.handle || user?.handle || 'student',
-      avatar: publicProfile?.avatarId || user?.avatar || 'bear'
-    };
-    const reply = createReplyObject(replyText, authorMeta);
-    const targetSpot = combinedThreads.find((t) => t.id === threadId);
-
-    updateSpotAcrossStores(threadId, (t) => {
-      const nextReplies = [...(Array.isArray(t.replies) ? t.replies : []), reply];
-      return {
-        ...t,
-        replies: nextReplies,
-        replyCount: nextReplies.length,
-        updatedAt: new Date().toISOString()
-      };
-    });
-
-    if (targetSpot && user?.id && targetSpot.authorId !== user.id) {
-      notifySocialInteraction({
-        recipientId: targetSpot.authorId,
-        type: 'comment',
-        actorId: user.id,
-        actorName: authorMeta.username,
-        actorHandle: authorMeta.handle,
-        spotId: targetSpot.id,
-        spotTitle: targetSpot.title,
-        message: `@${authorMeta.handle} commented on "${targetSpot.title}": "${reply.body.slice(0, 60)}"`
-      });
-    }
-
-    if (isFirebaseConfigured && !isDemoMode) {
-      await addFirestoreThreadReply(threadId, reply);
-    }
-  };
-
-  const handleReportThread = async (threadId, reason) => {
-    await reportFirestoreCommunityThread(threadId, {
-      reason,
-      reporterId: user?.id || 'anonymous'
-    });
-  };
-
   const handleOpenAuthorProfile = (authorIdentifier) => {
-    if (!authorIdentifier) return;
+    if (!authorIdentifier || !setSelectedPublicProfileId) return;
     setSelectedPublicProfileId(authorIdentifier);
   };
 
   return (
-    <div className="community-view">
-      {/* Offline Banner */}
-      {isOffline && (
-        <div className="spot-offline-banner" role="status">
-          <WifiOff size={16} />
-          <span>You are offline. Viewing cached {SPOT_FEED_NAME} posts — new posts will sync when reconnected.</span>
+    <div className="community-page-wrapper">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="community-floating-toast" role="status" aria-live="polite">
+          <CheckCircle2 size={16} className="toast-icon text-success" />
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Hero Banner */}
-      <section className="community-hero card">
-        <div className="community-hero-content">
-          <div className="community-hero-badge">
-            <Sparkles size={14} />
-            <span>Campus Student Discovery Feed</span>
+      {/* Compact Top Header (Exact 6c4f2e9 structure with new name "Spot Jimat") */}
+      <div className="community-header-compact">
+        <div className="header-compact-left">
+          <div className="community-title-row">
+            <h1 className="community-page-title">{SPOT_FEED_NAME}</h1>
+            <span className="community-count-pill">{filteredThreads.length} spot</span>
           </div>
-          <h1 className="community-hero-title">
-            {SPOT_FEED_NAME} — Budget Spots, Deals & Campus Gems
-          </h1>
-          <p className="community-hero-subtitle">
-            Discover and share student-verified Makan spots, Thrift &amp; bundles, Activities &amp; sports,
-            Study spots, Campus services, and Free events across Malaysian universities.
+          <p className="community-subtitle-compact">
+            Port makan sedap, thrift, aktiviti, ruang belajar &amp; promosi pelajar seluruh kampus
           </p>
-
-          <div className="community-hero-stats">
-            <div className="hero-stat-pill">
-              <Compass size={15} />
-              <span>
-                <strong>{stats.totalSpots}</strong> Verified Spots
-              </span>
-            </div>
-            <div className="hero-stat-pill">
-              <Sparkles size={15} />
-              <span>
-                <strong>{stats.studentDealsCount}</strong> Student Deals &amp; Under RM10
-              </span>
-            </div>
-            <div className="hero-stat-pill">
-              <Heart size={15} />
-              <span>
-                <strong>{stats.totalLikes}</strong> Student Likes
-              </span>
-            </div>
-          </div>
         </div>
 
-        <div className="community-hero-actions">
+        <div className="header-compact-actions">
+          {onNavigateToExplore && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-compact"
+              onClick={onNavigateToExplore}
+              title="Lihat Peta Kafe di Sekitar"
+            >
+              <Compass size={15} />
+              <span>Peta Explore</span>
+            </button>
+          )}
+
           <button
             type="button"
-            className="btn btn-primary community-share-btn"
+            className="btn btn-primary btn-compact"
             onClick={() => {
               setEditingSpot(null);
-              setIsCreateOpen(true);
+              setIsCreateModalOpen(true);
             }}
           >
-            <Plus size={18} />
-            <span>Post a Spot</span>
+            <Plus size={15} />
+            <span>Kongsi Tempat</span>
           </button>
+        </div>
+      </div>
 
-          {!pitchModeLoaded && (
+      {/* Notice: When viewing curated starters on fresh accounts */}
+      {isShowingStarterFallbacks && (
+        <div className="curated-starters-notice-bar">
+          <div className="starters-notice-text">
+            <Sparkles size={14} className="text-primary flex-shrink-0" />
+            <span>
+              Menampilkan <strong>cadangan {SPOT_FEED_NAME} pelajar</strong>. Anda boleh kongsi ulasan tempat baru atau muatkan cadangan ini.
+            </span>
+          </div>
+          {user && (
             <button
               type="button"
-              className="btn btn-outline community-refresh-btn"
-              onClick={loadPitchDemoData}
-              title="Seed 28 realistic campus spots across all 6 categories for demo"
+              className="btn-seed-starters"
+              onClick={handleSeedStarterSpots}
+              disabled={isSeeding}
             >
-              <Sparkles size={15} />
-              <span>Load 28 Demo Spots</span>
-            </button>
-          )}
-
-          {isFirebaseConfigured && !isDemoMode && (
-            <button
-              type="button"
-              className="btn btn-outline community-refresh-btn"
-              onClick={loadThreads}
-              disabled={isLoading}
-              title="Refresh spots feed"
-            >
-              <RefreshCw size={15} className={isLoading ? 'spin' : ''} />
-              <span>Sync</span>
+              <DownloadCloud size={13} />
+              <span>{isSeeding ? 'Memuatkan...' : 'Simpan ke Live'}</span>
             </button>
           )}
         </div>
-      </section>
+      )}
 
-      {/* Filters Panel */}
+      {/* Streamlined Unified Toolbar (Exact 6c4f2e9 look + categories & online tabs) */}
       <CommunityFilters
         feedTab={feedTab}
         onFeedTabChange={setFeedTab}
@@ -559,12 +585,12 @@ export default function CommunityView() {
         onCategoryChange={setCategory}
         budgetTag={budgetTag}
         onBudgetTagChange={setBudgetTag}
-        studentPriceOnly={studentPriceOnly}
-        onStudentPriceOnlyChange={setStudentPriceOnly}
+        campus={campus}
+        onCampusChange={setCampus}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        campusArea={campusArea}
-        onCampusChange={setCampusArea}
+        maxPrice={maxPrice}
+        onMaxPriceChange={setMaxPrice}
         selectedTags={selectedTags}
         onToggleTag={handleToggleTag}
         sortBy={sortBy}
@@ -577,169 +603,111 @@ export default function CommunityView() {
         totalCount={filteredThreads.length}
       />
 
-      {/* Loading Skeletons */}
-      {isLoading ? (
-        <div className="community-threads-grid" aria-busy="true">
-          {[1, 2, 3, 4, 5, 6].map((idx) => (
-            <div key={idx} className="community-thread-card card spot-skeleton-card">
-              <div className="spot-skeleton-banner" />
-              <div className="spot-skeleton-line short" />
-              <div className="spot-skeleton-line title" />
-              <div className="spot-skeleton-line medium" />
-              <div className="spot-skeleton-line long" />
+      {/* Main Threads Content Grid */}
+      <div className="community-feed-container">
+        {isLoadingLive ? (
+          <div className="community-loading-state">
+            <div className="community-spinner" />
+            <p>Memuat turun ulasan {SPOT_FEED_NAME}...</p>
+          </div>
+        ) : liveError ? (
+          <div className="community-error-card">
+            <AlertTriangle size={28} className="text-warning" />
+            <h3>Maaf, sambungan terganggu</h3>
+            <p>{liveError}</p>
+          </div>
+        ) : filteredThreads.length === 0 ? (
+          <div className="community-empty-state">
+            <div className="empty-icon-wrap">
+              <Utensils size={30} className="text-muted" />
             </div>
-          ))}
-        </div>
-      ) : filteredThreads.length === 0 ? (
-        <div className="community-empty-state card">
-          {feedTab === 'following' ? (
-            <>
-              <Users size={42} className="empty-icon" />
-              <h3>No spots from people you follow yet</h3>
-              <p>
-                Switch to the <strong>Explore</strong> tab and click on any student author to follow them,
-                or load Pitch Mode demo data to follow campus spotters!
-              </p>
-              <div className="empty-state-btn-row">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => setFeedTab('explore')}
-                >
-                  Explore All Spots
-                </button>
-                {!pitchModeLoaded && (
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={loadPitchDemoData}
-                  >
-                    Load Pitch Demo Spots
-                  </button>
-                )}
-              </div>
-            </>
-          ) : feedTab === 'saved' ? (
-            <>
-              <Bookmark size={42} className="empty-icon" />
-              <h3>No saved spots yet</h3>
-              <p>Tap the bookmark icon on any spot card to save it here for quick access.</p>
+            <h3>Tiada Spot Dijumpai</h3>
+            <p>
+              {feedTab === 'following'
+                ? 'Belum ada spot daripada pelajar yang anda ikuti. Tukar ke tab Explore atau klik nama penulis untuk mengikuti mereka.'
+                : feedTab === 'saved'
+                ? 'Belum ada spot disimpan lagi. Klik ikon penanda buku pada mana-mana kad spot untuk simpan.'
+                : 'Tiada tempat yang sepadan dengan tapisan carian anda. Sila ubah atau reset tapisan.'}
+            </p>
+            <div className="empty-state-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setFeedTab('explore');
+                  handleResetFilters();
+                }}
+              >
+                Reset Tapisan
+              </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => setFeedTab('explore')}
+                onClick={() => {
+                  setEditingSpot(null);
+                  setIsCreateModalOpen(true);
+                }}
               >
-                Browse Spots
+                <Plus size={14} />
+                <span>Kongsi Tempat Sekarang</span>
               </button>
-            </>
-          ) : (
-            <>
-              <Compass size={42} className="empty-icon" />
-              <h3>No student spots match your filters</h3>
-              <p>
-                Know a hidden campus gem in{' '}
-                {category !== 'all'
-                  ? SPOT_CATEGORIES.find((c) => c.id === category)?.label
-                  : campusArea !== 'All Campuses'
-                  ? campusArea
-                  : 'your campus'}
-                ? Be the first to share it!
-              </p>
-              <div className="empty-state-btn-row">
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={handleResetFilters}
-                >
-                  Reset Filters
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setEditingSpot(null);
-                    setIsCreateOpen(true);
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Post a Spot</span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="community-threads-grid">
-            {paginatedThreads.map((thread) => (
+            </div>
+          </div>
+        ) : (
+          <div className="community-cards-grid">
+            {filteredThreads.map((thread) => (
               <ThreadCard
                 key={thread.id}
                 thread={thread}
-                isUpvoted={upvotedIds.includes(thread.id)}
+                isUpvoted={userUpvotesSet.has(thread.id)}
                 isSaved={savedSpotIds.includes(thread.id)}
-                currentUserId={user?.id}
-                onSelectThread={(t) => setSelectedThreadId(t.id)}
                 onToggleUpvote={handleToggleUpvote}
-                onToggleSave={handleToggleSaveSpot}
+                onToggleSave={handleToggleSave}
+                onClick={(t) => setSelectedThread(t)}
                 onOpenAuthorProfile={handleOpenAuthorProfile}
-                onEditSpot={(spot) => {
-                  setEditingSpot(spot);
-                  setIsCreateOpen(true);
-                }}
-                onDeleteSpot={handleDeleteSpot}
+                onReport={handleReportThread}
               />
             ))}
           </div>
+        )}
+      </div>
 
-          {/* Pagination / Load More */}
-          {visibleCount < filteredThreads.length && (
-            <div className="spot-load-more-wrap">
-              <button
-                type="button"
-                className="btn btn-outline spot-load-more-btn"
-                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-              >
-                Load More Spots ({filteredThreads.length - visibleCount} remaining)
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Create / Edit Spot Modal */}
+      {/* Create / Edit Thread Modal */}
       <CreateThreadModal
-        isOpen={isCreateOpen}
+        isOpen={isCreateModalOpen}
         editingSpot={editingSpot}
         onClose={() => {
-          setIsCreateOpen(false);
+          setIsCreateModalOpen(false);
           setEditingSpot(null);
         }}
-        onSubmit={handleCreateOrUpdateSpot}
-        isSubmitting={isSubmitting}
+        onSubmit={handleCreateThread}
+        user={user}
       />
 
-      {/* Spot Detail Modal */}
+      {/* Thread Detail Modal */}
       <ThreadDetailModal
         thread={selectedThread}
-        isUpvoted={selectedThread ? upvotedIds.includes(selectedThread.id) : false}
+        isOpen={Boolean(selectedThread)}
+        onClose={() => setSelectedThread(null)}
+        isUpvoted={selectedThread ? userUpvotesSet.has(selectedThread.id) : false}
         isSaved={selectedThread ? savedSpotIds.includes(selectedThread.id) : false}
-        currentUserId={user?.id}
-        onClose={() => setSelectedThreadId(null)}
+        currentUserId={user?.id || user?.uid}
         onToggleUpvote={handleToggleUpvote}
-        onToggleSave={handleToggleSaveSpot}
+        onToggleSave={handleToggleSave}
         onAddReply={handleAddReply}
-        onReportThread={handleReportThread}
+        onReport={handleReportThread}
         onEditSpot={(spot) => {
-          setSelectedThreadId(null);
+          setSelectedThread(null);
           setEditingSpot(spot);
-          setIsCreateOpen(true);
+          setIsCreateModalOpen(true);
         }}
         onDeleteSpot={handleDeleteSpot}
         onOpenAuthorProfile={(authorId) => {
-          setSelectedThreadId(null);
+          setSelectedThread(null);
           handleOpenAuthorProfile(authorId);
         }}
-        isAuthenticated={isAuthenticated || isDemoMode}
+        replies={activeReplies}
+        user={user}
       />
     </div>
   );
