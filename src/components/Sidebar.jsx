@@ -15,7 +15,8 @@ import {
   Compass,
   Sparkles,
   UtensilsCrossed,
-  Wallet,
+  QrCode,
+  Menu,
   Download
 } from 'lucide-react';
 import KampusKashLogo from './KampusKashLogo';
@@ -23,6 +24,7 @@ import UserAvatar from './UserAvatar';
 import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
 import { SPOT_FEED_NAME, DEMO_WALLET } from '../config/appConstants';
+import { useSocialWallet } from '../context/SocialWalletContext';
 
 export default function Sidebar({
   activeTab,
@@ -33,6 +35,7 @@ export default function Sidebar({
   setIsMobileOpen
 }) {
   const { user, logout } = useAuth();
+  const { openScanPaySheet } = useSocialWallet();
 
   // Lock body scroll when mobile drawer is open
   useEffect(() => {
@@ -62,7 +65,6 @@ export default function Sidebar({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'ai-chat', label: 'KampusKash AI', icon: Sparkles, badge: 'AI' },
     { id: 'community', label: SPOT_FEED_NAME, icon: UtensilsCrossed, badge: 'New' },
-    ...(DEMO_WALLET ? [{ id: 'wallet', label: 'KampusKash Wallet', icon: Wallet, badge: 'DEMO' }] : []),
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
     { id: 'accounts', label: 'Accounts', icon: Landmark },
     { id: 'budgets', label: 'Budgets', icon: Target },
@@ -123,6 +125,28 @@ export default function Sidebar({
               Smart Student Finance
             </span>
           </div>
+
+          {/* Prominent Scan / Pay QR Button at Top of Sidebar */}
+          {DEMO_WALLET && (
+            <button
+              type="button"
+              data-tour="sidebar-scan-pay-btn"
+              onClick={() => {
+                openScanPaySheet('scan');
+                if (isMobileOpen) setIsMobileOpen(false);
+              }}
+              className="btn sidebar-scan-pay-btn"
+              aria-label="Scan / Pay QR and Transfer"
+            >
+              <span className="sidebar-scan-pay-icon">
+                <QrCode size={20} />
+              </span>
+              <span className="sidebar-scan-pay-text">
+                <strong>Scan / Pay</strong>
+                <small>QR • My QR • Transfer</small>
+              </span>
+            </button>
+          )}
 
           {/* Quick Add Button with Min 44px Height */}
           <button
@@ -258,6 +282,62 @@ export default function Sidebar({
         </div>
       </aside>
 
+      {/* Mobile Bottom Navigation with Raised Center Scan / Pay QR Button */}
+      <nav className="mobile-bottom-nav" aria-label="Mobile Primary Navigation">
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+        >
+          <LayoutDashboard size={19} />
+          <span>Home</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${activeTab === 'community' ? 'active' : ''}`}
+          onClick={() => setActiveTab('community')}
+        >
+          <UtensilsCrossed size={19} />
+          <span>{SPOT_FEED_NAME}</span>
+        </button>
+
+        {DEMO_WALLET && (
+          <div className="mobile-bottom-qr-slot">
+            <button
+              type="button"
+              data-tour="mobile-scan-pay-btn"
+              className="mobile-bottom-qr-btn"
+              onClick={() => openScanPaySheet('scan')}
+              aria-label="Scan / Pay"
+            >
+              <span className="mobile-bottom-qr-circle">
+                <QrCode size={24} />
+              </span>
+              <span className="mobile-bottom-qr-label">Scan / Pay</span>
+            </button>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${activeTab === 'accounts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('accounts')}
+        >
+          <Landmark size={19} />
+          <span>Accounts</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${isMobileOpen ? 'active' : ''}`}
+          onClick={() => setIsMobileOpen(true)}
+        >
+          <Menu size={19} />
+          <span>Menu</span>
+        </button>
+      </nav>
+
       <style>{`
         .sidebar {
           width: 260px;
@@ -365,14 +445,75 @@ export default function Sidebar({
           display: block;
         }
 
+        .sidebar-scan-pay-btn {
+          width: 100%;
+          min-height: 54px;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.65rem 0.9rem;
+          margin-bottom: 0.7rem;
+          border-radius: var(--radius-md);
+          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+          color: var(--text-on-primary, #FFFFFF);
+          border: 2px solid rgba(255, 255, 255, 0.28);
+          box-shadow: 0 8px 22px rgba(var(--shadow-rgb), 0.35);
+          cursor: pointer;
+          text-align: left;
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .sidebar-scan-pay-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 26px rgba(var(--shadow-rgb), 0.45);
+        }
+
+        .sidebar-scan-pay-icon {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.2);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .sidebar-scan-pay-text {
+          display: flex;
+          flex-direction: column;
+          line-height: 1.2;
+          min-width: 0;
+        }
+
+        .sidebar-scan-pay-text strong {
+          font-size: 0.96rem;
+          font-weight: 800;
+          letter-spacing: 0.01em;
+        }
+
+        .sidebar-scan-pay-text small {
+          font-size: 0.68rem;
+          opacity: 0.9;
+          font-weight: 600;
+        }
+
         .sidebar-add-btn {
           width: 100%;
           min-height: 44px;
-          background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-          color: var(--text-on-primary, #FFFFFF);
-          margin-bottom: 1.5rem;
-          box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.25);
+          background: rgba(var(--sidebar-overlay-rgb), 0.12);
+          border: 1px solid rgba(var(--sidebar-overlay-rgb), 0.22);
+          color: var(--sidebar-text);
+          margin-bottom: 1.25rem;
           font-weight: 600;
+        }
+
+        .sidebar-add-btn:hover {
+          background: rgba(var(--sidebar-overlay-rgb), 0.2);
+        }
+
+        .mobile-bottom-nav {
+          display: none;
         }
 
         .sidebar-nav-item {
@@ -519,6 +660,84 @@ export default function Sidebar({
           .sidebar-logo-img {
             width: 115px;
             max-width: 125px;
+          }
+
+          .mobile-bottom-nav {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            align-items: center;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: calc(64px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            background: var(--bg-sidebar);
+            border-top: 1px solid rgba(var(--sidebar-overlay-rgb), 0.16);
+            box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+            z-index: 950;
+          }
+
+          .mobile-bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.2rem;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: var(--sidebar-text-muted);
+            font-size: 0.68rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.25rem;
+          }
+
+          .mobile-bottom-nav-item.active {
+            color: var(--primary);
+            font-weight: 700;
+          }
+
+          .mobile-bottom-qr-slot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            height: 100%;
+          }
+
+          .mobile-bottom-qr-btn {
+            position: absolute;
+            top: -22px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+          }
+
+          .mobile-bottom-qr-circle {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: var(--text-on-primary, #FFFFFF);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid var(--bg-sidebar);
+            box-shadow: 0 8px 22px rgba(var(--shadow-rgb), 0.45);
+          }
+
+          .mobile-bottom-qr-label {
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: var(--sidebar-text);
+            white-space: nowrap;
           }
         }
       `}</style>
