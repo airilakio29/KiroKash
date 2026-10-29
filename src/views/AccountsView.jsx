@@ -35,7 +35,7 @@ import {
   Lock
 } from 'lucide-react';
 
-export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
+export default function AccountsView({ onOpenAddAccount, onEditAccount, onNavigateTab }) {
   const { accounts, deleteAccount, totalAccountBalance, isLoading } = useFinance();
   const { showSuccess } = useToast();
   const {
@@ -45,7 +45,6 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
     performTopUp,
     performRespondToRequest,
     toggleAutoSyncTracker,
-    openScanPaySheet,
     setActiveReceiptModal
   } = useSocialWallet() || {};
 
@@ -213,16 +212,6 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            {openScanPaySheet && (
-              <button
-                type="button"
-                onClick={() => openScanPaySheet('scan')}
-                className="btn btn-secondary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <QrCode size={16} /> Scan / Pay
-              </button>
-            )}
             <button data-tour="accounts-add-btn" onClick={onOpenAddAccount} className="btn btn-primary">
               <PlusCircle size={16} /> + Add Account
             </button>
@@ -372,6 +361,7 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
 
                         {(isKampusKash || account.isDemo) && (
                           <span
+                            className={isKampusKash ? 'kampuskash-demo-badge' : 'account-sample-badge'}
                             style={{
                               fontSize: '0.62rem',
                               padding: '0.1rem 0.42rem',
@@ -479,7 +469,7 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                   </span>
                 </div>
 
-                {/* KampusKash Account Card Actions: "Add money" & "Scan / Pay" */}
+                {/* KampusKash Account Card Actions: "Add money", "Send", "Receive" shortcuts */}
                 {isKampusKash && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -487,9 +477,9 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                       marginTop: '0.85rem',
                       paddingTop: '0.75rem',
                       borderTop: '1px dashed var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem'
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 1fr 1fr',
+                      gap: '0.4rem'
                     }}
                   >
                     <button
@@ -497,40 +487,60 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount }) {
                       className="btn btn-primary btn-sm"
                       onClick={handleOpenAddMoney}
                       style={{
-                        flex: 1,
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.78rem',
+                        gap: '0.25rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
-                        padding: '0.45rem 0.65rem'
+                        padding: '0.45rem 0.5rem',
+                        whiteSpace: 'nowrap'
                       }}
+                      title="Simulate adding money from your other demo accounts"
                     >
-                      <PlusCircle size={14} />
+                      <PlusCircle size={13} />
                       <span>Add money</span>
                     </button>
 
-                    {openScanPaySheet && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => openScanPaySheet('transfer')}
-                        style={{
-                          flex: 1,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          padding: '0.45rem 0.65rem'
-                        }}
-                      >
-                        <Send size={13} />
-                        <span>Transfer</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => onNavigateTab ? onNavigateTab('pay', 'transfer') : null}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.25rem',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        padding: '0.45rem 0.4rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Send money via dedicated Pay section"
+                    >
+                      <Send size={12} />
+                      <span>Send</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => onNavigateTab ? onNavigateTab('pay', 'my-qr') : null}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.25rem',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        padding: '0.45rem 0.4rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Show your My QR code in dedicated Pay section"
+                    >
+                      <QrCode size={12} />
+                      <span>Receive</span>
+                    </button>
                   </div>
                 )}
               </div>

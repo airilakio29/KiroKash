@@ -25,6 +25,14 @@ export const WALLET_TRANSFER_CATEGORY_ID = 'cat-wallet-transfer';
 export const WALLET_TRANSFER_CATEGORY_NAME = 'Wallet transfer';
 
 /**
+ * Dedicated Pay Section (QR & Instant Transfer)
+ * Change PAY_SECTION_NAME here to rename across sidebar, routes, headers, and tabs.
+ */
+export const PAY_SECTION_NAME = 'Pay';
+export const PAY_SECTION_SUBTITLE = 'QR payment, instant transfers, money requests & bill splitting';
+export const PAY_ROUTES = ['/pay', '/pay/scan', '/pay/my-qr', '/pay/transfer', '/pay/request', '/pay/history'];
+
+/**
  * Pitch Mode Flag
  * Enables the development Pitch Mode section in Settings and the quick Demo Account Switcher.
  */

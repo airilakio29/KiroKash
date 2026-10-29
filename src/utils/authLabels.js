@@ -3,7 +3,7 @@
  * Supports English ('en') and Bahasa Melayu ('ms') across Auth, Spot Jimat,
  * Social Profiles, Notifications, Demo Wallet, and Pitch Mode.
  */
-import { SPOT_FEED_NAME, DEMO_WALLET_BADGE_TEXT } from '../config/appConstants.js';
+import { SPOT_FEED_NAME, DEMO_WALLET_BADGE_TEXT, PAY_SECTION_NAME } from '../config/appConstants.js';
 
 export const AUTH_LABELS = {
   en: {
@@ -18,12 +18,24 @@ export const AUTH_LABELS = {
     // Navigation & Page Titles
     spotFeedTitle: SPOT_FEED_NAME,
     spotFeedPageTitle: `${SPOT_FEED_NAME} (Student Spots)`,
+    payNavLabel: PAY_SECTION_NAME,
+    payPageTitle: `${PAY_SECTION_NAME} — QR & Instant Transfer`,
+    scanQrBtnLabel: 'Scan QR',
     scanPayBtnLabel: 'Scan / Pay',
-    scanTabLabel: 'Scan',
+    scanTabLabel: 'Scan QR',
     myQrTabLabel: 'My QR',
     transferTabLabel: 'Transfer',
+    requestTabLabel: 'Request',
     addMoneyBtnLabel: 'Add money',
+    sendShortcutLabel: 'Send',
+    receiveShortcutLabel: 'Receive',
     kampusKashAccountLabel: 'KampusKash',
+    favouritesLabel: 'Favourites',
+    recentRecipientsLabel: 'Recent Recipients',
+    pendingRequestsLabel: 'Pending Requests',
+    recentActivityLabel: 'Recent Activity',
+    seeAllLabel: 'See all',
+    brightnessBoostLabel: 'Brightness boost',
 
     // Spot Jimat Feed
     spotFeedSubtitle: 'Budget makan, thrift, sports, study spots & student promos across campus',
@@ -112,12 +124,24 @@ export const AUTH_LABELS = {
     // Navigation & Page Titles
     spotFeedTitle: SPOT_FEED_NAME,
     spotFeedPageTitle: `${SPOT_FEED_NAME} (Port Pelajar)`,
+    payNavLabel: 'Bayar',
+    payPageTitle: `${PAY_SECTION_NAME} — Imbas QR & Pindahan Segera`,
+    scanQrBtnLabel: 'Imbas QR',
     scanPayBtnLabel: 'Imbas / Bayar',
-    scanTabLabel: 'Imbas',
+    scanTabLabel: 'Imbas QR',
     myQrTabLabel: 'QR Saya',
     transferTabLabel: 'Pindah Wang',
+    requestTabLabel: 'Minta Wang',
     addMoneyBtnLabel: 'Tambah nilai',
+    sendShortcutLabel: 'Hantar',
+    receiveShortcutLabel: 'Terima',
     kampusKashAccountLabel: 'KampusKash',
+    favouritesLabel: 'Kegemaran',
+    recentRecipientsLabel: 'Penerima Terkini',
+    pendingRequestsLabel: 'Permintaan Menunggu',
+    recentActivityLabel: 'Aktiviti Terkini',
+    seeAllLabel: 'Lihat semua',
+    brightnessBoostLabel: 'Tingkat kecerahan',
 
     // Spot Jimat Feed
     spotFeedSubtitle: 'Port makan, thrift, sukan, study spot & diskaun pelajar seluruh kampus',
