@@ -103,7 +103,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
   return (
     <header className="app-header">
       {/* Left: Hamburger + Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+      <div className="header-left-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: '1 1 200px' }}>
         <button
           onClick={onOpenMobileMenu}
           className="btn btn-secondary btn-icon header-mobile-menu"
@@ -113,12 +113,12 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           <Menu size={22} />
         </button>
 
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <h2 className="header-page-title">
             {title}
           </h2>
           <div className="header-subtitle" data-tour="header-greeting">
-            <span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               Welcome back, <strong>{displayName}</strong>
               {handleStr ? <span style={{ opacity: 0.8 }}> (@{handleStr})</span> : ''} 👋
             </span>
@@ -155,19 +155,22 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
         )}
 
         {/* Date Display Pill */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.45rem',
-          background: 'var(--bg-card-subtle)',
-          padding: '0.45rem 0.85rem',
-          borderRadius: '20px',
-          border: '1px solid var(--border-light)',
-          fontSize: '0.82rem',
-          color: 'var(--text-main)',
-          fontWeight: 500,
-          whiteSpace: 'nowrap'
-        }}>
+        <div
+          className="header-date-pill"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            background: 'var(--bg-card-subtle)',
+            padding: '0.45rem 0.85rem',
+            borderRadius: '20px',
+            border: '1px solid var(--border-light)',
+            fontSize: '0.82rem',
+            color: 'var(--text-main)',
+            fontWeight: 500,
+            whiteSpace: 'nowrap'
+          }}
+        >
           <Calendar size={14} color="var(--text-main)" />
           <span>{todayStr}</span>
         </div>
@@ -495,10 +498,12 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 1.15rem 2rem;
-          padding-top: max(1.15rem, calc(env(safe-area-inset-top, 0px) + 0.65rem));
-          padding-left: max(2rem, env(safe-area-inset-left, 0px));
-          padding-right: max(2rem, env(safe-area-inset-right, 0px));
+          flex-wrap: wrap;
+          gap: 0.65rem 1rem;
+          padding: 1rem 1.75rem;
+          padding-top: max(1rem, calc(env(safe-area-inset-top, 0px) + 0.65rem));
+          padding-left: max(1.75rem, env(safe-area-inset-left, 0px));
+          padding-right: max(1.75rem, env(safe-area-inset-right, 0px));
           background: color-mix(in srgb, var(--bg-app) 92%, transparent);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -532,11 +537,21 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           text-overflow: ellipsis;
         }
 
+        .header-bio-pill {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 220px;
+        }
+
         .header-desktop-actions {
           display: flex;
           align-items: center;
-          gap: 0.65rem;
-          flex-shrink: 0;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          min-width: 0;
+          max-width: 100%;
         }
 
         .header-pitch-switcher {
@@ -655,18 +670,26 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           background: rgba(231, 76, 60, 0.2);
         }
 
-        @media (max-width: 900px) {
-          .header-mobile-menu {
+        @media (max-width: 1320px) {
+          .header-date-pill,
+          .header-bio-pill {
             display: none !important;
           }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 960px) {
           .app-header {
+            flex-wrap: nowrap;
             padding: 0.85rem 1rem;
             padding-top: max(0.95rem, calc(env(safe-area-inset-top, 0px) + 0.55rem));
             padding-left: max(1rem, env(safe-area-inset-left, 0px));
             padding-right: max(1rem, env(safe-area-inset-right, 0px));
+          }
+          .header-left-group {
+            flex: 1 1 0% !important;
+          }
+          .header-mobile-menu {
+            display: none !important;
           }
           .header-page-title {
             font-size: 1.15rem;
@@ -679,6 +702,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           }
           .header-mobile-actions {
             display: block;
+            flex-shrink: 0;
           }
         }
 
@@ -688,12 +712,16 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
             padding-top: max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.5rem));
             padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
             padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+            gap: 0.5rem;
           }
           .header-page-title {
-            font-size: 1.05rem;
+            font-size: 1.02rem;
           }
           .header-subtitle {
-            font-size: 0.72rem;
+            font-size: 0.7rem;
+          }
+          .mobile-profile-trigger {
+            padding: 0.3rem 0.5rem;
           }
         }
       `}</style>
