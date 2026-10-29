@@ -16,6 +16,7 @@ import {
   Sparkles,
   UtensilsCrossed,
   QrCode,
+  LayoutGrid,
   Menu,
   Download
 } from 'lucide-react';
@@ -23,7 +24,7 @@ import KampusKashLogo from './KampusKashLogo';
 import UserAvatar from './UserAvatar';
 import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
-import { SPOT_FEED_NAME, DEMO_WALLET } from '../config/appConstants';
+import { SPOT_FEED_NAME, DEMO_WALLET, PAY_SECTION_NAME } from '../config/appConstants';
 import { useSocialWallet } from '../context/SocialWalletContext';
 
 export default function Sidebar({
@@ -35,7 +36,13 @@ export default function Sidebar({
   setIsMobileOpen
 }) {
   const { user, logout } = useAuth();
-  const { openScanPaySheet } = useSocialWallet();
+  const [hasVisitedPay, setHasVisitedPay] = React.useState(() => {
+    try {
+      return localStorage.getItem('kirokash_visited_pay_tab') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Lock body scroll when mobile drawer is open
   useEffect(() => {
@@ -63,8 +70,15 @@ export default function Sidebar({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    {
+      id: 'pay',
+      label: PAY_SECTION_NAME,
+      icon: QrCode,
+      badge: hasVisitedPay ? null : 'New',
+      isHighlight: true
+    },
     { id: 'ai-chat', label: 'KampusKash AI', icon: Sparkles, badge: 'AI' },
-    { id: 'community', label: SPOT_FEED_NAME, icon: UtensilsCrossed, badge: 'New' },
+    { id: 'community', label: SPOT_FEED_NAME, icon: UtensilsCrossed },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
     { id: 'accounts', label: 'Accounts', icon: Landmark },
     { id: 'budgets', label: 'Budgets', icon: Target },
@@ -126,28 +140,6 @@ export default function Sidebar({
             </span>
           </div>
 
-          {/* Prominent Scan / Pay QR Button at Top of Sidebar */}
-          {DEMO_WALLET && (
-            <button
-              type="button"
-              data-tour="sidebar-scan-pay-btn"
-              onClick={() => {
-                openScanPaySheet('scan');
-                if (isMobileOpen) setIsMobileOpen(false);
-              }}
-              className="btn sidebar-scan-pay-btn"
-              aria-label="Scan / Pay QR and Transfer"
-            >
-              <span className="sidebar-scan-pay-icon">
-                <QrCode size={20} />
-              </span>
-              <span className="sidebar-scan-pay-text">
-                <strong>Scan / Pay</strong>
-                <small>QR • My QR • Transfer</small>
-              </span>
-            </button>
-          )}
-
           {/* Quick Add Button with Min 44px Height */}
           <button
             data-tour="add-transaction"
@@ -171,10 +163,16 @@ export default function Sidebar({
                   key={item.id}
                   data-tour={`nav-${item.id}`}
                   onClick={() => {
+                    if (item.id === 'pay' && !hasVisitedPay) {
+                      try {
+                        localStorage.setItem('kirokash_visited_pay_tab', 'true');
+                      } catch {}
+                      setHasVisitedPay(true);
+                    }
                     setActiveTab(item.id);
                     if (isMobileOpen) setIsMobileOpen(false);
                   }}
-                  className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                  className={`sidebar-nav-item ${isActive ? 'active' : ''} ${item.isHighlight && !isActive ? 'highlight-nav' : ''}`}
                   aria-label={item.label}
                 >
                   <Icon size={20} color={isActive ? 'var(--sidebar-active-text)' : 'var(--sidebar-text-muted)'} />
@@ -282,59 +280,94 @@ export default function Sidebar({
         </div>
       </aside>
 
-      {/* Mobile Bottom Navigation with Raised Center Scan / Pay QR Button */}
+      {/* Mobile Bottom Navigation with CIMB OCTO-Style Raised Center Scan QR Button */}
       <nav className="mobile-bottom-nav" aria-label="Mobile Primary Navigation">
         <button
           type="button"
           className={`mobile-bottom-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
         >
-          <LayoutDashboard size={19} />
+          <span className="mobile-nav-indicator" />
+          <LayoutDashboard size={20} />
           <span>Home</span>
         </button>
-
-        <button
-          type="button"
-          className={`mobile-bottom-nav-item ${activeTab === 'community' ? 'active' : ''}`}
-          onClick={() => setActiveTab('community')}
-        >
-          <UtensilsCrossed size={19} />
-          <span>{SPOT_FEED_NAME}</span>
-        </button>
-
-        {DEMO_WALLET && (
-          <div className="mobile-bottom-qr-slot">
-            <button
-              type="button"
-              data-tour="mobile-scan-pay-btn"
-              className="mobile-bottom-qr-btn"
-              onClick={() => openScanPaySheet('scan')}
-              aria-label="Scan / Pay"
-            >
-              <span className="mobile-bottom-qr-circle">
-                <QrCode size={24} />
-              </span>
-              <span className="mobile-bottom-qr-label">Scan / Pay</span>
-            </button>
-          </div>
-        )}
 
         <button
           type="button"
           className={`mobile-bottom-nav-item ${activeTab === 'accounts' ? 'active' : ''}`}
           onClick={() => setActiveTab('accounts')}
         >
-          <Landmark size={19} />
+          <span className="mobile-nav-indicator" />
+          <Landmark size={20} />
           <span>Accounts</span>
+        </button>
+
+        <div className="mobile-bottom-qr-slot">
+          {/* Subtle curved arch cutout ring around the button */}
+          <div className="mobile-bottom-qr-cutout" />
+          <button
+            type="button"
+            data-tour="mobile-scan-pay-btn"
+            className={`mobile-bottom-qr-btn ${activeTab === 'pay' ? 'active' : ''}`}
+            onClick={() => {
+              if (!hasVisitedPay) {
+                try {
+                  localStorage.setItem('kirokash_visited_pay_tab', 'true');
+                } catch {}
+                setHasVisitedPay(true);
+              }
+              // Center button opens camera scanner immediately (fastest path!)
+              setActiveTab('pay', 'scan');
+            }}
+            aria-label={t('scanQrBtnLabel') || 'Scan QR'}
+          >
+            <span className="mobile-bottom-qr-circle">
+              {/* Authentic Scanner QR icon with framing corners */}
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 8V5a1 1 0 0 1 1-1h3" />
+                <path d="M16 4h3a1 1 0 0 1 1 1v3" />
+                <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+                <path d="M8 20H5a1 1 0 0 1-1-1v-3" />
+                <rect x="7" y="7" width="3" height="3" fill="currentColor" stroke="none" rx="0.5" />
+                <rect x="14" y="7" width="3" height="3" fill="currentColor" stroke="none" rx="0.5" />
+                <rect x="7" y="14" width="3" height="3" fill="currentColor" stroke="none" rx="0.5" />
+                <path d="M14 14h1v1h-1z" fill="currentColor" />
+                <path d="M16 16h1v1h-1z" fill="currentColor" />
+                <path d="M14 17h3" strokeWidth="1.8" />
+              </svg>
+            </span>
+            <span className="mobile-bottom-qr-label">{t('scanQrBtnLabel') || 'Scan QR'}</span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className={`mobile-bottom-nav-item ${activeTab === 'community' ? 'active' : ''}`}
+          onClick={() => setActiveTab('community')}
+        >
+          <span className="mobile-nav-indicator" />
+          <UtensilsCrossed size={20} />
+          <span>{SPOT_FEED_NAME}</span>
         </button>
 
         <button
           type="button"
           className={`mobile-bottom-nav-item ${isMobileOpen ? 'active' : ''}`}
           onClick={() => setIsMobileOpen(true)}
+          aria-label="Open More Menu"
         >
-          <Menu size={19} />
-          <span>Menu</span>
+          <span className="mobile-nav-indicator" />
+          <LayoutGrid size={20} />
+          <span>More</span>
         </button>
       </nav>
 
@@ -445,71 +478,20 @@ export default function Sidebar({
           display: block;
         }
 
-        .sidebar-scan-pay-btn {
-          width: 100%;
-          min-height: 54px;
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.65rem 0.9rem;
-          margin-bottom: 0.7rem;
-          border-radius: var(--radius-md);
-          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-          color: var(--text-on-primary, #FFFFFF);
-          border: 2px solid rgba(255, 255, 255, 0.28);
-          box-shadow: 0 8px 22px rgba(var(--shadow-rgb), 0.35);
-          cursor: pointer;
-          text-align: left;
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        .sidebar-scan-pay-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 26px rgba(var(--shadow-rgb), 0.45);
-        }
-
-        .sidebar-scan-pay-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: rgba(255, 255, 255, 0.2);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .sidebar-scan-pay-text {
-          display: flex;
-          flex-direction: column;
-          line-height: 1.2;
-          min-width: 0;
-        }
-
-        .sidebar-scan-pay-text strong {
-          font-size: 0.96rem;
-          font-weight: 800;
-          letter-spacing: 0.01em;
-        }
-
-        .sidebar-scan-pay-text small {
-          font-size: 0.68rem;
-          opacity: 0.9;
-          font-weight: 600;
-        }
-
         .sidebar-add-btn {
           width: 100%;
           min-height: 44px;
-          background: rgba(var(--sidebar-overlay-rgb), 0.12);
-          border: 1px solid rgba(var(--sidebar-overlay-rgb), 0.22);
-          color: var(--sidebar-text);
-          margin-bottom: 1.25rem;
+          background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+          color: var(--text-on-primary, #FFFFFF);
+          margin-bottom: 1.5rem;
+          box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.25);
           font-weight: 600;
         }
 
-        .sidebar-add-btn:hover {
-          background: rgba(var(--sidebar-overlay-rgb), 0.2);
+        .sidebar-nav-item.highlight-nav {
+          border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+          background: color-mix(in srgb, var(--primary) 8%, transparent);
+          color: var(--text-main);
         }
 
         .mobile-bottom-nav {
@@ -664,7 +646,7 @@ export default function Sidebar({
 
           .mobile-bottom-nav {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: 1fr 1fr 1.25fr 1fr 1fr;
             align-items: center;
             position: fixed;
             bottom: 0;
@@ -674,7 +656,7 @@ export default function Sidebar({
             padding-bottom: env(safe-area-inset-bottom, 0px);
             background: var(--bg-sidebar);
             border-top: 1px solid rgba(var(--sidebar-overlay-rgb), 0.16);
-            box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.4);
             z-index: 950;
           }
 
@@ -683,8 +665,9 @@ export default function Sidebar({
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0.2rem;
+            gap: 0.25rem;
             height: 100%;
+            min-height: 44px;
             background: transparent;
             border: none;
             color: var(--sidebar-text-muted);
@@ -692,11 +675,29 @@ export default function Sidebar({
             font-weight: 600;
             cursor: pointer;
             padding: 0.25rem;
+            position: relative;
+            transition: color 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
           }
 
           .mobile-bottom-nav-item.active {
             color: var(--primary);
             font-weight: 700;
+          }
+
+          .mobile-nav-indicator {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 20%;
+            right: 20%;
+            height: 3px;
+            border-radius: 0 0 4px 4px;
+            background: var(--primary);
+          }
+
+          .mobile-bottom-nav-item.active .mobile-nav-indicator {
+            display: block;
           }
 
           .mobile-bottom-qr-slot {
@@ -707,9 +708,23 @@ export default function Sidebar({
             height: 100%;
           }
 
+          /* CIMB OCTO-style curved cutout ring around the raised circular button */
+          .mobile-bottom-qr-cutout {
+            position: absolute;
+            top: -26px;
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            background: var(--bg-sidebar);
+            border: 4px solid var(--bg-app);
+            box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+            z-index: 951;
+          }
+
           .mobile-bottom-qr-btn {
             position: absolute;
-            top: -22px;
+            top: -28px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -718,11 +733,15 @@ export default function Sidebar({
             border: none;
             cursor: pointer;
             padding: 0;
+            z-index: 952;
+            -webkit-tap-highlight-color: transparent;
           }
 
           .mobile-bottom-qr-circle {
-            width: 54px;
-            height: 54px;
+            width: 64px;
+            height: 64px;
+            min-width: 64px;
+            min-height: 64px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
             color: var(--text-on-primary, #FFFFFF);
@@ -730,7 +749,13 @@ export default function Sidebar({
             align-items: center;
             justify-content: center;
             border: 3px solid var(--bg-sidebar);
-            box-shadow: 0 8px 22px rgba(var(--shadow-rgb), 0.45);
+            box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.45);
+            transition: transform 0.16s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.16s ease;
+          }
+
+          .mobile-bottom-qr-btn:active .mobile-bottom-qr-circle {
+            transform: scale(0.92);
+            box-shadow: 0 4px 12px rgba(var(--shadow-rgb), 0.3);
           }
 
           .mobile-bottom-qr-label {
@@ -738,6 +763,7 @@ export default function Sidebar({
             font-weight: 800;
             color: var(--sidebar-text);
             white-space: nowrap;
+            letter-spacing: 0.01em;
           }
         }
       `}</style>
