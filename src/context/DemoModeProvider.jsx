@@ -6,7 +6,12 @@ import {
   calculateTotalExpenses,
   calculateCategorySpending
 } from '../services/transactionService';
-import { calculateTotalAccountBalance } from '../services/accountService';
+import {
+  calculateTotalAccountBalance,
+  ensureKampusKashAccount,
+  KAMPUSKASH_ACCOUNT_ID,
+  KAMPUSKASH_ACCOUNT_TYPE
+} from '../services/accountService';
 import { buildThreadPayload, buildReplyPayload } from '../services/communityService';
 
 /**
@@ -67,7 +72,10 @@ export function DemoModeProvider({ children, isTourActive, onExitTour }) {
   // ==================== In-Memory Demo Calculations ====================
   const demoTransactions = useMemo(() => demoData?.transactions || [], [demoData?.transactions]);
   const demoCategories = useMemo(() => demoData?.categories || [], [demoData?.categories]);
-  const demoAccounts = useMemo(() => demoData?.accounts || [], [demoData?.accounts]);
+  const demoAccounts = useMemo(
+    () => ensureKampusKashAccount(demoData?.accounts || []),
+    [demoData?.accounts]
+  );
   const demoBudgets = useMemo(() => demoData?.budgets || [], [demoData?.budgets]);
   const demoSavingsGoals = useMemo(() => demoData?.savingsGoals || [], [demoData?.savingsGoals]);
   const demoThreads = useMemo(() => demoData?.threads || [], [demoData?.threads]);
