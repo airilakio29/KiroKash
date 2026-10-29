@@ -32,6 +32,7 @@ import SettingsView from './views/SettingsView';
 import ExploreView from './views/ExploreView';
 import CommunityView from './views/CommunityView';
 import AIChatView from './views/AIChatView';
+import PayView from './views/PayView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
 import FloatingNavButton from './components/FloatingNavButton';
 
@@ -48,11 +49,13 @@ import OnboardingWizard from './components/OnboardingWizard';
 import { DemoModeProvider } from './context/DemoModeProvider';
 import TutorialDemoBanner from './components/TutorialDemoBanner';
 
-function getInitialTabFromUrl() {
+function getInitialRouteInfo() {
   try {
     const pathname = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
-    if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) return 'ai-chat';
+    if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) {
+      return { tab: 'ai-chat', subroute: null };
+    }
     if (
       pathname.includes('/community') ||
       pathname.includes('/spot-jimat') ||
@@ -61,22 +64,41 @@ function getInitialTabFromUrl() {
       hash === '#community' ||
       hash === '#spot-jimat'
     ) {
-      return 'community';
+      return { tab: 'community', subroute: null };
     }
-    if (pathname.includes('/explore') || hash === '#explore') return 'explore';
-    if (pathname.includes('/transactions') || hash === '#transactions') return 'transactions';
-    if (pathname.includes('/budgets') || hash === '#budgets') return 'budgets';
-    if (pathname.includes('/savings') || hash === '#savings') return 'savings';
-    if (pathname.includes('/accounts') || hash === '#accounts' || pathname.includes('/wallet') || hash === '#wallet') return 'accounts';
-    if (pathname.includes('/reports') || hash === '#reports') return 'reports';
-    if (pathname.includes('/settings') || hash === '#settings') return 'settings';
+    if (
+      pathname.includes('/pay') ||
+      hash.startsWith('#pay') ||
+      hash.startsWith('#/pay')
+    ) {
+      let subroute = null;
+      if (pathname.includes('/pay/scan') || hash.includes('scan')) subroute = 'scan';
+      else if (pathname.includes('/pay/my-qr') || pathname.includes('/pay/myqr') || hash.includes('my-qr') || hash.includes('myqr')) subroute = 'my-qr';
+      else if (pathname.includes('/pay/transfer') || hash.includes('transfer')) subroute = 'transfer';
+      else if (pathname.includes('/pay/request') || hash.includes('request')) subroute = 'request';
+      else if (pathname.includes('/pay/history') || hash.includes('history')) subroute = 'history';
+      return { tab: 'pay', subroute };
+    }
+    if (pathname.includes('/explore') || hash === '#explore') return { tab: 'explore', subroute: null };
+    if (pathname.includes('/transactions') || hash === '#transactions') return { tab: 'transactions', subroute: null };
+    if (pathname.includes('/budgets') || hash === '#budgets') return { tab: 'budgets', subroute: null };
+    if (pathname.includes('/savings') || hash === '#savings') return { tab: 'savings', subroute: null };
+    if (pathname.includes('/accounts') || hash === '#accounts' || pathname.includes('/wallet') || hash === '#wallet') return { tab: 'accounts', subroute: null };
+    if (pathname.includes('/reports') || hash === '#reports') return { tab: 'reports', subroute: null };
+    if (pathname.includes('/settings') || hash === '#settings') return { tab: 'settings', subroute: null };
   } catch {}
-  return 'dashboard';
+  return { tab: 'dashboard', subroute: null };
+}
+
+function getInitialTabFromUrl() {
+  return getInitialRouteInfo().tab;
 }
 
 function AppLayout({
   activeTab,
   setActiveTab,
+  paySubroute,
+  onTabChange,
   isMobileOpen,
   setIsMobileOpen,
   isProfileModalOpen,
@@ -97,18 +119,21 @@ function AppLayout({
   const { activeReceiptModal, setActiveReceiptModal } = useSocialWallet();
 
   // Block route navigation during Step A profile setup
-  const handleTabChange = (newTab) => {
+  const handleTabChange = onTabChange || ((newTab, sub = null) => {
     if (isOnboardingActive && onboardingStep === 'profile') {
       return; // Route blocked until profile setup is complete
     }
     setActiveTab(newTab);
     try {
       const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
-      const urlSlug = newTab === 'community' ? 'spot-jimat' : newTab;
+      let urlSlug = newTab === 'community' ? 'spot-jimat' : newTab;
+      if (newTab === 'pay') {
+        urlSlug = sub ? `pay/${sub}` : 'pay';
+      }
       const targetUrl = newTab === 'dashboard' ? (basePath || '/') : `${basePath}/${urlSlug}`;
-      window.history.pushState({ tab: newTab }, document.title, targetUrl);
+      window.history.pushState({ tab: newTab, subroute: sub }, document.title, targetUrl);
     } catch {}
-  };
+  });
 
   // Scroll main area to top when active tab changes
   useEffect(() => {
@@ -238,6 +263,15 @@ function AppLayout({
           <AccountsView
             onOpenAddAccount={handleOpenAddAccount}
             onEditAccount={handleEditAccount}
+            onNavigateTab={handleTabChange}
+          />
+        );
+      case 'pay':
+        return (
+          <PayView
+            subroute={paySubroute}
+            onNavigateSubroute={(sub) => handleTabChange('pay', sub)}
+            onNavigateTab={handleTabChange}
           />
         );
       case 'community':
@@ -288,6 +322,14 @@ function AppLayout({
       case 'budgets': return 'Category Budgets';
       case 'savings': return 'Student Savings Goals';
       case 'accounts': return 'My Accounts';
+      case 'pay': {
+        if (paySubroute === 'scan') return 'Scan QR — Pay & Transfer';
+        if (paySubroute === 'my-qr') return 'My QR Code — Receive Money';
+        if (paySubroute === 'transfer') return 'Transfer Money — Instant Demo Transfer';
+        if (paySubroute === 'request') return 'Request Money & Split Bill';
+        if (paySubroute === 'history') return 'Transaction History — KampusKash Demo';
+        return 'Pay — QR & Instant Transfer';
+      }
       case 'community': return `${SPOT_FEED_NAME} (Student Spots)`;
       case 'explore': return 'Explore Ipoh';
       case 'reports': return 'Reports & Analytics';
@@ -457,6 +499,7 @@ function AppContent() {
     loadError
   } = useFinance();
   const [activeTab, setActiveTab] = useState(getInitialTabFromUrl);
+  const [paySubroute, setPaySubroute] = useState(() => getInitialRouteInfo().subroute);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isReplayingTutorial, setIsReplayingTutorial] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -475,8 +518,9 @@ function AppContent() {
   // Synchronize on browser history popstate / back-forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      const currentTab = getInitialTabFromUrl();
-      setActiveTab(currentTab);
+      const { tab, subroute } = getInitialRouteInfo();
+      setActiveTab(tab);
+      setPaySubroute(subroute);
     };
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', handlePopState);
@@ -493,6 +537,23 @@ function AppContent() {
   const isOnboardingActive = !onboardingCompleted && !isDemo;
   const isTourActive = (isOnboardingActive && onboardingStep === 'tutorial') || isReplayingTutorial;
   const isDemoDataActive = isDemo || isTourActive;
+
+  const handleTabChange = (newTab, sub = null) => {
+    if (isOnboardingActive && onboardingStep === 'profile') {
+      return; // Route blocked until profile setup is complete
+    }
+    setActiveTab(newTab);
+    setPaySubroute(sub || null);
+    try {
+      const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+      let urlSlug = newTab === 'community' ? 'spot-jimat' : newTab;
+      if (newTab === 'pay') {
+        urlSlug = sub ? `pay/${sub}` : 'pay';
+      }
+      const targetUrl = newTab === 'dashboard' ? (basePath || '/') : `${basePath}/${urlSlug}`;
+      window.history.pushState({ tab: newTab, subroute: sub }, document.title, targetUrl);
+    } catch {}
+  };
 
   const handleCompleteWelcomeIntro = () => {
     try {
@@ -529,10 +590,12 @@ function AppContent() {
 
   return (
     <DemoModeProvider isTourActive={isDemoDataActive} onExitTour={handleExitTour}>
-      <SocialWalletProvider onNavigateTab={setActiveTab}>
+      <SocialWalletProvider onNavigateTab={handleTabChange}>
         <AppLayout
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleTabChange}
+          paySubroute={paySubroute}
+          onTabChange={handleTabChange}
           isMobileOpen={isMobileOpen}
           setIsMobileOpen={setIsMobileOpen}
           isProfileModalOpen={isProfileModalOpen}
@@ -731,6 +794,14 @@ function AppAuthenticator() {
       setLoaderDone(false);
       setIsDataReady(false);
       setShowAuthForm(false);
+      try {
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname.toLowerCase();
+          if (path.includes('/pay') || path.includes('/community') || path.includes('/spot-jimat')) {
+            sessionStorage.setItem('kirokash_redirect_after_auth', window.location.pathname + window.location.search + window.location.hash);
+          }
+        }
+      } catch {}
     }
   }, [isAuthenticated]);
 
@@ -838,8 +909,18 @@ function AppAuthenticator() {
           onComplete={() => {
             setLoaderDone(true);
             try {
-              const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
-              window.history.replaceState({ appReady: true }, document.title, basePath || '/');
+              const redirect = sessionStorage.getItem('kirokash_redirect_after_auth');
+              if (redirect) {
+                sessionStorage.removeItem('kirokash_redirect_after_auth');
+                window.history.replaceState({ appReady: true }, document.title, redirect);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              } else {
+                const basePath = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+                const currentPath = window.location.pathname.toLowerCase();
+                if (currentPath.includes('/login') || currentPath.includes('/signup') || currentPath === basePath || currentPath === `${basePath}/`) {
+                  window.history.replaceState({ appReady: true }, document.title, basePath || '/');
+                }
+              }
             } catch {}
           }}
         />

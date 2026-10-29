@@ -462,7 +462,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         return res;
     }, [user, publicProfile, updateAccount, recordWalletTransferInTracker, refreshSocialAndWalletState, reloadFinanceFromStorage]);
 
-    // Friend moment shortcuts (from PublicProfileModal or anywhere -> opens ScanPaySheet on Transfer tab!)
+    // Friend moment shortcuts (from PublicProfileModal or anywhere -> opens dedicated Pay section!)
     const startSendMoneyToUser = useCallback((targetProfile, { mode = 'send' } = {}) => {
         setSelectedPublicProfileId(null);
         setPrefilledWalletAction({
@@ -470,9 +470,13 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             recipient: targetProfile,
             timestamp: Date.now()
         });
-        setScanPayInitialTab('transfer');
-        setIsScanPayOpen(true);
-    }, []);
+        if (typeof onNavigateTab === 'function') {
+            onNavigateTab('pay', mode === 'request' || mode === 'split' ? 'request' : 'transfer');
+        } else {
+            setScanPayInitialTab('transfer');
+            setIsScanPayOpen(true);
+        }
+    }, [onNavigateTab]);
 
     const openWalletReceiptById = useCallback((receiptId) => {
         const receipt = getWalletReceipt(receiptId);

@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import {
     SPOT_FEED_NAME,
+    PAY_SECTION_NAME,
+    PAY_ROUTES,
     DEMO_WALLET,
     DEMO_WALLET_BADGE_TEXT,
     INITIAL_DEMO_WALLET_BALANCE,
@@ -476,4 +478,53 @@ test('PART 5: Safety checks, sanitization, and Firestore Security Rules tamperin
     assert.ok(rulesContent.includes('request.resource.data.senderId != request.resource.data.receiverId'));
     assert.ok(rulesContent.includes('request.resource.data.amount <= 200'));
     assert.ok(rulesContent.includes('allow update, delete: if false;'));
+});
+
+test('PART 6: Dedicated Pay Section, CIMB OCTO Mobile Bottom Nav & Accounts Shortcuts', () => {
+    // 1. Pay section constants and deep linkable routes
+    assert.equal(PAY_SECTION_NAME, 'Pay');
+    assert.ok(Array.isArray(PAY_ROUTES));
+    assert.ok(PAY_ROUTES.includes('/pay'));
+    assert.ok(PAY_ROUTES.includes('/pay/scan'));
+    assert.ok(PAY_ROUTES.includes('/pay/my-qr'));
+    assert.ok(PAY_ROUTES.includes('/pay/transfer'));
+    assert.ok(PAY_ROUTES.includes('/pay/request'));
+    assert.ok(PAY_ROUTES.includes('/pay/history'));
+
+    // 2. AccountsView: "Scan / Pay" button removed from header, KampusKash card has "Send" and "Receive" shortcuts
+    const accountsViewPath = path.resolve('src/views/AccountsView.jsx');
+    const accountsContent = fs.readFileSync(accountsViewPath, 'utf8');
+    assert.ok(!accountsContent.includes('openScanPaySheet'));
+    assert.ok(!accountsContent.includes('Scan / Pay'));
+    assert.ok(accountsContent.includes("onNavigateTab('pay', 'transfer')"));
+    assert.ok(accountsContent.includes("onNavigateTab('pay', 'my-qr')"));
+    assert.ok(accountsContent.includes('isKampusKash'));
+    assert.ok(accountsContent.includes('kampuskash-demo-badge'));
+
+    // 3. Sidebar: Desktop sidebar nav has 'pay' with 'New' tag, and Mobile bottom bar matches CIMB OCTO structure
+    const sidebarPath = path.resolve('src/components/Sidebar.jsx');
+    const sidebarContent = fs.readFileSync(sidebarPath, 'utf8');
+    assert.ok(sidebarContent.includes("id: 'pay'"));
+    assert.ok(sidebarContent.includes('kirokash_visited_pay_tab'));
+    assert.ok(sidebarContent.includes('mobile-bottom-qr-cutout'));
+    assert.ok(sidebarContent.includes('mobile-bottom-qr-btn'));
+    assert.ok(sidebarContent.includes('mobile-bottom-qr-circle'));
+    assert.ok(sidebarContent.includes("setActiveTab('pay', 'scan')"));
+    assert.ok(!sidebarContent.includes('sidebar-scan-pay-btn'));
+
+    // 4. PayView component: exists and implements all required flows and subroutes
+    const payViewPath = path.resolve('src/views/PayView.jsx');
+    assert.ok(fs.existsSync(payViewPath));
+    const payContent = fs.readFileSync(payViewPath, 'utf8');
+    assert.ok(payContent.includes("activeSubroute === 'scan'"));
+    assert.ok(payContent.includes("activeSubroute === 'my-qr'"));
+    assert.ok(payContent.includes("activeSubroute === 'transfer'"));
+    assert.ok(payContent.includes("activeSubroute === 'request'"));
+    assert.ok(payContent.includes("activeSubroute === 'history'"));
+    assert.ok(payContent.includes('kirokash_pay_favourites'));
+    assert.ok(payContent.includes('buildQrMatrix'));
+    assert.ok(payContent.includes('brightnessBoost'));
+    assert.ok(payContent.includes('DEMO_WALLET_BADGE_TEXT'));
+    assert.ok(payContent.includes('setupPin'));
+    assert.ok(payContent.includes('performTransfer'));
 });
