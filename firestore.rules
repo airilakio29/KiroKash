@@ -3,84 +3,236 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: verify user is authenticated and is the owner of this data scope
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    // Helper: verify user is authenticated
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Each student owns their document at users/{userId} and any subcollections
-    // A user can ONLY read and write their own data; never another student's data.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // 1. Private User Finance Document (Strictly Owner-Only)
+    // =========================================================================
     match /users/{userId} {
       allow read, write: if isOwner(userId);
-
-      // Support subcollections if used now or in future migrations
-      match /{allPaths=**} {
-        allow read, write: if isOwner(userId);
-      }
     }
 
-    // Community Makan Murah Threads:
-    // Shared public collection for students sharing budget-friendly spots
-    match /communityThreads/{threadId} {
-      // Readable by all signed-in students unless marked hidden by moderation
-      allow read: if isAuthenticated() && (resource == null || resource.data.status != 'hidden');
+    // =========================================================================
+    // 2. Public Social Profiles (No Financial Data Allowed)
+    // =========================================================================
+    match /publicProfiles/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId)
+        && request.resource.data.id == userId
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 50
+        && request.resource.data.handle is string
+        && request.resource.data.handle.size() >= 3
+        && request.resource.data.handle.size() <= 24
+        && !request.resource.data.keys().hasAny([
+          'balance',
+          'walletBalance',
+          'budgets',
+          'transactions',
+          'walletHistory',
+          'ledger',
+          'accounts',
+          'savingsGoals',
+          'pin',
+          'pinHash'
+        ]);
+      allow delete: if isOwner(userId);
+    }
 
-      // Creation: must be authenticated, authorId must match auth.uid, basic validation
-      allow create: if isAuthenticated()
+    // =========================================================================
+    // 3. Spot Jimat Feed (Migrated from communityThreads + spots)
+    // =========================================================================
+    match /communityThreads/{threadId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() >= 4
         && request.resource.data.title.size() <= 120
         && request.resource.data.body is string
-        && request.resource.data.body.size() <= 1200
-        && request.resource.data.pricePerMeal is number
-        && request.resource.data.pricePerMeal >= 0
-        && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
-        && request.resource.data.status in ['active', 'hidden'];
+        && request.resource.data.body.size() >= 8
+        && request.resource.data.body.size() <= 1000
+        && request.resource.data.priceRM is number
+        && request.resource.data.priceRM >= 0
+        && request.resource.data.priceRM <= 500;
 
-      // Update: author can update content, or atomic counter updates for upvotes/replies/reports
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.authorId
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvoteCount', 'replyCount', 'reportCount', 'status'])
+      // Owner can edit full post; other signed-in users can only update upvotes/replyCount/updatedAt
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'replyCount', 'updatedAt'])
       );
 
-      // Delete: author only
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
 
-      // Nested replies
+      // Comments / Replies Subcollection
       match /replies/{replyId} {
-        allow read: if isAuthenticated() && (resource == null || resource.data.status != 'hidden');
-        allow create: if isAuthenticated()
+        allow read: if true;
+        allow create: if isSignedIn()
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.body is string
-          && request.resource.data.body.size() > 0
-          && request.resource.data.body.size() <= 800;
-        allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.authorId;
+          && request.resource.data.body.size() >= 2
+          && request.resource.data.body.size() <= 400;
+        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       }
 
-      // 1 vote per user (doc id is uid)
-      match /votes/{userId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Likes / Votes Subcollection (1 vote per user)
+      match /votes/{voteUserId} {
+        allow read: if true;
+        allow create, update, delete: if isOwner(voteUserId);
       }
     }
 
-    // Community Reports: Create-only for reporting inappropriate content
+    // =========================================================================
+    // 4. Saved Spot Bookmarks (Strictly Private to Owner)
+    // =========================================================================
+    match /spotSaves/{saveId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // =========================================================================
+    // 5. Social Follows
+    // =========================================================================
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.followerId == request.auth.uid
+        && request.resource.data.followerId != request.resource.data.followingId;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // =========================================================================
+    // 6. User Blocks
+    // =========================================================================
+    match /blocks/{blockId} {
+      allow read: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.blockerId == request.auth.uid
+        && request.resource.data.blockerId != request.resource.data.blockedId;
+      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // =========================================================================
+    // 7. Notifications
+    // =========================================================================
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.recipientId != request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.recipientId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 8. Community & User Moderation Reports (Append-Only)
+    // =========================================================================
     match /communityReports/{reportId} {
-      allow create: if isAuthenticated()
-        && request.resource.data.reporterId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 3
+        && request.resource.data.reason.size() <= 200;
       allow read, update, delete: if false;
     }
 
-    // Explicitly deny access to all other paths
-    match /{document=**} {
-      allow read, write: if false;
+    // =========================================================================
+    // 9. Demo KampusKash Wallets (Private Owner Read, Bounded Atomic Updates)
+    // =========================================================================
+    match /wallets/{userId} {
+      allow read: if isOwner(userId);
+
+      // Initial wallet creation starts with RM100.00 demo credit and non-negative balance
+      allow create: if isOwner(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.balance == 100
+        && request.resource.data.isDemoWallet == true;
+
+      // Prevent negative balances or arbitrary balance tampering outside transfer/topup limits
+      allow update: if isSignedIn()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.balance is number
+        && request.resource.data.balance >= 0
+        && (
+          // Owner updating PIN/settings or debiting/topping up within daily limit (RM500)
+          (isOwner(userId) && (request.resource.data.balance - resource.data.balance) <= 500 && (resource.data.balance - request.resource.data.balance) <= 200) ||
+          // Atomic peer transfer crediting receiver up to RM200 max per transfer
+          (!isOwner(userId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'updatedAt'])
+            && (request.resource.data.balance > resource.data.balance)
+            && (request.resource.data.balance - resource.data.balance) <= 200)
+        );
+
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // 10. Demo Wallet Append-Only Ledger (Immutable, No Self-Transfer, Max RM200)
+    // =========================================================================
+    match /walletLedger/{ledgerId} {
+      allow read: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.isDemoWallet == true
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.idempotencyKey is string
+        && request.resource.data.idempotencyKey.size() >= 4
+        && (
+          // Peer-to-peer transfer: caller must be sender, cannot send to self, max RM200
+          (request.resource.data.type == 'transfer'
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderId != request.resource.data.receiverId
+            && request.resource.data.amount <= 200) ||
+          // Simulated top-up: caller must be receiver, max RM500
+          (request.resource.data.type == 'topup'
+            && request.resource.data.receiverId == request.auth.uid
+            && request.resource.data.amount <= 500)
+        );
+
+      // Ledger is strictly append-only
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // 11. Demo Wallet Money Requests & 50/50 Bill Splits
+    // =========================================================================
+    match /walletRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.payerId == request.auth.uid
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterId != request.resource.data.payerId
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 200
+        && request.resource.data.status == 'pending';
+
+      allow update: if isSignedIn()
+        && resource.data.payerId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['accepted', 'declined'];
+
+      allow delete: if false;
     }
   }
 }
