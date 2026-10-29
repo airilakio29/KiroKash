@@ -52,7 +52,9 @@ import {
 import {
     ensureUserWallet,
     setWalletPin,
+    hashDemoPin,
     topUpWallet,
+    addMoneyFromOwnAccount,
     transferMoney,
     requestMoney,
     respondToMoneyRequest,
@@ -63,6 +65,12 @@ import {
     seedPitchWalletState,
     resetPitchWalletState
 } from '../src/services/walletService.js';
+
+import {
+    KAMPUSKASH_ACCOUNT_ID,
+    KAMPUSKASH_ACCOUNT_TYPE,
+    ensureKampusKashAccount
+} from '../src/services/accountService.js';
 
 import {
     PITCH_DEMO_USERS,
@@ -296,11 +304,17 @@ test('PART 3 & 5: End-to-end two-account Demo Wallet (Send, Request, Split, Acce
     assert.equal(txRes1.senderWallet.balance, 74.50);
     assert.equal(txRes1.receiverWallet.balance, 125.50);
     assert.equal(txRes1.receipt.amount, 25.50);
-    assert.equal(txRes1.trackerSync.senderExpenseTx.category, 'Wallet transfer');
+    assert.equal(txRes1.trackerSync.senderExpenseTx.category, 'Transfer');
     assert.equal(txRes1.trackerSync.senderExpenseTx.type, 'expense');
-    assert.equal(txRes1.trackerSync.receiverIncomeTx.category, 'Wallet transfer');
+    assert.equal(txRes1.trackerSync.receiverIncomeTx.category, 'Transfer');
     assert.equal(txRes1.trackerSync.receiverIncomeTx.type, 'income');
     assert.equal(txRes1.trackerSync.senderExpenseTx.walletReceiptId, txRes1.receipt.id);
+
+    // Verify PIN is stored hashed and never in plain text
+    const storedHash = hashDemoPin('1234');
+    assert.ok(storedHash.startsWith('kk_pin_h2_'));
+    assert.ok(!storedHash.includes('1234'));
+    assert.equal(getUserWallet(sender.id).pinHash, storedHash);
 
     // Double-tap with same idempotencyKey must NOT debit or credit a second time
     const txResDuplicate = await transferMoney({
@@ -396,12 +410,32 @@ test('PART 3 & 5: End-to-end two-account Demo Wallet (Send, Request, Split, Acce
         /Daily transfer limit of RM500\.00 exceeded/i
     );
 
-    // 9. Test QR Code & Paste Code
-    const qrCode = encodeWalletQrPayload(receiver);
+    // 9. Test QR Code & Paste Code (including optional pre-filled amount)
+    const qrCode = encodeWalletQrPayload(receiver, 18.5);
     assert.ok(qrCode.startsWith('KKPAY:wallet_bob:bob_utp:'));
     const parsedQr = parseWalletQrPayload(qrCode);
     assert.equal(parsedQr.valid, true);
     assert.equal(parsedQr.recipient.id, receiver.id);
+    assert.equal(parsedQr.amount, 18.5);
+
+    // 10. Test KampusKash account inside My Accounts + Add Money from own account
+    const ensuredAccs = ensureKampusKashAccount([
+        { accountId: 'acc-maybank', accountName: 'Maybank Student', accountType: 'bank', balance: 300 }
+    ], 100);
+    assert.equal(ensuredAccs[0].accountId, KAMPUSKASH_ACCOUNT_ID);
+    assert.equal(ensuredAccs[0].accountType, KAMPUSKASH_ACCOUNT_TYPE);
+    assert.equal(ensuredAccs[0].balance, 100);
+
+    const addMoneyRes = await addMoneyFromOwnAccount({
+        userId: receiver.id,
+        amount: 40,
+        sourceAccount: { accountId: 'acc-maybank', accountName: 'Maybank Student', balance: 300 }
+    });
+    assert.equal(addMoneyRes.newSourceBalance, 260);
+    assert.equal(addMoneyRes.wallet.balance, 550.50);
+
+    // Verify dedicated WalletView.jsx screen was removed
+    assert.equal(fs.existsSync(path.resolve('src/views/WalletView.jsx')), false);
 });
 
 test('PART 5: Safety checks, sanitization, and Firestore Security Rules tampering protection', () => {
