@@ -19,6 +19,11 @@ import {
     DEMO_TOPUP_SOURCES
 } from '../config/appConstants.js';
 import {
+    KAMPUSKASH_ACCOUNT_ID,
+    KAMPUSKASH_ACCOUNT_TYPE,
+    ensureKampusKashAccount
+} from './accountService.js';
+import {
     sanitizeText,
     normalizeHandle,
     checkProfanityAndSpam,
@@ -80,12 +85,28 @@ function roundCurrency(amount) {
     return Math.round((Number(amount) + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Deterministic salted one-way hash for the 4-digit demo PIN.
+ * Never stores the plain-text digits inside the hash string.
+ */
 export function hashDemoPin(pin) {
     const clean = String(pin || '').trim();
     if (!/^\d{4}$/.test(clean)) {
         throw new Error('PIN must be exactly 4 digits.');
     }
-    return `demo_pin_${clean}`;
+    const salted = `kk_pay_salt_v2:${clean}:kirokash_demo_pin`;
+    let h1 = 0xdeadbeef ^ salted.length;
+    let h2 = 0x41c6ce57 ^ salted.length;
+    for (let i = 0; i < salted.length; i++) {
+        const ch = salted.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+    const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+    return `kk_pin_h2_${hex1}${hex2}`;
 }
 
 function getTodayDateStr(isoString = new Date().toISOString()) {
@@ -105,8 +126,48 @@ export function getAllWalletRequests() {
 }
 
 /**
- * Ensures the user has a KampusKash Demo Wallet initialized with RM100.00 credit.
- * Totally separate from tutorial mock data and does not disturb the onboarding tutorial.
+ * Synchronizes the user's pre-loaded "KampusKash" account inside their My Accounts storage
+ * (`student_tracker_accounts_${userId}`) so one balance list drives My Accounts, Tracker, and Totals.
+ */
+export function syncKampusKashAccountInStorage(userId, newKampusKashBalance, otherAccountUpdate = null) {
+    if (!userId) return [];
+    const storageKey = `student_tracker_accounts_${userId}`;
+    let currentAccounts = [];
+    if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+            const raw = window.localStorage.getItem(storageKey);
+            if (raw) currentAccounts = JSON.parse(raw);
+        } catch {
+            currentAccounts = [];
+        }
+    }
+
+    let updated = ensureKampusKashAccount(currentAccounts, newKampusKashBalance);
+    if (otherAccountUpdate && otherAccountUpdate.accountId) {
+        updated = updated.map((acc) =>
+            acc.accountId === otherAccountUpdate.accountId
+                ? {
+                      ...acc,
+                      balance: roundCurrency(otherAccountUpdate.balance),
+                      updatedAt: new Date().toISOString()
+                  }
+                : acc
+        );
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+            window.localStorage.setItem(storageKey, JSON.stringify(updated));
+        } catch {
+            // ignore
+        }
+    }
+    return updated;
+}
+
+/**
+ * Ensures the user has a KampusKash Demo Account & Wallet initialized with RM100.00 credit
+ * (or migrates their existing wallet balance into their KampusKash account in My Accounts).
  */
 export function ensureUserWallet(user) {
     if (!DEMO_WALLET) return null;
@@ -117,18 +178,43 @@ export function ensureUserWallet(user) {
 
     if (!wallets[userId]) {
         const profile = getPublicProfile(userId);
-        const displayName = user.name || user.displayName || profile?.displayName || 'Student';
+        const displayName = user.name || user.displayName || user.username || profile?.displayName || 'Student';
         const handle = normalizeHandle(user.handle || profile?.handle || displayName);
         const now = new Date().toISOString();
 
+        // Check if user already has a KampusKash account in My Accounts storage to migrate from
+        let initialBal = roundCurrency(INITIAL_DEMO_WALLET_BALANCE);
+        if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+                const rawAcc = window.localStorage.getItem(`student_tracker_accounts_${userId}`);
+                if (rawAcc) {
+                    const parsedAcc = JSON.parse(rawAcc);
+                    const existingKK = Array.isArray(parsedAcc)
+                        ? parsedAcc.find(
+                              (a) =>
+                                  a.accountId === KAMPUSKASH_ACCOUNT_ID ||
+                                  a.accountType === KAMPUSKASH_ACCOUNT_TYPE
+                          )
+                        : null;
+                    if (existingKK && Number.isFinite(Number(existingKK.balance))) {
+                        initialBal = roundCurrency(existingKK.balance);
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        }
+
         const initialWallet = {
             userId,
+            accountId: KAMPUSKASH_ACCOUNT_ID,
+            accountType: KAMPUSKASH_ACCOUNT_TYPE,
             displayName,
             handle,
-            balance: roundCurrency(INITIAL_DEMO_WALLET_BALANCE),
+            balance: initialBal,
             currency: 'MYR',
             pinSet: Boolean(user.isPitchDemo),
-            pinHash: user.isPitchDemo ? 'demo_pin_1234' : null,
+            pinHash: user.isPitchDemo ? hashDemoPin('1234') : null,
             autoSyncTracker: true,
             isDemoWallet: true,
             isPitchDemo: Boolean(user.isPitchDemo),
@@ -139,10 +225,13 @@ export function ensureUserWallet(user) {
         wallets[userId] = initialWallet;
         writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, wallets);
 
+        // Ensure the pre-loaded KampusKash account is also stored in My Accounts
+        syncKampusKashAccountInStorage(userId, initialBal);
+
         // Append initial welcome credit to the append-only ledger if none exists for this user
         const ledger = getAllLedgerEntries();
         const hasInitialEntry = ledger.some(
-            (entry) => entry.receiverId === userId && entry.type === 'initial_credit'
+            (entry) => entry.receiverId === userId && entry.subType === 'initial_credit'
         );
         if (!hasInitialEntry) {
             const initialEntry = {
@@ -156,7 +245,7 @@ export function ensureUserWallet(user) {
                 receiverId: userId,
                 receiverName: displayName,
                 receiverHandle: handle,
-                amount: roundCurrency(INITIAL_DEMO_WALLET_BALANCE),
+                amount: initialBal,
                 note: 'Welcome Demo Credit (No real money)',
                 sourceName: 'KampusKash Demo Starter Credit',
                 status: 'completed',
@@ -172,6 +261,18 @@ export function ensureUserWallet(user) {
         if (db && !user.isDemo && !user.isPitchDemo) {
             setDoc(doc(db, 'wallets', userId), initialWallet, { merge: true }).catch(() => {});
         }
+    } else {
+        // Migrate legacy plain-prefix PIN hash if present
+        const w = wallets[userId];
+        if (w.pinHash && String(w.pinHash).startsWith('demo_pin_')) {
+            const legacyDigits = String(w.pinHash).replace('demo_pin_', '');
+            if (/^\d{4}$/.test(legacyDigits)) {
+                w.pinHash = hashDemoPin(legacyDigits);
+                wallets[userId] = w;
+                writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, wallets);
+            }
+        }
+        syncKampusKashAccountInStorage(userId, w.balance);
     }
 
     return { ...wallets[userId] };
@@ -201,6 +302,7 @@ export function subscribeToUserWallet(userId, onUpdate) {
                 const wallets = getAllWalletsMap();
                 wallets[userId] = liveWallet;
                 writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, wallets);
+                syncKampusKashAccountInStorage(userId, liveWallet.balance);
                 if (onUpdate) onUpdate(liveWallet);
             }
         },
@@ -265,10 +367,12 @@ export function setWalletPin(userId, newPin) {
 
 export function verifyWalletPin(userId, pin) {
     if (!userId) return false;
-    if (!/^\d{4}$/.test(String(pin || '').trim())) return false;
+    const clean = String(pin || '').trim();
+    if (!/^\d{4}$/.test(clean)) return false;
     const wallet = getUserWallet(userId);
     if (!wallet || !wallet.pinSet || !wallet.pinHash) return false;
-    return wallet.pinHash === `demo_pin_${String(pin).trim()}`;
+    const expectedHash = hashDemoPin(clean);
+    return wallet.pinHash === expectedHash || wallet.pinHash === `demo_pin_${clean}`;
 }
 
 export function setWalletTrackerAutoSync(userId, enabled) {
@@ -306,15 +410,156 @@ export function getDailyTransferredTotal(userId, dateStr = getTodayDateStr()) {
 }
 
 /**
- * Simulated Top Up flow: pick an amount, choose a demo bank or e-wallet source,
- * credit the demo wallet, and append an immutable ledger entry.
+ * Simulated "Add Money" action on the KampusKash card in My Accounts:
+ * Moves demo money from one of the user's other accounts into their KampusKash account
+ * (a demo transfer between their own accounts, updating both balances atomically).
+ */
+export async function addMoneyFromOwnAccount({
+    userId,
+    fromAccount: fromAccountProp,
+    sourceAccount,
+    amount,
+    idempotencyKey = null
+}) {
+    const fromAccount = fromAccountProp || sourceAccount;
+    if (!DEMO_WALLET) {
+        throw new Error('Demo wallet is disabled.');
+    }
+    if (!userId) {
+        throw new Error('Sign in required to add money.');
+    }
+    if (!fromAccount || !fromAccount.accountId) {
+        throw new Error('Please select a source account to move money from.');
+    }
+    if (fromAccount.accountId === KAMPUSKASH_ACCOUNT_ID || fromAccount.accountType === KAMPUSKASH_ACCOUNT_TYPE) {
+        throw new Error('Please choose one of your other accounts to move money into KampusKash.');
+    }
+
+    const numericAmount = roundCurrency(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        throw new Error('Amount must be greater than RM0.00.');
+    }
+    if (numericAmount > WALLET_DAILY_LIMIT) {
+        throw new Error(`Maximum single add-money transfer is RM${WALLET_DAILY_LIMIT.toFixed(2)}.`);
+    }
+
+    const sourceBalance = roundCurrency(fromAccount.balance ?? 0);
+    if (sourceBalance < numericAmount) {
+        throw new Error(
+            `Insufficient balance in ${fromAccount.accountName || 'selected account'} (Available: RM${sourceBalance.toFixed(2)}, Required: RM${numericAmount.toFixed(2)}).`
+        );
+    }
+
+    const idemKey =
+        idempotencyKey ||
+        `addmoney_${userId}_${fromAccount.accountId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const idempotencyMap = readWalletStore(WALLET_STORAGE_KEYS.IDEMPOTENCY, {});
+    if (idempotencyMap[idemKey]) {
+        const existingReceipt = getWalletReceipt(idempotencyMap[idemKey], userId);
+        if (existingReceipt) {
+            return {
+                wallet: getUserWallet(userId),
+                sourceAccountBalanceAfter: roundCurrency(sourceBalance),
+                kampusKashBalanceAfter: getUserWallet(userId)?.balance ?? 0,
+                receipt: existingReceipt,
+                deduplicated: true
+            };
+        }
+    }
+
+    const wallets = getAllWalletsMap();
+    const wallet = wallets[userId] || ensureUserWallet({ id: userId });
+    const now = new Date().toISOString();
+
+    const newKampusKashBalance = roundCurrency(wallet.balance + numericAmount);
+    const newSourceBalance = roundCurrency(sourceBalance - numericAmount);
+
+    wallet.balance = newKampusKashBalance;
+    wallet.updatedAt = now;
+    wallets[userId] = wallet;
+
+    const sourceLabel = `${fromAccount.accountName}${fromAccount.institution ? ` (${fromAccount.institution})` : ''}`;
+    const ledgerEntry = {
+        id: `tx_add_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        idempotencyKey: idemKey,
+        type: 'topup',
+        subType: 'own_account_transfer',
+        senderId: fromAccount.accountId,
+        senderName: sourceLabel,
+        senderHandle: fromAccount.accountType || 'account',
+        receiverId: userId,
+        receiverName: wallet.displayName,
+        receiverHandle: wallet.handle,
+        amount: numericAmount,
+        note: `Added money from ${sourceLabel}`,
+        sourceId: fromAccount.accountId,
+        sourceName: sourceLabel,
+        sourceBalanceAfter: newSourceBalance,
+        kampusKashBalanceAfter: newKampusKashBalance,
+        status: 'completed',
+        referenceCode: `KK-ADD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        isDemoWallet: true,
+        isPitchDemo: Boolean(wallet.isPitchDemo),
+        createdAt: now
+    };
+
+    const ledger = getAllLedgerEntries();
+    ledger.unshift(ledgerEntry);
+    idempotencyMap[idemKey] = ledgerEntry.id;
+
+    writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, wallets);
+    writeWalletStore(WALLET_STORAGE_KEYS.LEDGER, ledger);
+    writeWalletStore(WALLET_STORAGE_KEYS.IDEMPOTENCY, idempotencyMap);
+
+    const updatedAccounts = syncKampusKashAccountInStorage(userId, newKampusKashBalance, {
+        accountId: fromAccount.accountId,
+        balance: newSourceBalance
+    });
+
+    if (db && !wallet.isPitchDemo) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const walletRef = doc(db, 'wallets', userId);
+                const ledgerRef = doc(db, 'walletLedger', ledgerEntry.id);
+                transaction.set(walletRef, wallet, { merge: true });
+                transaction.set(ledgerRef, ledgerEntry);
+            });
+        } catch {
+            // local state already updated atomically
+        }
+    }
+
+    return {
+        wallet: { ...wallet },
+        updatedAccounts,
+        newSourceBalance,
+        sourceAccountBalanceAfter: newSourceBalance,
+        kampusKashBalanceAfter: newKampusKashBalance,
+        receipt: ledgerEntry,
+        deduplicated: false
+    };
+}
+
+/**
+ * Simulated Top Up flow: pick an amount, choose a demo bank or e-wallet source
+ * (or move from own account), credit the KampusKash account, and append an immutable ledger entry.
  */
 export async function topUpWallet({
     userId,
     amount,
     sourceId = 'fpx_maybank',
+    fromAccount = null,
     idempotencyKey = null
 }) {
+    if (fromAccount && fromAccount.accountId) {
+        return addMoneyFromOwnAccount({
+            userId,
+            fromAccount,
+            amount,
+            idempotencyKey
+        });
+    }
+
     if (!DEMO_WALLET) {
         throw new Error('Demo wallet is disabled.');
     }
@@ -380,6 +625,7 @@ export async function topUpWallet({
     writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, wallets);
     writeWalletStore(WALLET_STORAGE_KEYS.LEDGER, ledger);
     writeWalletStore(WALLET_STORAGE_KEYS.IDEMPOTENCY, idempotencyMap);
+    syncKampusKashAccountInStorage(userId, wallet.balance);
 
     if (db && !wallet.isPitchDemo) {
         try {
@@ -402,17 +648,18 @@ export async function topUpWallet({
 }
 
 /**
- * Atomic peer-to-peer transfer between two student wallets.
+ * Atomic peer-to-peer transfer or QR payment between two students.
+ * Supports paying from the default KampusKash account ('acc-kampuskash') OR any of the user's other accounts in My Accounts.
  * Enforces:
  * - No self-transfer
  * - Rate limit
- * - Valid 4-digit PIN
+ * - Valid 4-digit PIN (hashed)
  * - Max per transfer: RM200.00
  * - Daily limit: RM500.00
- * - Non-negative balance
+ * - Non-negative balance on the chosen source account
  * - Idempotency key deduplication
  * - Append-only ledger entry
- * - Optional Finance Tracker auto-sync payload
+ * - Optional Finance Tracker auto-sync payload under "Transfer" category
  */
 export async function transferMoney({
     sender,
@@ -420,6 +667,7 @@ export async function transferMoney({
     amount,
     note = '',
     pin = '',
+    sourceAccount = null,
     idempotencyKey = null,
     skipRateLimit = false
 }) {
@@ -512,10 +760,27 @@ export async function transferMoney({
         throw new Error(`Maximum per transfer is RM${WALLET_MAX_PER_TRANSFER.toFixed(2)}.`);
     }
 
-    // 8. Validate sufficient balance (block negative balances)
-    if (roundCurrency(senderWallet.balance) < numericAmount) {
+    // 8. Determine source account (defaults to KampusKash account, or user's chosen bank/e-wallet account)
+    const isCustomSourceAccount =
+        sourceAccount &&
+        sourceAccount.accountId &&
+        sourceAccount.accountId !== KAMPUSKASH_ACCOUNT_ID &&
+        sourceAccount.accountType !== KAMPUSKASH_ACCOUNT_TYPE;
+
+    const resolvedSourceAccountId = isCustomSourceAccount
+        ? sourceAccount.accountId
+        : KAMPUSKASH_ACCOUNT_ID;
+    const resolvedSourceAccountName = isCustomSourceAccount
+        ? sourceAccount.accountName || 'Linked Account'
+        : 'KampusKash';
+
+    const availableBalance = isCustomSourceAccount
+        ? roundCurrency(sourceAccount.balance ?? 0)
+        : roundCurrency(senderWallet.balance);
+
+    if (availableBalance < numericAmount) {
         throw new Error(
-            `Insufficient demo wallet balance (Available: RM${senderWallet.balance.toFixed(2)}, Required: RM${numericAmount.toFixed(2)}).`
+            `Insufficient demo wallet balance in ${resolvedSourceAccountName} (Available: RM${availableBalance.toFixed(2)}, Required: RM${numericAmount.toFixed(2)}).`
         );
     }
 
@@ -547,9 +812,13 @@ export async function transferMoney({
 
     const updatedSenderWallet = {
         ...senderWallet,
-        balance: roundCurrency(senderWallet.balance - numericAmount),
+        balance: isCustomSourceAccount
+            ? roundCurrency(senderWallet.balance)
+            : roundCurrency(senderWallet.balance - numericAmount),
         updatedAt: now
     };
+    const updatedSourceBalanceAfter = roundCurrency(availableBalance - numericAmount);
+
     const updatedReceiverWallet = {
         ...receiverWallet,
         balance: roundCurrency(receiverWallet.balance + numericAmount),
@@ -563,6 +832,8 @@ export async function transferMoney({
         senderId,
         senderName: senderProfile.displayName,
         senderHandle: senderProfile.handle,
+        sourceAccountId: resolvedSourceAccountId,
+        sourceAccountName: resolvedSourceAccountName,
         receiverId,
         receiverName: receiverProfile.displayName,
         receiverHandle: receiverProfile.handle,
@@ -570,7 +841,7 @@ export async function transferMoney({
         note: cleanNote,
         status: 'completed',
         referenceCode,
-        senderBalanceAfter: updatedSenderWallet.balance,
+        senderBalanceAfter: updatedSourceBalanceAfter,
         receiverBalanceAfter: updatedReceiverWallet.balance,
         isDemoWallet: true,
         isPitchDemo: Boolean(senderWallet.isPitchDemo || receiverWallet.isPitchDemo),
@@ -586,7 +857,7 @@ export async function transferMoney({
                 const ledgerRef = doc(db, 'walletLedger', receiptId);
 
                 const senderSnap = await transaction.get(senderRef);
-                if (senderSnap.exists()) {
+                if (!isCustomSourceAccount && senderSnap.exists()) {
                     const liveBalance = roundCurrency(senderSnap.data().balance ?? senderWallet.balance);
                     if (liveBalance < numericAmount) {
                         throw new Error('Insufficient balance in live wallet transaction.');
@@ -617,6 +888,16 @@ export async function transferMoney({
     writeWalletStore(WALLET_STORAGE_KEYS.LEDGER, allLedger);
     writeWalletStore(WALLET_STORAGE_KEYS.IDEMPOTENCY, idempotencyMap);
 
+    // Synchronize both sender and receiver accounts in My Accounts storage
+    syncKampusKashAccountInStorage(
+        senderId,
+        updatedSenderWallet.balance,
+        isCustomSourceAccount
+            ? { accountId: resolvedSourceAccountId, balance: updatedSourceBalanceAfter }
+            : null
+    );
+    syncKampusKashAccountInStorage(receiverId, updatedReceiverWallet.balance);
+
     // Notify receiver
     createNotification({
         recipientId: receiverId,
@@ -630,23 +911,25 @@ export async function transferMoney({
         isPitchDemo: ledgerEntry.isPitchDemo
     });
 
-    // Build tracker sync payloads (expense for sender, income for receiver under 'Wallet transfer')
+    // Build tracker sync payloads (expense for sender, income for receiver under 'Transfer' category)
     const dateOnly = now.split('T')[0];
     const trackerSync = {
         senderAutoSync: Boolean(updatedSenderWallet.autoSyncTracker),
         receiverAutoSync: Boolean(updatedReceiverWallet.autoSyncTracker),
+        sourceAccountId: resolvedSourceAccountId,
+        sourceAccountBalanceAfter: updatedSourceBalanceAfter,
         senderExpenseTx: {
             id: `trk_exp_${receiptId}`,
-            title: `Wallet transfer to @${receiverProfile.handle}`,
+            title: `Transfer to @${receiverProfile.handle}`,
             type: 'expense',
             amount: numericAmount,
             categoryId: 'cat-wallet-transfer',
-            category: 'Wallet transfer',
-            accountId: null,
+            category: 'Transfer',
+            accountId: resolvedSourceAccountId,
             source: 'wallet_transfer',
-            note: `Sent to @${receiverProfile.handle}: ${cleanNote}`,
+            note: `Sent to @${receiverProfile.handle} via ${resolvedSourceAccountName}: ${cleanNote}`,
             date: dateOnly,
-            paymentMethod: 'KampusKash Demo Wallet',
+            paymentMethod: resolvedSourceAccountName,
             walletReceiptId: receiptId,
             walletReferenceCode: referenceCode,
             isDemoWalletSync: true,
@@ -655,16 +938,16 @@ export async function transferMoney({
         },
         receiverIncomeTx: {
             id: `trk_inc_${receiptId}`,
-            title: `Wallet transfer from @${senderProfile.handle}`,
+            title: `Transfer from @${senderProfile.handle}`,
             type: 'income',
             amount: numericAmount,
             categoryId: 'cat-wallet-transfer',
-            category: 'Wallet transfer',
-            accountId: null,
+            category: 'Transfer',
+            accountId: KAMPUSKASH_ACCOUNT_ID,
             source: 'wallet_transfer',
             note: `Received from @${senderProfile.handle}: ${cleanNote}`,
             date: dateOnly,
-            paymentMethod: 'KampusKash Demo Wallet',
+            paymentMethod: 'KampusKash',
             walletReceiptId: receiptId,
             walletReferenceCode: referenceCode,
             isDemoWalletSync: true,
@@ -674,7 +957,6 @@ export async function transferMoney({
     };
 
     // Persist both sender's and receiver's tracker transactions directly into their localStorage tracker keys
-    // so when switching accounts in Pitch Mode, each student's Finance Tracker shows the expense/income!
     if (typeof window !== 'undefined' && window.localStorage) {
         if (trackerSync.senderAutoSync) {
             appendTrackerTransactionToStorage(senderId, trackerSync.senderExpenseTx);
@@ -687,6 +969,8 @@ export async function transferMoney({
     return {
         senderWallet: { ...updatedSenderWallet },
         receiverWallet: { ...updatedReceiverWallet },
+        sourceAccountId: resolvedSourceAccountId,
+        sourceAccountBalanceAfter: updatedSourceBalanceAfter,
         receipt: ledgerEntry,
         trackerSync,
         deduplicated: false
@@ -699,7 +983,13 @@ function appendTrackerTransactionToStorage(userId, txItem) {
         const key = `student_tracker_transactions_${userId}`;
         const raw = window.localStorage.getItem(key);
         const list = raw ? JSON.parse(raw) : [];
-        if (!list.some((t) => t.id === txItem.id || (t.walletReceiptId && t.walletReceiptId === txItem.walletReceiptId && t.type === txItem.type))) {
+        if (
+            !list.some(
+                (t) =>
+                    t.id === txItem.id ||
+                    (t.walletReceiptId && t.walletReceiptId === txItem.walletReceiptId && t.type === txItem.type)
+            )
+        ) {
             list.unshift(txItem);
             window.localStorage.setItem(key, JSON.stringify(list));
         }
@@ -838,6 +1128,7 @@ export async function respondToMoneyRequest({
     actor,
     action, // 'accept' | 'decline'
     pin = '',
+    sourceAccount = null,
     idempotencyKey = null
 }) {
     const actorId = typeof actor === 'object' ? actor?.id : String(actor || '');
@@ -896,6 +1187,7 @@ export async function respondToMoneyRequest({
             amount: reqItem.amount,
             note: reqItem.note || 'Money request settled',
             pin,
+            sourceAccount,
             idempotencyKey: idempotencyKey || `req_accept_${reqItem.id}`
         });
 
@@ -977,6 +1269,29 @@ export function getUserWalletRequests(userId) {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/**
+ * Returns recent unique recipients the user has sent money to.
+ */
+export function getRecentRecipients(userId, limitCount = 5) {
+    if (!userId) return [];
+    const ledger = getAllLedgerEntries();
+    const seen = new Set();
+    const recipients = [];
+    for (const tx of ledger) {
+        if (tx.type === 'transfer' && tx.senderId === userId && tx.receiverId && !seen.has(tx.receiverId)) {
+            seen.add(tx.receiverId);
+            const prof = getPublicProfile(tx.receiverId) || {
+                id: tx.receiverId,
+                displayName: tx.receiverName || 'Student',
+                handle: tx.receiverHandle || 'student'
+            };
+            recipients.push(prof);
+            if (recipients.length >= limitCount) break;
+        }
+    }
+    return recipients;
+}
+
 export function getWalletReceipt(receiptId, userId = null) {
     if (!receiptId) return null;
     const ledger = getAllLedgerEntries();
@@ -989,15 +1304,25 @@ export function getWalletReceipt(receiptId, userId = null) {
 }
 
 // ---------------------------------------------------------------------------
-// QR Code & Paste Code Helpers
+// QR Code & Paste Code Helpers (Supports optional baked-in amount for requests)
 // ---------------------------------------------------------------------------
 
-export function encodeWalletQrPayload(user) {
+export function encodeWalletQrPayload(user, optionalAmount = null, optionalNote = '') {
     if (!user || !user.id) return '';
     const profile = getPublicProfile(user.id);
     const handle = normalizeHandle(user.handle || profile?.handle || user.name || 'student');
     const displayName = sanitizeText(user.name || user.displayName || profile?.displayName || 'Student', 40);
-    return `KKPAY:${user.id}:${handle}:${encodeURIComponent(displayName)}`;
+    const basePayload = `KKPAY:${user.id}:${handle}:${encodeURIComponent(displayName)}`;
+
+    const numericAmt = Number(optionalAmount);
+    if (optionalAmount !== null && optionalAmount !== '' && Number.isFinite(numericAmt) && numericAmt > 0) {
+        const cleanNote = optionalNote ? sanitizeText(optionalNote, 60) : '';
+        return cleanNote
+            ? `${basePayload}:${roundCurrency(numericAmt).toFixed(2)}:${encodeURIComponent(cleanNote)}`
+            : `${basePayload}:${roundCurrency(numericAmt).toFixed(2)}`;
+    }
+
+    return basePayload;
 }
 
 export function parseWalletQrPayload(rawCode = '') {
@@ -1011,7 +1336,20 @@ export function parseWalletQrPayload(rawCode = '') {
         if (parts.length >= 3) {
             const userId = parts[1];
             const handle = normalizeHandle(parts[2]);
-            const displayName = parts[3] ? decodeURIComponent(parts.slice(3).join(':')) : handle;
+            const displayName = parts[3] ? decodeURIComponent(parts[3]) : handle;
+            let requestedAmount = null;
+            let requestedNote = '';
+
+            if (parts.length >= 5) {
+                const parsedAmt = Number(parts[4]);
+                if (Number.isFinite(parsedAmt) && parsedAmt > 0) {
+                    requestedAmount = roundCurrency(parsedAmt);
+                }
+                if (parts[5]) {
+                    requestedNote = decodeURIComponent(parts.slice(5).join(':'));
+                }
+            }
+
             const profile = getPublicProfile(userId) || getPublicProfile(handle) || {
                 id: userId,
                 handle,
@@ -1019,7 +1357,9 @@ export function parseWalletQrPayload(rawCode = '') {
             };
             return {
                 valid: true,
-                recipient: profile
+                recipient: profile,
+                amount: requestedAmount,
+                note: requestedNote
             };
         }
     }
@@ -1029,7 +1369,9 @@ export function parseWalletQrPayload(rawCode = '') {
     if (profile) {
         return {
             valid: true,
-            recipient: profile
+            recipient: profile,
+            amount: null,
+            note: ''
         };
     }
 
@@ -1040,12 +1382,27 @@ export function parseWalletQrPayload(rawCode = '') {
 }
 
 // ---------------------------------------------------------------------------
-// Pitch Mode Seeding & Reset for Wallet Data
+// Pitch Mode Seeding & Reset for Wallet & KampusKash Account Data
 // ---------------------------------------------------------------------------
 
 export function seedPitchWalletState({ wallets = {}, ledger = [], requests = [] } = {}) {
     const existingWallets = getAllWalletsMap();
-    const mergedWallets = { ...existingWallets, ...wallets };
+    const mergedWallets = { ...existingWallets };
+
+    for (const [uid, w] of Object.entries(wallets)) {
+        const pinHash =
+            w.pinHash && String(w.pinHash).startsWith('demo_pin_')
+                ? hashDemoPin(String(w.pinHash).replace('demo_pin_', ''))
+                : w.pinHash || hashDemoPin('1234');
+        mergedWallets[uid] = {
+            ...w,
+            accountId: KAMPUSKASH_ACCOUNT_ID,
+            accountType: KAMPUSKASH_ACCOUNT_TYPE,
+            pinHash
+        };
+        syncKampusKashAccountInStorage(uid, w.balance);
+    }
+
     writeWalletStore(WALLET_STORAGE_KEYS.WALLETS, mergedWallets);
 
     const nonDemoLedger = getAllLedgerEntries().filter((tx) => !tx.isPitchDemo);
@@ -1061,16 +1418,16 @@ export function seedPitchWalletState({ wallets = {}, ledger = [], requests = [] 
                 const txDate = String(tx.createdAt || new Date().toISOString()).split('T')[0];
                 appendTrackerTransactionToStorage(tx.senderId, {
                     id: `trk_exp_${tx.id}`,
-                    title: `Wallet transfer to @${tx.receiverHandle}`,
+                    title: `Transfer to @${tx.receiverHandle}`,
                     type: 'expense',
                     amount: tx.amount,
                     categoryId: 'cat-wallet-transfer',
-                    category: 'Wallet transfer',
-                    accountId: null,
+                    category: 'Transfer',
+                    accountId: KAMPUSKASH_ACCOUNT_ID,
                     source: 'wallet_transfer',
                     note: `Sent to @${tx.receiverHandle}: ${tx.note}`,
                     date: txDate,
-                    paymentMethod: 'KampusKash Demo Wallet',
+                    paymentMethod: 'KampusKash',
                     walletReceiptId: tx.id,
                     walletReferenceCode: tx.referenceCode,
                     isDemoWalletSync: true,
@@ -1080,16 +1437,16 @@ export function seedPitchWalletState({ wallets = {}, ledger = [], requests = [] 
                 });
                 appendTrackerTransactionToStorage(tx.receiverId, {
                     id: `trk_inc_${tx.id}`,
-                    title: `Wallet transfer from @${tx.senderHandle}`,
+                    title: `Transfer from @${tx.senderHandle}`,
                     type: 'income',
                     amount: tx.amount,
                     categoryId: 'cat-wallet-transfer',
-                    category: 'Wallet transfer',
-                    accountId: null,
+                    category: 'Transfer',
+                    accountId: KAMPUSKASH_ACCOUNT_ID,
                     source: 'wallet_transfer',
                     note: `Received from @${tx.senderHandle}: ${tx.note}`,
                     date: txDate,
-                    paymentMethod: 'KampusKash Demo Wallet',
+                    paymentMethod: 'KampusKash',
                     walletReceiptId: tx.id,
                     walletReferenceCode: tx.referenceCode,
                     isDemoWalletSync: true,
