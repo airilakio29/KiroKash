@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useFinance } from './FinanceContext';
+import { KAMPUSKASH_ACCOUNT_ID } from '../services/accountService';
 import {
     ensurePublicProfileForUser,
     getPublicProfile,
@@ -23,7 +24,6 @@ import {
     getUnreadNotificationCount,
     subscribeToUserNotifications,
     syncPublicProfilesFromFirestore,
-    fetchPublicProfileFromFirestore,
     createNotification,
     markNotificationRead,
     markAllNotificationsRead,
@@ -33,7 +33,6 @@ import {
 } from '../services/socialService';
 import {
     ensureUserWallet,
-    getUserWallet,
     subscribeToUserWallet,
     subscribeToUserWalletRequests,
     setWalletPin,
@@ -41,11 +40,13 @@ import {
     setWalletTrackerAutoSync,
     getDailyTransferredTotal,
     topUpWallet,
+    addMoneyFromOwnAccount,
     transferMoney,
     requestMoney,
     respondToMoneyRequest,
     getUserWalletHistory,
     getUserWalletRequests,
+    getRecentRecipients,
     getWalletReceipt,
     encodeWalletQrPayload,
     parseWalletQrPayload,
@@ -85,7 +86,11 @@ export function saveStoredPitchSpots(spots) {
 
 export function SocialWalletProvider({ children, onNavigateTab }) {
     const { user, updateUserProfile, switchPitchAccount } = useAuth();
-    const { recordWalletTransferInTracker, reloadFinanceFromStorage } = useFinance();
+    const {
+        updateAccount,
+        recordWalletTransferInTracker,
+        reloadFinanceFromStorage
+    } = useFinance() || {};
     const userId = user?.id;
 
     const [publicProfile, setPublicProfile] = useState(null);
@@ -105,10 +110,27 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     const [pitchModeLoaded, setPitchModeLoaded] = useState(() => isPitchModeLoaded());
     const [pitchSpotsVersion, setPitchSpotsVersion] = useState(0);
 
-    // Global modal states so any screen can open a public profile, wallet receipt, or prefilled send/split action
+    // Global modal states: Public Profile, Receipt Modal, and the full-screen Scan / Pay Sheet
     const [selectedPublicProfileId, setSelectedPublicProfileId] = useState(null);
     const [activeReceiptModal, setActiveReceiptModal] = useState(null);
     const [prefilledWalletAction, setPrefilledWalletAction] = useState(null);
+    const [isScanPayOpen, setIsScanPayOpen] = useState(false);
+    const [scanPayInitialTab, setScanPayInitialTab] = useState('scan'); // 'scan' | 'myqr' | 'transfer'
+
+    const openScanPaySheet = useCallback((tab = 'scan', prefill = null) => {
+        setScanPayInitialTab(tab || 'scan');
+        if (prefill) {
+            setPrefilledWalletAction({
+                ...prefill,
+                timestamp: Date.now()
+            });
+        }
+        setIsScanPayOpen(true);
+    }, []);
+
+    const closeScanPaySheet = useCallback(() => {
+        setIsScanPayOpen(false);
+    }, []);
 
     const refreshSocialAndWalletState = useCallback((targetUser = user) => {
         if (!targetUser || !targetUser.id) {
@@ -170,15 +192,17 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     useEffect(() => {
         if (!userId || user?.isPitchDemo) return;
 
-        // Sync all registered public student profiles so they appear in searches
         syncPublicProfilesFromFirestore().catch(() => {});
 
-        // 1. Live wallet balance updates
         const unsubWallet = subscribeToUserWallet(userId, (liveWallet) => {
-            if (liveWallet) setWallet(liveWallet);
+            if (liveWallet) {
+                setWallet(liveWallet);
+                if (updateAccount) {
+                    updateAccount(KAMPUSKASH_ACCOUNT_ID, { balance: liveWallet.balance });
+                }
+            }
         });
 
-        // 2. Live notifications (money received, new followers, comments, etc.)
         const unsubNotifs = subscribeToUserNotifications(userId, (liveNotifs) => {
             if (Array.isArray(liveNotifs) && liveNotifs.length > 0) {
                 setNotifications(liveNotifs);
@@ -186,7 +210,6 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             }
         });
 
-        // 3. Live incoming wallet requests
         const unsubRequests = subscribeToUserWalletRequests(userId, (liveReqs) => {
             if (Array.isArray(liveReqs) && liveReqs.length > 0) {
                 setWalletRequests(liveReqs);
@@ -198,7 +221,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             if (unsubNotifs) unsubNotifs();
             if (unsubRequests) unsubRequests();
         };
-    }, [userId, user?.isPitchDemo]);
+    }, [userId, user?.isPitchDemo, updateAccount]);
 
     // Social actions
     const follow = useCallback(async (targetUserId) => {
@@ -222,7 +245,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         if (!user) throw new Error('Sign in required to bookmark spots.');
         const res = await toggleSaveSpot(user.id, spotId);
         setSavedSpotIds(res.savedSpotIds);
-        return res;
+        return res.saved;
     }, [user]);
 
     const block = useCallback(async (targetUserId) => {
@@ -285,7 +308,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setUnreadCount(0);
     }, [user]);
 
-    // Wallet actions
+    // Wallet & KampusKash Account actions
     const dismissFirstUseNotice = useCallback(() => {
         if (!user?.id) return;
         markWalletFirstUseNoticeSeen(user.id);
@@ -311,19 +334,47 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         return updated;
     }, [user]);
 
-    const performTopUp = useCallback(async ({ amount, sourceId, idempotencyKey }) => {
+    const performAddMoneyFromAccount = useCallback(async ({ fromAccount, amount, idempotencyKey }) => {
         if (!user?.id) throw new Error('Sign in required.');
+        const res = await addMoneyFromOwnAccount({
+            userId: user.id,
+            fromAccount,
+            amount,
+            idempotencyKey
+        });
+        if (updateAccount) {
+            updateAccount(fromAccount.accountId, { balance: res.sourceAccountBalanceAfter });
+            updateAccount(KAMPUSKASH_ACCOUNT_ID, { balance: res.kampusKashBalanceAfter });
+        }
+        refreshSocialAndWalletState(user);
+        if (reloadFinanceFromStorage) {
+            reloadFinanceFromStorage(user.id);
+        }
+        return res;
+    }, [user, updateAccount, refreshSocialAndWalletState, reloadFinanceFromStorage]);
+
+    const performTopUp = useCallback(async ({ amount, sourceId, fromAccount, idempotencyKey }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        if (fromAccount && fromAccount.accountId) {
+            return performAddMoneyFromAccount({ fromAccount, amount, idempotencyKey });
+        }
         const res = await topUpWallet({
             userId: user.id,
             amount,
             sourceId,
             idempotencyKey
         });
+        if (updateAccount && res.wallet) {
+            updateAccount(KAMPUSKASH_ACCOUNT_ID, { balance: res.wallet.balance });
+        }
         refreshSocialAndWalletState(user);
+        if (reloadFinanceFromStorage) {
+            reloadFinanceFromStorage(user.id);
+        }
         return res;
-    }, [user, refreshSocialAndWalletState]);
+    }, [user, performAddMoneyFromAccount, updateAccount, refreshSocialAndWalletState, reloadFinanceFromStorage]);
 
-    const performTransfer = useCallback(async ({ receiver, amount, note, pin, idempotencyKey }) => {
+    const performTransfer = useCallback(async ({ receiver, amount, note, pin, sourceAccount = null, idempotencyKey }) => {
         if (!user?.id) throw new Error('Sign in required.');
         const res = await transferMoney({
             sender: {
@@ -335,16 +386,28 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             amount,
             note,
             pin,
+            sourceAccount,
             idempotencyKey
         });
 
-        if (res.trackerSync && res.trackerSync.senderAutoSync && res.trackerSync.senderExpenseTx) {
+        if (updateAccount) {
+            if (res.sourceAccountId && res.sourceAccountId !== KAMPUSKASH_ACCOUNT_ID) {
+                updateAccount(res.sourceAccountId, { balance: res.sourceAccountBalanceAfter });
+            } else if (res.senderWallet) {
+                updateAccount(KAMPUSKASH_ACCOUNT_ID, { balance: res.senderWallet.balance });
+            }
+        }
+
+        if (res.trackerSync && res.trackerSync.senderAutoSync && res.trackerSync.senderExpenseTx && recordWalletTransferInTracker) {
             recordWalletTransferInTracker(res.trackerSync.senderExpenseTx);
         }
 
         refreshSocialAndWalletState(user);
+        if (reloadFinanceFromStorage) {
+            reloadFinanceFromStorage(user.id);
+        }
         return res;
-    }, [user, publicProfile, recordWalletTransferInTracker, refreshSocialAndWalletState]);
+    }, [user, publicProfile, updateAccount, recordWalletTransferInTracker, refreshSocialAndWalletState, reloadFinanceFromStorage]);
 
     const performRequestMoney = useCallback(async ({ payer, amount, note, isSplitBill = false, originalTotalAmount = null }) => {
         if (!user?.id) throw new Error('Sign in required.');
@@ -364,7 +427,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         return req;
     }, [user, publicProfile, refreshSocialAndWalletState]);
 
-    const performRespondToRequest = useCallback(async ({ requestId, action, pin = '', idempotencyKey = null }) => {
+    const performRespondToRequest = useCallback(async ({ requestId, action, pin = '', sourceAccount = null, idempotencyKey = null }) => {
         if (!user?.id) throw new Error('Sign in required.');
         const res = await respondToMoneyRequest({
             requestId,
@@ -375,22 +438,31 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             },
             action,
             pin,
+            sourceAccount,
             idempotencyKey
         });
 
-        if (
-            action === 'accept' &&
-            res.transferResult?.trackerSync?.senderAutoSync &&
-            res.transferResult?.trackerSync?.senderExpenseTx
-        ) {
-            recordWalletTransferInTracker(res.transferResult.trackerSync.senderExpenseTx);
+        if (action === 'accept' && res.transferResult) {
+            if (updateAccount && res.transferResult.senderWallet) {
+                updateAccount(KAMPUSKASH_ACCOUNT_ID, { balance: res.transferResult.senderWallet.balance });
+            }
+            if (
+                res.transferResult.trackerSync?.senderAutoSync &&
+                res.transferResult.trackerSync?.senderExpenseTx &&
+                recordWalletTransferInTracker
+            ) {
+                recordWalletTransferInTracker(res.transferResult.trackerSync.senderExpenseTx);
+            }
         }
 
         refreshSocialAndWalletState(user);
+        if (reloadFinanceFromStorage) {
+            reloadFinanceFromStorage(user.id);
+        }
         return res;
-    }, [user, publicProfile, recordWalletTransferInTracker, refreshSocialAndWalletState]);
+    }, [user, publicProfile, updateAccount, recordWalletTransferInTracker, refreshSocialAndWalletState, reloadFinanceFromStorage]);
 
-    // Friend moment shortcuts (from PublicProfileModal or anywhere)
+    // Friend moment shortcuts (from PublicProfileModal or anywhere -> opens ScanPaySheet on Transfer tab!)
     const startSendMoneyToUser = useCallback((targetProfile, { mode = 'send' } = {}) => {
         setSelectedPublicProfileId(null);
         setPrefilledWalletAction({
@@ -398,17 +470,16 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             recipient: targetProfile,
             timestamp: Date.now()
         });
-        if (typeof onNavigateTab === 'function') {
-            onNavigateTab('wallet');
-        }
-    }, [onNavigateTab]);
+        setScanPayInitialTab('transfer');
+        setIsScanPayOpen(true);
+    }, []);
 
     const openWalletReceiptById = useCallback((receiptId) => {
         const receipt = getWalletReceipt(receiptId);
         if (receipt) {
             setActiveReceiptModal(receipt);
         } else if (typeof onNavigateTab === 'function') {
-            onNavigateTab('wallet');
+            onNavigateTab('accounts');
         }
     }, [onNavigateTab]);
 
@@ -427,7 +498,6 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setPitchModeLoaded(true);
         setPitchSpotsVersion((v) => v + 1);
 
-        // Also ensure the current user follows a couple of pitch demo users so Following tab is populated immediately
         if (user?.id) {
             followUser(user, 'demo_user_aiman').catch(() => {});
             followUser(user, 'demo_user_sarah').catch(() => {});
@@ -435,7 +505,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         }
 
         refreshSocialAndWalletState(user);
-        if (user?.id) {
+        if (user?.id && reloadFinanceFromStorage) {
             reloadFinanceFromStorage(user.id);
         }
         return {
@@ -452,7 +522,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setPitchModeLoaded(false);
         setPitchSpotsVersion((v) => v + 1);
         refreshSocialAndWalletState(user);
-        if (user?.id) {
+        if (user?.id && reloadFinanceFromStorage) {
             reloadFinanceFromStorage(user.id);
         }
     }, [user, refreshSocialAndWalletState, reloadFinanceFromStorage]);
@@ -464,7 +534,9 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         const switched = switchPitchAccount(demoUserId);
         if (switched) {
             refreshSocialAndWalletState(switched);
-            reloadFinanceFromStorage(switched.id);
+            if (reloadFinanceFromStorage) {
+                reloadFinanceFromStorage(switched.id);
+            }
         }
         return switched;
     }, [loadPitchDemoData, switchPitchAccount, refreshSocialAndWalletState, reloadFinanceFromStorage]);
@@ -475,6 +547,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         followerIds,
         followersProfiles: userId ? getFollowersProfiles(userId) : [],
         followingProfiles: userId ? getFollowingProfiles(userId) : [],
+        recentRecipients: userId ? getRecentRecipients(userId) : [],
         isFollowing: (targetId) => isFollowingUser(userId, targetId),
         savedSpotIds,
         blockedUserIds,
@@ -488,13 +561,19 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         pitchModeLoaded,
         pitchSpotsVersion,
         pitchDemoUsers: PITCH_DEMO_USERS,
-        // Modal triggers
+        // Modal & Sheet triggers
         selectedPublicProfileId,
         setSelectedPublicProfileId,
         activeReceiptModal,
         setActiveReceiptModal,
         prefilledWalletAction,
         setPrefilledWalletAction,
+        isScanPayOpen,
+        setIsScanPayOpen,
+        scanPayInitialTab,
+        setScanPayInitialTab,
+        openScanPaySheet,
+        closeScanPaySheet,
         // Actions
         follow,
         unfollow,
@@ -510,6 +589,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setupPin,
         checkPin,
         toggleAutoSyncTracker,
+        performAddMoneyFromAccount,
         performTopUp,
         performTransfer,
         performRequestMoney,
@@ -544,6 +624,10 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         selectedPublicProfileId,
         activeReceiptModal,
         prefilledWalletAction,
+        isScanPayOpen,
+        scanPayInitialTab,
+        openScanPaySheet,
+        closeScanPaySheet,
         follow,
         unfollow,
         toggleSave,
@@ -558,6 +642,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setupPin,
         checkPin,
         toggleAutoSyncTracker,
+        performAddMoneyFromAccount,
         performTopUp,
         performTransfer,
         performRequestMoney,
@@ -578,4 +663,3 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
 }
 
 export const useSocialWallet = () => useContext(SocialWalletContext);
-
