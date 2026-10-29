@@ -1,21 +1,25 @@
 import React from 'react';
 import {
   Search,
-  SlidersHorizontal,
-  MapPin,
-  Flame,
-  Clock,
-  Navigation,
   X,
+  ArrowUpDown,
+  MapPin,
   Compass,
   Users,
   Bookmark,
-  GraduationCap,
-  AlertCircle
+  Navigation
 } from 'lucide-react';
-import { CAMPUS_AREAS } from '../../services/communityService';
+import { CAMPUS_OPTIONS, COMMUNITY_TAGS } from '../../services/communityService';
 import { SPOT_CATEGORIES, SPOT_BUDGET_TAGS } from '../../config/appConstants';
 import TagIcon from './TagIcon';
+
+const BUDGET_SEGMENT_OPTIONS = [
+  { id: 'all', label: 'Semua' },
+  { id: 'under-rm5', label: '≤ RM 5' },
+  { id: 'rm5-15', label: 'RM 5–15' },
+  { id: 'rm15-30', label: 'RM 15–30' },
+  { id: 'rm30-plus', label: 'RM 30+' }
+];
 
 export default function CommunityFilters({
   feedTab = 'explore',
@@ -24,17 +28,17 @@ export default function CommunityFilters({
   onCategoryChange,
   budgetTag = 'all',
   onBudgetTagChange,
-  studentPriceOnly = false,
-  onStudentPriceOnlyChange,
+  campus = 'all',
+  onCampusChange,
   searchQuery = '',
   onSearchChange,
-  campusArea = 'All Campuses',
-  onCampusChange,
+  maxPrice = null,
+  onMaxPriceChange,
   selectedTags = [],
   onToggleTag,
-  sortBy = 'trending',
+  sortBy = 'newest',
   onSortChange,
-  locationStatus = 'idle', // 'idle' | 'requesting' | 'granted' | 'denied'
+  locationStatus = 'idle',
   locationMessage = '',
   followingCount = 0,
   savedCount = 0,
@@ -42,206 +46,225 @@ export default function CommunityFilters({
   totalCount = 0
 }) {
   const hasActiveFilters =
-    searchQuery.trim() !== '' ||
+    campus !== 'all' ||
     category !== 'all' ||
     budgetTag !== 'all' ||
-    studentPriceOnly ||
-    campusArea !== 'All Campuses' ||
+    searchQuery.trim() !== '' ||
+    maxPrice !== null ||
     selectedTags.length > 0;
 
+  const handleClearAll = () => {
+    if (onResetFilters) {
+      onResetFilters();
+      return;
+    }
+    if (onCampusChange) onCampusChange('all');
+    if (onCategoryChange) onCategoryChange('all');
+    if (onBudgetTagChange) onBudgetTagChange('all');
+    if (onSearchChange) onSearchChange('');
+    if (onMaxPriceChange) onMaxPriceChange(null);
+    selectedTags.forEach((tag) => onToggleTag && onToggleTag(tag));
+  };
+
+  const activeCampusObj = CAMPUS_OPTIONS.find((c) => c.id === campus);
+  const activeCategoryObj = SPOT_CATEGORIES.find((c) => c.id === category);
+
   return (
-    <div className="community-filters-panel card">
-      {/* Row 1: Feed Tabs (Explore / Following / Saved) + Sort Controls */}
-      <div className="spot-feed-tabs-row">
-        <div className="spot-feed-tabs" role="tablist" aria-label="Spot Jimat feed tabs">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={feedTab === 'explore'}
-            className={`spot-feed-tab-btn ${feedTab === 'explore' ? 'active' : ''}`}
-            onClick={() => onFeedTabChange && onFeedTabChange('explore')}
-          >
-            <Compass size={15} />
-            <span>Explore</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={feedTab === 'following'}
-            className={`spot-feed-tab-btn ${feedTab === 'following' ? 'active' : ''}`}
-            onClick={() => onFeedTabChange && onFeedTabChange('following')}
-          >
-            <Users size={15} />
-            <span>Following</span>
-            {followingCount > 0 && <span className="spot-tab-pill">{followingCount}</span>}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={feedTab === 'saved'}
-            className={`spot-feed-tab-btn ${feedTab === 'saved' ? 'active' : ''}`}
-            onClick={() => onFeedTabChange && onFeedTabChange('saved')}
-          >
-            <Bookmark size={15} />
-            <span>Saved</span>
-            {savedCount > 0 && <span className="spot-tab-pill">{savedCount}</span>}
-          </button>
-        </div>
-
-        <div className="community-sort-tabs" role="group" aria-label="Sort spots">
-          <button
-            type="button"
-            className={`community-sort-btn ${sortBy === 'trending' || sortBy === 'helpful' ? 'active' : ''}`}
-            onClick={() => onSortChange('trending')}
-          >
-            <Flame size={14} />
-            <span>Trending this week</span>
-          </button>
-          <button
-            type="button"
-            className={`community-sort-btn ${sortBy === 'newest' ? 'active' : ''}`}
-            onClick={() => onSortChange('newest')}
-          >
-            <Clock size={14} />
-            <span>Newest</span>
-          </button>
-          <button
-            type="button"
-            className={`community-sort-btn ${sortBy === 'nearest' ? 'active' : ''}`}
-            onClick={() => onSortChange('nearest')}
-          >
-            <Navigation size={14} />
-            <span>{locationStatus === 'requesting' ? 'Locating...' : 'Nearest'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Geolocation fallback or status notice */}
-      {locationMessage && (
-        <div className={`spot-location-banner ${locationStatus === 'denied' ? 'warning' : 'info'}`}>
-          <AlertCircle size={15} />
-          <span>{locationMessage}</span>
-        </div>
-      )}
-
-      {/* Row 2: Category Filter Chip Row */}
-      <div className="spot-category-chips-row" role="group" aria-label="Spot categories">
-        <button
-          type="button"
-          className={`spot-category-chip ${category === 'all' ? 'active' : ''}`}
-          onClick={() => onCategoryChange && onCategoryChange('all')}
-        >
-          <TagIcon iconName="Sparkles" size={14} />
-          <span>All Spots</span>
-        </button>
-        {SPOT_CATEGORIES.map((cat) => {
-          const isActive = category === cat.id;
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              className={`spot-category-chip ${isActive ? 'active' : ''}`}
-              onClick={() => onCategoryChange && onCategoryChange(cat.id)}
-              title={cat.description}
-            >
-              <TagIcon iconName={cat.icon} size={14} />
-              <span>{cat.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Row 3: Search + Campus Area Selector */}
+    <div className="community-filters-card">
+      {/* Row 1: Unified Search & Filter Command Bar (6c4f2e9 style + Explore/Following segmented switch) */}
       <div className="community-filters-top">
-        <div className="community-search-box">
-          <Search size={17} className="community-search-icon" />
+        {onFeedTabChange && (
+          <div className="budget-segmented-control" role="tablist" aria-label="Suapan Spot Jimat">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={feedTab === 'explore'}
+              className={`budget-segment-btn ${feedTab === 'explore' ? 'active' : ''}`}
+              onClick={() => onFeedTabChange('explore')}
+            >
+              <Compass size={12} style={{ marginRight: 4, verticalAlign: '-1px' }} />
+              Explore
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={feedTab === 'following'}
+              className={`budget-segment-btn ${feedTab === 'following' ? 'active' : ''}`}
+              onClick={() => onFeedTabChange('following')}
+            >
+              <Users size={12} style={{ marginRight: 4, verticalAlign: '-1px' }} />
+              Following{followingCount > 0 ? ` (${followingCount})` : ''}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={feedTab === 'saved'}
+              className={`budget-segment-btn ${feedTab === 'saved' ? 'active' : ''}`}
+              onClick={() => onFeedTabChange('saved')}
+            >
+              <Bookmark size={12} style={{ marginRight: 4, verticalAlign: '-1px' }} />
+              Disimpan{savedCount > 0 ? ` (${savedCount})` : ''}
+            </button>
+          </div>
+        )}
+
+        <div className="community-search-input-wrapper">
+          <Search size={16} className="search-icon" />
           <input
             type="text"
             className="community-search-input"
-            placeholder="Search spots, places, tips, @username, or campus area..."
+            placeholder="Cari kedai, spot jimat, kategori, @username..."
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            aria-label="Search student spots"
+            onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
           />
           {searchQuery && (
             <button
               type="button"
-              className="community-search-clear"
-              onClick={() => onSearchChange('')}
-              aria-label="Clear search"
+              className="community-search-clear-btn"
+              onClick={() => onSearchChange && onSearchChange('')}
+              aria-label="Kosongkan carian"
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           )}
         </div>
 
-        <div className="community-controls-row">
-          <div className="community-campus-select-wrap">
-            <MapPin size={15} className="community-select-icon" />
+        <div className="community-dropdowns-group">
+          {/* Campus Selector */}
+          <div className="community-select-wrapper">
+            <MapPin size={14} className="select-icon" />
             <select
-              className="community-campus-select"
-              value={campusArea}
-              onChange={(e) => onCampusChange(e.target.value)}
-              aria-label="Filter by campus area"
+              id="campus-select"
+              className="community-select campus-select"
+              value={campus}
+              onChange={(e) => onCampusChange && onCampusChange(e.target.value)}
+              aria-label="Pilih Kampus"
             >
-              {CAMPUS_AREAS.map((area) => (
-                <option key={area} value={area}>
-                  {area}
+              {CAMPUS_OPTIONS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="community-select-wrapper">
+            <ArrowUpDown size={14} className="select-icon" />
+            <select
+              id="sort-select"
+              className="community-select sort-select"
+              value={sortBy}
+              onChange={(e) => onSortChange && onSortChange(e.target.value)}
+              aria-label="Susunan ulasan"
+            >
+              <option value="trending">Trending Minggu Ini</option>
+              <option value="newest">Terkini</option>
+              <option value="nearest">
+                {locationStatus === 'requesting' ? 'Mencari Lokasi...' : 'Terdekat (Nearest)'}
+              </option>
+              <option value="top">Paling Popular</option>
+              <option value="cheapest">Paling Murah</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Row 4: Budget Filter & Student Price Toggle */}
-      <div className="community-tags-filter-row">
-        <div className="community-tags-label">
-          <SlidersHorizontal size={13} />
-          <span>Budget:</span>
-        </div>
-        <div className="community-tags-scroll">
-          <button
-            type="button"
-            className={`community-filter-chip ${budgetTag === 'all' ? 'selected' : ''}`}
-            onClick={() => onBudgetTagChange && onBudgetTagChange('all')}
-          >
-            <span>All Budgets</span>
-          </button>
-          {SPOT_BUDGET_TAGS.map((b) => {
-            const isSelected = budgetTag === b.id;
+      {/* Row 2: Broader Categories in old .community-tag-chip style + Budget Segmented Control */}
+      <div className="community-controls-subrow">
+        {/* Budget Segmented Control */}
+        <div className="budget-segmented-control" role="group" aria-label="Tapisan Bajet">
+          {BUDGET_SEGMENT_OPTIONS.map((b) => {
+            const isActive = budgetTag === b.id;
             return (
               <button
                 key={b.id}
                 type="button"
-                className={`community-filter-chip ${isSelected ? 'selected' : ''}`}
-                onClick={() => onBudgetTagChange && onBudgetTagChange(isSelected ? 'all' : b.id)}
+                className={`budget-segment-btn ${isActive ? 'active' : ''}`}
+                onClick={() => onBudgetTagChange && onBudgetTagChange(b.id)}
               >
-                <span>{b.label}</span>
+                {b.label}
               </button>
             );
           })}
+        </div>
 
+        <div className="filter-divider-dot" aria-hidden="true" />
+
+        {/* 6 Broader Categories in the exact old .community-tag-chip filter style */}
+        <div className="community-tags-scroll-row no-scrollbar" role="group" aria-label="Kategori Spot Jimat">
           <button
             type="button"
-            className={`community-filter-chip student-price-chip ${studentPriceOnly ? 'selected' : ''}`}
-            onClick={() => onStudentPriceOnlyChange && onStudentPriceOnlyChange(!studentPriceOnly)}
+            className={`community-tag-chip ${category === 'all' ? 'selected' : ''}`}
+            onClick={() => onCategoryChange && onCategoryChange('all')}
           >
-            <GraduationCap size={13} />
-            <span>Student Price Only</span>
+            <TagIcon iconName="Sparkles" size={12} className="tag-chip-icon" />
+            <span className="tag-chip-label">Semua Kategori</span>
           </button>
+          {SPOT_CATEGORIES.map((cat) => {
+            const isSelected = category === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`community-tag-chip ${isSelected ? 'selected' : ''}`}
+                onClick={() => onCategoryChange && onCategoryChange(isSelected ? 'all' : cat.id)}
+                title={cat.description}
+              >
+                <TagIcon tagId={cat.id} iconName={cat.iconName} size={12} className="tag-chip-icon" />
+                <span className="tag-chip-label">{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Row 2b: Micro-Icon Feature Tags (Halal, Diskaun Pelajar, Buka Lewat, Wi-Fi, etc.) */}
+      <div className="community-controls-subrow">
+        <div className="community-tags-scroll-row no-scrollbar">
+          {COMMUNITY_TAGS.map((tag) => {
+            const isSelected = selectedTags.includes(tag.id);
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                className={`community-tag-chip ${isSelected ? 'selected' : ''}`}
+                onClick={() => onToggleTag && onToggleTag(tag.id)}
+              >
+                <TagIcon tagId={tag.id} iconName={tag.iconName} size={12} className="tag-chip-icon" />
+                <span className="tag-chip-label">{tag.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {hasActiveFilters && (
           <button
             type="button"
-            className="community-reset-btn"
-            onClick={onResetFilters}
+            className="community-reset-filters-btn"
+            onClick={handleClearAll}
           >
-            <X size={13} />
-            <span>Clear filters ({totalCount})</span>
+            Reset
           </button>
         )}
+      </div>
+
+      {/* Row 3: Subtle Results Bar */}
+      <div className="community-results-count-bar">
+        <span>
+          Menjumpai <strong>{totalCount}</strong> spot jimat pelajar
+          {locationMessage ? ` • ${locationMessage}` : ''}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {activeCategoryObj && (
+            <span className="active-campus-badge">{activeCategoryObj.label}</span>
+          )}
+          {campus !== 'all' && activeCampusObj && (
+            <span className="active-campus-badge">
+              {activeCampusObj.label.split('(')[0].trim()}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
