@@ -159,6 +159,16 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
           pointer-events: none;
         }
 
+        @media (max-width: 900px) {
+          .kampuskash-ai-fab {
+            bottom: calc(var(--mobile-nav-height, 66px) + 0.9rem + env(safe-area-inset-bottom, 0px));
+            right: max(0.85rem, env(safe-area-inset-right, 0.85rem));
+            width: 46px;
+            height: 46px;
+            z-index: 940;
+          }
+        }
+
         @media (max-width: 768px) {
           .kampuskash-ai-popup-overlay {
             bottom: 0 !important;

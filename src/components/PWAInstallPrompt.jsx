@@ -126,99 +126,37 @@ export default function PWAInstallPrompt() {
         <div
           role="region"
           aria-label="Install KampusKash Application"
-          style={{
-            position: 'fixed',
-            bottom: 'calc(max(1rem, env(safe-area-inset-bottom, 0px)) + 12px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 99990,
-            width: 'calc(100% - 2rem)',
-            maxWidth: '520px',
-            animation: 'slideUpBanner 0.32s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
+          className="pwa-install-banner-container"
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.85rem',
-              padding: '0.85rem 1rem',
-              borderRadius: '16px',
-              background: 'rgba(20, 16, 28, 0.94)',
-              border: '1px solid rgba(139, 92, 246, 0.35)',
-              boxShadow: '0 20px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(139, 92, 246, 0.25)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              color: '#FFFFFF'
-            }}
-          >
+          <div className="pwa-install-banner-card">
             {/* App Icon */}
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
-                background: '#0A0A0F',
-                border: '1px solid rgba(139, 92, 246, 0.4)',
-                overflow: 'hidden',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
-              }}
-            >
+            <div className="pwa-install-banner-icon">
               <img
                 src="/icons/icon-192x192.png"
                 alt="KampusKash"
-                style={{ width: '34px', height: '34px', objectFit: 'contain' }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />
             </div>
 
             {/* Banner Content */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em', color: '#F3EDF9' }}>
+            <div className="pwa-install-banner-text">
+              <div className="pwa-install-banner-title-row">
+                <span className="pwa-install-banner-title">
                   Install KampusKash
                 </span>
-                <span
-                  style={{
-                    fontSize: '0.68rem',
-                    background: 'rgba(139, 92, 246, 0.22)',
-                    color: '#C4B5FD',
-                    padding: '2px 6px',
-                    borderRadius: '6px',
-                    fontWeight: 600
-                  }}
-                >
+                <span className="pwa-install-app-badge">
                   App
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#A79BB7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                Fast home screen access & standalone mobile experience.
+              <p className="pwa-install-banner-sub">
+                Fast home screen access &amp; standalone mobile experience.
               </p>
             </div>
 
             {/* Install Button */}
             <button
               onClick={handleBannerAction}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.55rem 0.95rem',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
-                color: '#FFFFFF',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.4)',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                touchAction: 'manipulation'
-              }}
+              className="pwa-install-banner-cta"
             >
               <Download size={14} />
               <span>Install</span>
@@ -228,18 +166,7 @@ export default function PWAInstallPrompt() {
             <button
               onClick={handleDismissBanner}
               aria-label="Dismiss install promotion"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#8E82A1',
-                padding: '0.4rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                flexShrink: 0
-              }}
+              className="pwa-install-banner-dismiss"
             >
               <X size={18} />
             </button>
@@ -531,6 +458,148 @@ export default function PWAInstallPrompt() {
       )}
 
       <style>{`
+        .pwa-install-banner-container {
+          position: fixed;
+          bottom: calc(max(1rem, env(safe-area-inset-bottom, 0px)) + 12px);
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 99990;
+          width: calc(100% - 2rem);
+          max-width: 520px;
+          animation: slideUpBanner 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          box-sizing: border-box;
+        }
+        .pwa-install-banner-card {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 0.9rem;
+          border-radius: 16px;
+          background: rgba(20, 16, 28, 0.95);
+          border: 1px solid rgba(139, 92, 246, 0.35);
+          box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 24px rgba(139, 92, 246, 0.25);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          color: #FFFFFF;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .pwa-install-banner-icon {
+          width: 42px;
+          height: 42px;
+          padding: 4px;
+          border-radius: 12px;
+          background: #0A0A0F;
+          border: 1px solid rgba(139, 92, 246, 0.4);
+          overflow: hidden;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        .pwa-install-banner-text {
+          flex: 1;
+          min-width: 0;
+        }
+        .pwa-install-banner-title-row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          min-width: 0;
+        }
+        .pwa-install-banner-title {
+          font-weight: 700;
+          font-size: 0.92rem;
+          letter-spacing: -0.01em;
+          color: #F3EDF9;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .pwa-install-app-badge {
+          font-size: 0.66rem;
+          background: rgba(139, 92, 246, 0.22);
+          color: #C4B5FD;
+          padding: 2px 6px;
+          border-radius: 6px;
+          font-weight: 600;
+          flex-shrink: 0;
+        }
+        .pwa-install-banner-sub {
+          margin: 2px 0 0;
+          font-size: 0.76rem;
+          color: #A79BB7;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .pwa-install-banner-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.32rem;
+          padding: 0.5rem 0.85rem;
+          min-height: 40px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+          color: #FFFFFF;
+          font-size: 0.8rem;
+          font-weight: 600;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+          white-space: nowrap;
+          flex-shrink: 0;
+          touch-action: manipulation;
+        }
+        .pwa-install-banner-dismiss {
+          background: transparent;
+          border: none;
+          color: #8E82A1;
+          padding: 0.35rem;
+          min-width: 34px;
+          min-height: 34px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          flex-shrink: 0;
+        }
+        @media (max-width: 900px) {
+          /* Sit cleanly above the bottom navigation bar + raised Scan QR + AI FAB */
+          .pwa-install-banner-container {
+            bottom: calc(var(--mobile-nav-height, 66px) + 4.35rem + env(safe-area-inset-bottom, 0px));
+            width: calc(100% - 1.25rem);
+          }
+        }
+        @media (max-width: 400px) {
+          .pwa-install-banner-container {
+            width: calc(100% - 1rem);
+          }
+          .pwa-install-banner-card {
+            gap: 0.5rem;
+            padding: 0.65rem 0.7rem;
+          }
+          .pwa-install-banner-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+          }
+          .pwa-install-banner-title {
+            font-size: 0.84rem;
+          }
+          .pwa-install-app-badge {
+            display: none;
+          }
+          .pwa-install-banner-sub {
+            font-size: 0.7rem;
+          }
+          .pwa-install-banner-cta {
+            padding: 0.45rem 0.68rem;
+            font-size: 0.76rem;
+          }
+        }
         @keyframes slideUpBanner {
           from {
             opacity: 0;

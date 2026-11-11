@@ -61,8 +61,9 @@ export default function FloatingNavButton({ isOpen, onOpen }) {
         }
 
         @media (max-width: 900px) {
+          /* Replaced on mobile by the 5-item bottom navigation bar ("More" opens the same menu) */
           .kampuskash-floating-nav-btn {
-            display: flex;
+            display: none !important;
           }
         }
       `}</style>
