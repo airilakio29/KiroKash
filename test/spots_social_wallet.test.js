@@ -528,3 +528,44 @@ test('PART 6: Dedicated Pay Section, CIMB OCTO Mobile Bottom Nav & Accounts Shor
     assert.ok(payContent.includes('setupPin'));
     assert.ok(payContent.includes('performTransfer'));
 });
+
+test('PART 7: Mobile Bottom Nav Overlap Fixes, Concentric QR Arch, Safe Area & Content Clearance', () => {
+    const sidebarContent = fs.readFileSync(path.resolve('src/components/Sidebar.jsx'), 'utf8');
+    const floatingNavContent = fs.readFileSync(path.resolve('src/components/FloatingNavButton.jsx'), 'utf8');
+    const floatingChatContent = fs.readFileSync(path.resolve('src/components/AIChat/FloatingChatButton.jsx'), 'utf8');
+    const pwaPromptContent = fs.readFileSync(path.resolve('src/components/PWAInstallPrompt.jsx'), 'utf8');
+    const indexCssContent = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
+    const communityCssContent = fs.readFileSync(path.resolve('src/styles/community.css'), 'utf8');
+
+    // 1. Even 5-column distribution & fixed row above safe-area bottom inset
+    assert.ok(sidebarContent.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'));
+    assert.ok(sidebarContent.includes('grid-template-rows: var(--mobile-nav-height, 66px)'));
+    assert.ok(sidebarContent.includes('padding-bottom: env(safe-area-inset-bottom, 0px)'));
+    assert.ok(sidebarContent.includes('padding-left: env(safe-area-inset-left, 0px)'));
+    assert.ok(sidebarContent.includes('padding-right: env(safe-area-inset-right, 0px)'));
+
+    // 2. Reduced Scan QR circle (>= 44px touch target), single-line labels, concentric non-overlapping arch
+    assert.ok(sidebarContent.includes('width: 52px;'));
+    assert.ok(sidebarContent.includes('width: 46px;'));
+    assert.ok(sidebarContent.includes('min-width: 44px;'));
+    assert.ok(sidebarContent.includes('min-height: 44px;'));
+    assert.ok(sidebarContent.includes('.mobile-bottom-nav-label'));
+    assert.ok(sidebarContent.includes('white-space: nowrap;'));
+    assert.ok(sidebarContent.includes('.mobile-bottom-qr-cutout::before'));
+    assert.ok(sidebarContent.includes('overflow: hidden;'));
+    assert.ok(sidebarContent.includes('--sidebar-active-text'));
+
+    // 3. No circular FABs or banners overlapping bottom navigation items
+    assert.ok(floatingNavContent.includes('display: none !important;'));
+    assert.ok(floatingChatContent.includes('bottom: calc(var(--mobile-nav-height, 66px) + 0.9rem + env(safe-area-inset-bottom, 0px))'));
+    assert.ok(indexCssContent.includes('bottom: calc(var(--mobile-nav-height, 66px) + 0.9rem + env(safe-area-inset-bottom, 0px)) !important'));
+    assert.ok(pwaPromptContent.includes('bottom: calc(var(--mobile-nav-height, 66px) + 4.35rem + env(safe-area-inset-bottom, 0px))'));
+    assert.ok(communityCssContent.includes('--mobile-nav-clearance'));
+
+    // 4. Shared clearance variables, dvh support & scrollable bottom buffer on .content-area
+    assert.ok(indexCssContent.includes('--mobile-nav-height: 66px;'));
+    assert.ok(indexCssContent.includes('--mobile-nav-overhang: 22px;'));
+    assert.ok(indexCssContent.includes('calc(var(--mobile-nav-clearance, 88px) + 3.5rem + env(safe-area-inset-bottom, 0px))'));
+    assert.ok(indexCssContent.includes('overflow-x: clip;'));
+    assert.ok(indexCssContent.includes('height: 100dvh;'));
+});
