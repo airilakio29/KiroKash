@@ -291,8 +291,10 @@ export default function Sidebar({
           onClick={() => setActiveTab('dashboard')}
         >
           <span className="mobile-nav-indicator" />
-          <LayoutDashboard size={20} />
-          <span>Home</span>
+          <span className="mobile-bottom-nav-icon" aria-hidden="true">
+            <LayoutDashboard size={20} strokeWidth={2.1} />
+          </span>
+          <span className="mobile-bottom-nav-label">Home</span>
         </button>
 
         <button
@@ -301,13 +303,15 @@ export default function Sidebar({
           onClick={() => setActiveTab('accounts')}
         >
           <span className="mobile-nav-indicator" />
-          <Landmark size={20} />
-          <span>Accounts</span>
+          <span className="mobile-bottom-nav-icon" aria-hidden="true">
+            <Landmark size={20} strokeWidth={2.1} />
+          </span>
+          <span className="mobile-bottom-nav-label">Accounts</span>
         </button>
 
         <div className="mobile-bottom-qr-slot">
-          {/* Subtle curved arch cutout ring around the button */}
-          <div className="mobile-bottom-qr-cutout" />
+          {/* Smooth arched notch collar above the bar — keeps labels completely clear */}
+          <div className="mobile-bottom-qr-cutout" aria-hidden="true" />
           <button
             type="button"
             data-tour="mobile-scan-pay-btn"
@@ -327,8 +331,9 @@ export default function Sidebar({
             <span className="mobile-bottom-qr-circle">
               {/* Authentic Scanner QR icon with framing corners */}
               <svg
-                width="28"
-                height="28"
+                className="mobile-bottom-qr-icon"
+                width="24"
+                height="24"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -358,8 +363,10 @@ export default function Sidebar({
           onClick={() => setActiveTab('community')}
         >
           <span className="mobile-nav-indicator" />
-          <UtensilsCrossed size={20} />
-          <span>{SPOT_FEED_NAME}</span>
+          <span className="mobile-bottom-nav-icon" aria-hidden="true">
+            <UtensilsCrossed size={20} strokeWidth={2.1} />
+          </span>
+          <span className="mobile-bottom-nav-label">{SPOT_FEED_NAME}</span>
         </button>
 
         <button
@@ -369,8 +376,10 @@ export default function Sidebar({
           aria-label="Open More Menu"
         >
           <span className="mobile-nav-indicator" />
-          <LayoutGrid size={20} />
-          <span>More</span>
+          <span className="mobile-bottom-nav-icon" aria-hidden="true">
+            <LayoutGrid size={20} strokeWidth={2.1} />
+          </span>
+          <span className="mobile-bottom-nav-label">More</span>
         </button>
       </nav>
 
@@ -599,10 +608,10 @@ export default function Sidebar({
 
         .sidebar-mobile-overlay {
           position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
+          inset: 0;
+          width: 100%;
           height: 100vh;
+          height: 100dvh;
           background: var(--scrim, rgba(10, 5, 15, 0.68));
           backdrop-filter: blur(6px);
           -webkit-backdrop-filter: blur(6px);
@@ -649,42 +658,86 @@ export default function Sidebar({
 
           .mobile-bottom-nav {
             display: grid;
-            grid-template-columns: 1fr 1fr 1.25fr 1fr 1fr;
-            align-items: center;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-rows: var(--mobile-nav-height, 66px);
+            align-items: stretch;
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            height: calc(64px + env(safe-area-inset-bottom, 0px));
+            width: 100%;
+            box-sizing: border-box;
+            min-height: calc(var(--mobile-nav-height, 66px) + env(safe-area-inset-bottom, 0px));
             padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
             background: var(--bg-sidebar);
             border-top: 1px solid rgba(var(--sidebar-overlay-rgb), 0.16);
-            box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.28);
             z-index: 950;
+            overflow: visible;
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            touch-action: manipulation;
           }
 
           .mobile-bottom-nav-item {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 0.25rem;
+            justify-content: flex-end;
+            gap: 5px;
+            width: 100%;
             height: 100%;
+            min-width: 44px;
             min-height: 44px;
+            min-inline-size: 0;
             background: transparent;
             border: none;
             color: var(--sidebar-text-muted);
-            font-size: 0.68rem;
-            font-weight: 600;
             cursor: pointer;
-            padding: 0.25rem;
+            padding: 10px 2px 8px;
+            margin: 0;
             position: relative;
+            box-sizing: border-box;
             transition: color 0.15s ease;
             -webkit-tap-highlight-color: transparent;
           }
 
+          .mobile-bottom-nav-item:active .mobile-bottom-nav-icon {
+            transform: scale(0.9);
+            transition: transform 0.12s ease;
+          }
+
           .mobile-bottom-nav-item.active {
-            color: var(--primary);
+            color: var(--sidebar-active-text, var(--sidebar-text));
+          }
+
+          .mobile-bottom-nav-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+          }
+
+          .mobile-bottom-nav-label,
+          .mobile-bottom-qr-label {
+            display: block;
+            max-width: 100%;
+            font-size: 0.68rem;
+            line-height: 14px;
+            height: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: 0.005em;
+            text-align: center;
+          }
+
+          .mobile-bottom-nav-item.active .mobile-bottom-nav-label {
             font-weight: 700;
           }
 
@@ -692,11 +745,12 @@ export default function Sidebar({
             display: none;
             position: absolute;
             top: 0;
-            left: 20%;
-            right: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
             height: 3px;
             border-radius: 0 0 4px 4px;
-            background: var(--primary);
+            background: var(--primary-light, var(--sidebar-active-text, var(--sidebar-text)));
           }
 
           .mobile-bottom-nav-item.active .mobile-nav-indicator {
@@ -705,68 +759,141 @@ export default function Sidebar({
 
           .mobile-bottom-qr-slot {
             display: flex;
-            align-items: center;
+            align-items: stretch;
             justify-content: center;
             position: relative;
+            width: 100%;
             height: 100%;
+            min-width: 0;
+            overflow: visible;
           }
 
-          /* CIMB OCTO-style curved cutout ring around the raised circular button */
+          /* Concentric upper arch crest that blends into the bottom bar without cutting through labels */
           .mobile-bottom-qr-cutout {
             position: absolute;
-            top: -26px;
-            width: 78px;
-            height: 78px;
-            border-radius: 50%;
-            background: var(--bg-sidebar);
-            border: 4px solid var(--bg-app);
-            box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.2);
+            top: -23px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 64px;
+            height: 24px;
+            overflow: hidden;
             pointer-events: none;
             z-index: 951;
           }
 
-          .mobile-bottom-qr-btn {
+          .mobile-bottom-qr-cutout::before {
+            content: '';
             position: absolute;
-            top: -28px;
+            top: 0;
+            left: 0;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--bg-sidebar);
+            border: 1px solid rgba(var(--sidebar-overlay-rgb), 0.16);
+            box-sizing: border-box;
+          }
+
+          .mobile-bottom-qr-btn {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-width: 44px;
+            min-height: 44px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.2rem;
+            justify-content: flex-end;
             background: transparent;
             border: none;
             cursor: pointer;
-            padding: 0;
+            padding: 0 2px 8px;
+            margin: 0;
             z-index: 952;
+            overflow: visible;
+            box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
           }
 
           .mobile-bottom-qr-circle {
-            width: 64px;
-            height: 64px;
-            min-width: 64px;
-            min-height: 64px;
+            position: absolute;
+            top: -17px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 52px;
+            height: 52px;
+            min-width: 52px;
+            min-height: 52px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
             color: var(--text-on-primary, #FFFFFF);
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid var(--bg-sidebar);
-            box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.45);
+            border: 2.5px solid var(--bg-sidebar);
+            box-shadow: 0 0 0 1px rgba(var(--sidebar-overlay-rgb), 0.26), 0 6px 18px rgba(var(--shadow-rgb), 0.36);
             transition: transform 0.16s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.16s ease;
           }
 
+          .mobile-bottom-qr-btn.active .mobile-bottom-qr-circle {
+            box-shadow: 0 0 0 2px var(--primary-light, #FFFFFF), 0 8px 22px rgba(var(--shadow-rgb), 0.45);
+          }
+
           .mobile-bottom-qr-btn:active .mobile-bottom-qr-circle {
-            transform: scale(0.92);
-            box-shadow: 0 4px 12px rgba(var(--shadow-rgb), 0.3);
+            transform: translateX(-50%) scale(0.92);
+            box-shadow: 0 0 0 1px rgba(var(--sidebar-overlay-rgb), 0.2), 0 3px 10px rgba(var(--shadow-rgb), 0.28);
           }
 
           .mobile-bottom-qr-label {
-            font-size: 0.68rem;
-            font-weight: 800;
+            font-weight: 700;
             color: var(--sidebar-text);
-            white-space: nowrap;
-            letter-spacing: 0.01em;
+          }
+
+          .mobile-bottom-qr-btn.active .mobile-bottom-qr-label {
+            color: var(--sidebar-active-text, var(--sidebar-text));
+            font-weight: 800;
+          }
+
+          @media (max-width: 365px) {
+            .mobile-bottom-nav-item {
+              padding: 10px 1px 8px;
+              gap: 5px;
+            }
+
+            .mobile-bottom-nav-icon svg {
+              width: 18px;
+              height: 18px;
+            }
+
+            .mobile-bottom-nav-label,
+            .mobile-bottom-qr-label {
+              font-size: 0.61rem;
+              letter-spacing: -0.015em;
+            }
+
+            .mobile-bottom-qr-cutout {
+              top: -19px;
+              width: 56px;
+              height: 20px;
+            }
+
+            .mobile-bottom-qr-cutout::before {
+              width: 56px;
+              height: 56px;
+            }
+
+            .mobile-bottom-qr-circle {
+              top: -14px;
+              width: 46px;
+              height: 46px;
+              min-width: 46px;
+              min-height: 46px;
+            }
+
+            .mobile-bottom-qr-icon {
+              width: 21px;
+              height: 21px;
+            }
           }
         }
       `}</style>
