@@ -82,6 +82,11 @@
   --anim-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --anim-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --anim-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Shared mobile bottom navigation metrics for consistent clearance across views */
+  --mobile-nav-height: 66px;
+  --mobile-nav-overhang: 22px;
+  --mobile-nav-clearance: calc(var(--mobile-nav-height) + var(--mobile-nav-overhang));
 }
 
 /* Reset & Global Elements */
@@ -132,6 +137,7 @@ body {
   position: relative;
   z-index: 1;
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Glitter Background Canvas Container */
@@ -141,6 +147,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   pointer-events: none;
   z-index: 0;
   opacity: 1;
@@ -157,6 +164,7 @@ body {
   z-index: 2;
   transition: margin-left var(--transition-smooth);
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Desktop layout: Fixed sidebar + independently scrollable main content */
@@ -209,6 +217,7 @@ body {
 @media (max-width: 900px) {
   html, body {
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   .app-container {
@@ -217,6 +226,7 @@ body {
     min-height: 100dvh;
     height: auto;
     overflow-x: hidden;
+    overflow-x: clip;
     overflow-y: visible;
   }
 
@@ -228,8 +238,8 @@ body {
     min-height: 100dvh;
     overflow-y: visible;
     overflow-x: hidden;
+    overflow-x: clip;
   }
-}
 
 .content-area {
   flex: 1;
@@ -239,6 +249,13 @@ body {
   margin: 0 auto;
   box-sizing: border-box;
   overflow-x: hidden;
+  overflow-x: clip;
+}
+
+@media (max-width: 900px) {
+  .content-area {
+    padding: 1.25rem 1rem calc(var(--mobile-nav-clearance, 88px) + 3.5rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  }
 }
 
 /* Rounded Surface Cards */
@@ -629,6 +646,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background: rgba(10, 5, 15, 0.65);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -733,7 +751,7 @@ body {
 
 @media (max-width: 768px) {
   .content-area {
-    padding: 1rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px)) 0.85rem;
+    padding: 1rem 0.85rem calc(var(--mobile-nav-clearance, 88px) + 3.5rem + env(safe-area-inset-bottom, 0px)) 0.85rem;
   }
 
   .card {
@@ -818,7 +836,7 @@ body {
 
 @media (max-width: 480px) {
   .content-area {
-    padding: 0.85rem 0.65rem calc(5.5rem + env(safe-area-inset-bottom, 0px)) 0.65rem;
+    padding: 0.85rem 0.65rem calc(var(--mobile-nav-clearance, 88px) + 3.75rem + env(safe-area-inset-bottom, 0px)) 0.65rem;
   }
 
   .grid-metrics {
@@ -2467,6 +2485,22 @@ body {
 }
 
 /* Responsive adjustments for mobile */
+@media (max-width: 900px) {
+  .kampuskash-ai-fab {
+    bottom: calc(var(--mobile-nav-height, 66px) + 0.9rem + env(safe-area-inset-bottom, 0px)) !important;
+    right: max(0.85rem, env(safe-area-inset-right, 0.85rem)) !important;
+    width: 46px !important;
+    height: 46px !important;
+    z-index: 940 !important;
+  }
+
+  .explore-floating-toast {
+    bottom: calc(var(--mobile-nav-clearance, 88px) + 1rem + env(safe-area-inset-bottom, 0px));
+    left: 1rem;
+    right: 1rem;
+  }
+}
+
 @media (max-width: 768px) {
   .kampuskash-ai-popup-overlay {
     bottom: 0 !important;
@@ -2495,10 +2529,11 @@ body {
   }
 
   .kampuskash-ai-fab {
-    bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem)) !important;
-    right: 1.25rem !important;
-    width: 50px !important;
-    height: 50px !important;
+    bottom: calc(var(--mobile-nav-height, 66px) + 0.9rem + env(safe-area-inset-bottom, 0px)) !important;
+    right: max(0.85rem, env(safe-area-inset-right, 0.85rem)) !important;
+    width: 46px !important;
+    height: 46px !important;
+    z-index: 940 !important;
   }
 
   .chat-shortcut-hint {
@@ -2587,6 +2622,7 @@ body {
   animation: pageFadeSlideIn var(--anim-duration-page) var(--anim-ease-out) forwards;
   will-change: opacity, transform;
   min-height: 70vh;
+  min-height: 70dvh;
 }
 
 @keyframes pageFadeSlideIn {

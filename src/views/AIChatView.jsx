@@ -10,8 +10,8 @@ export default function AIChatView() {
   return (
     <div
       style={{
-        height: 'calc(100vh - 110px)',
-        minHeight: '600px',
+        height: 'calc(100dvh - 180px)',
+        minHeight: '500px',
         display: 'flex',
         flexDirection: 'column',
         borderRadius: 'var(--radius-lg, 16px)',

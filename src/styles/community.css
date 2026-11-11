@@ -1422,6 +1422,14 @@
 }
 
 /* Responsive */
+@media (max-width: 900px) {
+  .community-floating-toast {
+    bottom: calc(var(--mobile-nav-clearance, 88px) + 1rem + env(safe-area-inset-bottom, 0px));
+    left: 1rem;
+    right: 1rem;
+  }
+}
+
 @media (max-width: 768px) {
   .community-header-compact {
     flex-direction: column;
