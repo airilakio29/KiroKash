@@ -20,7 +20,8 @@ export const TEXT_LIMITS = {
   BIO_MAX: 160,
   USERNAME_MIN: 3,
   USERNAME_MAX: 24,
-  WALLET_NOTE_MAX: 140
+  WALLET_NOTE_MAX: 140,
+  MESSAGE_MAX: 2000
 };
 
 export const MAX_SPOT_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB raw upload limit
@@ -42,10 +43,36 @@ export function sanitizeText(str, maxLength = null) {
 }
 
 /**
- * Normalizes a unique @username handle (lowercase alphanumeric + underscores).
+ * Checks whether a string looks like a Firebase UID or raw hex/technical hash
+ * so that UIDs are never exposed or accepted as public usernames.
  */
-export function normalizeHandle(str, fallbackName = 'student') {
-  const base = sanitizeText(str || fallbackName)
+export function isLooksLikeUidOrHash(str) {
+  if (!str || typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  const stripped = trimmed.replace(/[\s-_]/g, '');
+  // 20+ hex chars or 24+ random-looking mixed-case alphanumeric chars without underscores
+  if (/^[a-f0-9]{20,}$/i.test(stripped)) return true;
+  if (trimmed.length >= 24 && !trimmed.includes('_') && /[A-Z]/.test(trimmed) && /[a-z]/.test(trimmed) && /\d/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Normalizes a unique @username handle (lowercase alphanumeric + underscores).
+ * Never exposes a raw Firebase UID as a username.
+ */
+export function normalizeHandle(str, fallbackName = 'student', forbiddenUid = null) {
+  let candidate = typeof str === 'string' ? str.trim().replace(/^@+/, '') : '';
+  if (
+    !candidate ||
+    (forbiddenUid && candidate.toLowerCase() === String(forbiddenUid).toLowerCase()) ||
+    isLooksLikeUidOrHash(candidate)
+  ) {
+    candidate = fallbackName && !isLooksLikeUidOrHash(fallbackName) ? fallbackName : 'student';
+  }
+
+  const base = sanitizeText(candidate)
     .toLowerCase()
     .replace(/^@+/, '')
     .replace(/[^a-z0-9_]/g, '_')
@@ -55,6 +82,55 @@ export function normalizeHandle(str, fallbackName = 'student') {
     return `student_${Math.random().toString(36).slice(2, 6)}`;
   }
   return base.slice(0, TEXT_LIMITS.USERNAME_MAX);
+}
+
+/**
+ * Validates a user-chosen @username handle for KampusKash Connect.
+ * Returns { valid: boolean, normalized: string, error: string | null }
+ */
+export function validateUsernameFormat(rawHandle, userId = null) {
+  if (typeof rawHandle !== 'string' || !rawHandle.trim()) {
+    return { valid: false, normalized: '', error: 'Username is required.' };
+  }
+  const cleanRaw = rawHandle.trim().replace(/^@+/, '');
+  if (userId && cleanRaw.toLowerCase() === String(userId).toLowerCase()) {
+    return { valid: false, normalized: '', error: 'Account UID cannot be used as a public username.' };
+  }
+  if (isLooksLikeUidOrHash(cleanRaw)) {
+    return { valid: false, normalized: '', error: 'Technical IDs cannot be used as a username. Please choose a readable handle.' };
+  }
+  if (!/^[a-zA-Z0-9_.]+$/.test(cleanRaw)) {
+    return {
+      valid: false,
+      normalized: '',
+      error: 'Username can only contain letters, numbers, and underscores.'
+    };
+  }
+  const normalized = cleanRaw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  if (normalized.length < TEXT_LIMITS.USERNAME_MIN) {
+    return {
+      valid: false,
+      normalized,
+      error: `Username must be at least ${TEXT_LIMITS.USERNAME_MIN} characters.`
+    };
+  }
+  if (normalized.length > TEXT_LIMITS.USERNAME_MAX) {
+    return {
+      valid: false,
+      normalized: normalized.slice(0, TEXT_LIMITS.USERNAME_MAX),
+      error: `Username cannot exceed ${TEXT_LIMITS.USERNAME_MAX} characters.`
+    };
+  }
+  const safety = checkProfanityAndSpam(normalized);
+  if (!safety.valid) {
+    return { valid: false, normalized, error: safety.reason };
+  }
+  return { valid: true, normalized, error: null };
 }
 
 /**
@@ -121,7 +197,10 @@ const rateLimitBuckets = new Map();
 export const RATE_LIMIT_CONFIG = {
   post: { maxCount: 5, windowMs: 60 * 1000, label: 'perkongsian spot' },
   comment: { maxCount: 10, windowMs: 60 * 1000, label: 'komen' },
-  transfer: { maxCount: 8, windowMs: 60 * 1000, label: 'pemindahan dompet' }
+  transfer: { maxCount: 8, windowMs: 60 * 1000, label: 'pemindahan dompet' },
+  friend_request: { maxCount: 15, windowMs: 60 * 1000, label: 'permintaan rakan' },
+  report: { maxCount: 5, windowMs: 60 * 1000, label: 'laporan keselamatan' },
+  message: { maxCount: 30, windowMs: 60 * 1000, label: 'mesej' }
 };
 
 export function checkRateLimit(actionType, userId = 'anonymous', nowMs = Date.now()) {

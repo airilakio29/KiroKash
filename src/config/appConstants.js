@@ -33,6 +33,48 @@ export const PAY_SECTION_SUBTITLE = 'QR payment, instant transfers, money reques
 export const PAY_ROUTES = ['/pay', '/pay/scan', '/pay/my-qr', '/pay/transfer', '/pay/request', '/pay/history'];
 
 /**
+ * KampusKash Connect — Phase 1: Friends & User Profiles
+ */
+export const CONNECT_SECTION_NAME = 'Connect';
+export const CONNECT_SECTION_SUBTITLE = 'Discover campus peers, build mutual friendships & manage your student profile';
+export const CONNECT_ROUTES = ['/connect', '/connect/friends', '/connect/requests', '/connect/discover', '/connect/privacy'];
+
+/**
+ * KampusKash Connect — Phase 2: Real-Time Messenger
+ */
+export const MESSAGES_SECTION_NAME = 'Messages';
+export const MESSAGES_SECTION_SUBTITLE = 'Private real-time chat with your connected campus friends';
+export const MESSAGES_ROUTES = ['/messages', '/connect/messages'];
+
+export const MESSAGE_TYPES = {
+  TEXT: 'text',
+  IMAGE: 'image',
+  LOCATION: 'location',
+  SYSTEM: 'system',
+  PAYMENT: 'payment', // Reserved for Phase 3
+  VOICE: 'voice', // Reserved for future compatibility
+  GROUP_CHALLENGE: 'group_challenge' // Reserved for future compatibility
+};
+
+export const MESSAGE_REACTIONS = ['👍', '❤️', '😂', '🔥', '🎉', '🙏'];
+export const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+export const ALLOWED_CHAT_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+export const TYPING_INDICATOR_EXPIRY_MS = 4000;
+export const MESSAGES_PAGE_SIZE = 25;
+
+/**
+ * Available Student Achievement Badges for Social Profiles
+ */
+export const PROFILE_ACHIEVEMENTS = [
+  { id: 'smart_saver', label: 'Smart Saver', description: 'Consistent monthly budget keeper', icon: 'PiggyBank' },
+  { id: 'spot_hunter', label: 'Spot Jimat Hunter', description: 'Shared campus deals with peers', icon: 'Compass' },
+  { id: 'streak_master', label: '7-Day Tracker Streak', description: 'Logged expenses for a full week', icon: 'Flame' },
+  { id: 'campus_connector', label: 'Campus Connector', description: 'Connected with fellow students', icon: 'Users' },
+  { id: 'goal_crusher', label: 'Goal Crusher', description: 'Reached a student savings milestone', icon: 'Trophy' },
+  { id: 'early_adopter', label: 'KampusKash Pioneer', description: 'Early member of KampusKash Connect', icon: 'Sparkles' }
+];
+
+/**
  * Pitch Mode Flag
  * Enables the development Pitch Mode section in Settings and the quick Demo Account Switcher.
  */
