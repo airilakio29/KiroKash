@@ -36,8 +36,18 @@ export const PAY_ROUTES = ['/pay', '/pay/scan', '/pay/my-qr', '/pay/transfer', '
  * KampusKash Connect — Phase 1: Friends & User Profiles
  */
 export const CONNECT_SECTION_NAME = 'Connect';
-export const CONNECT_SECTION_SUBTITLE = 'Discover campus peers, build mutual friendships & manage your student profile';
-export const CONNECT_ROUTES = ['/connect', '/connect/friends', '/connect/requests', '/connect/discover', '/connect/privacy'];
+export const CONNECT_SECTION_SUBTITLE = 'Discover campus peers, build mutual friendships, join student groups, savings challenges & communities';
+export const CONNECT_ROUTES = [
+  '/connect',
+  '/connect/friends',
+  '/connect/requests',
+  '/connect/discover',
+  '/connect/privacy',
+  '/connect/groups',
+  '/connect/challenges',
+  '/connect/communities',
+  '/connect/leaderboards'
+];
 
 /**
  * KampusKash Connect — Phase 2: Real-Time Messenger
@@ -63,15 +73,76 @@ export const TYPING_INDICATOR_EXPIRY_MS = 4000;
 export const MESSAGES_PAGE_SIZE = 25;
 
 /**
- * Available Student Achievement Badges for Social Profiles
+ * Available Student Achievement Badges for Social Profiles & Gamification (Phase 1 + Phase 4)
  */
 export const PROFILE_ACHIEVEMENTS = [
-  { id: 'smart_saver', label: 'Smart Saver', description: 'Consistent monthly budget keeper', icon: 'PiggyBank' },
-  { id: 'spot_hunter', label: 'Spot Jimat Hunter', description: 'Shared campus deals with peers', icon: 'Compass' },
-  { id: 'streak_master', label: '7-Day Tracker Streak', description: 'Logged expenses for a full week', icon: 'Flame' },
-  { id: 'campus_connector', label: 'Campus Connector', description: 'Connected with fellow students', icon: 'Users' },
-  { id: 'goal_crusher', label: 'Goal Crusher', description: 'Reached a student savings milestone', icon: 'Trophy' },
-  { id: 'early_adopter', label: 'KampusKash Pioneer', description: 'Early member of KampusKash Connect', icon: 'Sparkles' }
+  { id: 'smart_saver', label: 'Smart Saver', description: 'Consistent monthly budget keeper', icon: 'PiggyBank', points: 60 },
+  { id: 'spot_hunter', label: 'Spot Jimat Hunter', description: 'Shared campus deals with peers', icon: 'Compass', points: 50 },
+  { id: 'streak_master', label: '7-Day Tracker Streak', description: 'Logged expenses for a full week', icon: 'Flame', points: 75 },
+  { id: 'campus_connector', label: 'Campus Connector', description: 'Connected with fellow students', icon: 'Users', points: 50 },
+  { id: 'goal_crusher', label: 'Goal Crusher', description: 'Reached a student savings milestone', icon: 'Trophy', points: 100 },
+  { id: 'early_adopter', label: 'KampusKash Pioneer', description: 'Early member of KampusKash Connect', icon: 'Sparkles', points: 40 },
+  // Phase 4 Gamification Achievements
+  { id: 'first_savings_challenge', label: 'First Savings Challenge', description: 'Created or joined your first group savings challenge', icon: 'Target', points: 50 },
+  { id: 'consistent_saver', label: 'Consistent Saver', description: 'Logged 3+ declared progress updates in savings challenges', icon: 'TrendingUp', points: 100 },
+  { id: 'budget_master', label: 'Budget Master', description: 'Demonstrated disciplined financial habits & challenge commitment', icon: 'Award', points: 120 },
+  { id: 'challenge_completed', label: 'Challenge Completed', description: 'Reached 100% of a group or personal savings challenge target', icon: 'Trophy', points: 200 },
+  { id: 'helpful_friend', label: 'Helpful Friend', description: 'Settled group split bills and contributed to student communities', icon: 'HeartHandshake', points: 80 }
+];
+
+export const SAVINGS_CHALLENGE_DISCLAIMER =
+  'DECLARED SAVINGS CHALLENGE — SELF-REPORTED PROGRESS ONLY — NOT AN ACTUAL DEPOSIT & NO REAL OR DEMO FUNDS DEDUCTED';
+
+export const COMMUNITY_GUIDELINES = [
+  'Be respectful, supportive, and constructive with fellow students across all universities.',
+  'Never share private bank account numbers, passwords, TAC/OTP codes, or sensitive personal financial records.',
+  'No spam, commercial scams, unlicensed money-lending, or misleading financial promotions.',
+  'Report inappropriate posts or comments so community administrators can review and remove violations.'
+];
+
+export const DEFAULT_STUDENT_COMMUNITIES = [
+  {
+    id: 'comm_utp_students',
+    name: 'UTP Students',
+    category: 'Campus',
+    icon: '🎓',
+    description: 'Campus life, Village hostel updates, academic tips, and ride-sharing for Universiti Teknologi PETRONAS students.'
+  },
+  {
+    id: 'comm_budget_travel',
+    name: 'Budget Travel',
+    category: 'Lifestyle',
+    icon: '🚆',
+    description: 'Student backpacking itineraries, KTMB/ETS student pass tips, and affordable weekend getaways under RM150.'
+  },
+  {
+    id: 'comm_student_cooking',
+    name: 'Student Cooking',
+    category: 'Food',
+    icon: '🍳',
+    description: 'Dorm-friendly rice-cooker recipes, RM5 meal prep ideas, and cheap grocery hauls for campus students.'
+  },
+  {
+    id: 'comm_savings_club',
+    name: 'Savings Club',
+    category: 'Finance',
+    icon: '🐷',
+    description: 'Group savings accountability, emergency fund milestones, and student 30-day no-spend challenges.'
+  },
+  {
+    id: 'comm_financial_literacy',
+    name: 'Financial Literacy',
+    category: 'Finance',
+    icon: '📚',
+    description: 'PTPTN/scholarship planning, ASB & student budgeting basics, scam prevention, and smart money habits.'
+  },
+  {
+    id: 'comm_university_life',
+    name: 'University Life',
+    category: 'Campus',
+    icon: '🏛️',
+    description: 'Inter-varsity clubs, hackathon teammates, internship advice, study spots, and general student discussions.'
+  }
 ];
 
 /**
