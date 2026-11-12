@@ -21,12 +21,14 @@ import {
   Edit3,
   Sparkles,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  Target
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
 import UserAvatar from '../components/UserAvatar';
 import { getAvatarSvg } from '../components/Avatars';
+import Phase4GroupsChallengesCommunitiesPanel from '../components/connect/Phase4GroupsChallengesCommunitiesPanel';
 import {
   CONNECT_SECTION_NAME,
   CONNECT_SECTION_SUBTITLE,
@@ -85,7 +87,8 @@ export default function ConnectView({ onOpenProfileModal }) {
     unblock,
     setSelectedPublicProfileId,
     startSendMoneyToUser,
-    openChatWithFriend
+    openChatWithFriend,
+    setActiveConversationId
   } = useSocialWallet();
 
   const [activeSection, setActiveSection] = useState('all'); // 'all' | 'friends' | 'requests' | 'discover' | 'privacy'
@@ -593,7 +596,44 @@ export default function ConnectView({ onOpenProfileModal }) {
           onClick={() => setActiveSection('friends')}
         >
           <Users size={14} />
-          <span>My Friends ({friendsList.length})</span>
+          <span>Friends ({friendsList.length})</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/messages');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }}
+        >
+          <MessageSquare size={14} />
+          <span>Messages</span>
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${activeSection === 'groups' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveSection('groups')}
+        >
+          <Users size={14} />
+          <span>Groups</span>
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${activeSection === 'challenges' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveSection('challenges')}
+        >
+          <Target size={14} />
+          <span>Challenges</span>
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${activeSection === 'communities' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveSection('communities')}
+        >
+          <Globe size={14} />
+          <span>Communities</span>
         </button>
         <button
           type="button"
@@ -604,6 +644,22 @@ export default function ConnectView({ onOpenProfileModal }) {
           <span>Privacy &amp; Blocked ({blockedProfiles.length})</span>
         </button>
       </div>
+
+      {/* Phase 4: Groups, Savings Challenges, Leaderboards & Student Communities */}
+      {(activeSection === 'groups' ||
+        activeSection === 'challenges' ||
+        activeSection === 'communities') && (
+        <Phase4GroupsChallengesCommunitiesPanel
+          activeTab={activeSection}
+          onOpenConversationInMessenger={(conversationId) => {
+            if (setActiveConversationId) setActiveConversationId(conversationId);
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/messages');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }}
+        />
+      )}
 
       {/* 1. Search & User Discovery Section */}
       {(activeSection === 'all' || activeSection === 'discover') && (
