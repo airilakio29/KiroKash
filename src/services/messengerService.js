@@ -295,7 +295,7 @@ export function ensureDirectConversation(actorId, friendUserId) {
 /**
  * Future-compatible schema helper for group conversations (Phase 4+ ready).
  */
-export function createGroupConversationStructure({ creatorId, participantIds = [], title = '' }) {
+export function createGroupConversationStructure({ creatorId, participantIds = [], title = '', groupId = null, avatarUrl = '' }) {
     if (!creatorId) throw new Error('Creator ID is required.');
     const uniqueParticipants = Array.from(new Set([creatorId, ...participantIds])).filter(Boolean);
     const nowIso = new Date().toISOString();
@@ -304,10 +304,13 @@ export function createGroupConversationStructure({ creatorId, participantIds = [
         unreadCounts[uid] = 0;
     });
     return {
-        id: `conv_group_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: groupId ? `conv_group_${groupId}` : `conv_group_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         type: 'group',
+        groupId: groupId || null,
         title: sanitizeText(title || 'Campus Group', 80),
+        avatarUrl: avatarUrl || 'cat',
         creatorId,
+        adminIds: [creatorId],
         participants: uniqueParticipants,
         unreadCounts,
         lastMessage: null,
@@ -316,15 +319,45 @@ export function createGroupConversationStructure({ creatorId, participantIds = [
         updatedAt: nowIso,
         metadata: {
             futureGroupCompatible: true,
-            phase3PaymentReady: true
+            phase3PaymentReady: true,
+            phase4GroupReady: true
         }
     };
 }
 
+export function upsertGroupConversationInMessenger(groupConversation) {
+    if (!groupConversation || !groupConversation.id) {
+        throw new Error('Valid group conversation object is required.');
+    }
+    const convMap = getAllConversationsMap();
+    const existing = convMap[groupConversation.id];
+    const merged = {
+        ...(existing || {}),
+        ...groupConversation,
+        unreadCounts: {
+            ...(existing?.unreadCounts || {}),
+            ...(groupConversation.unreadCounts || {})
+        },
+        lastMessage: groupConversation.lastMessage !== undefined ? groupConversation.lastMessage : (existing?.lastMessage || null),
+        lastMessageAt: groupConversation.lastMessageAt !== undefined ? groupConversation.lastMessageAt : (existing?.lastMessageAt || null),
+        updatedAt: new Date().toISOString()
+    };
+    convMap[merged.id] = merged;
+    saveAllConversationsMap(convMap);
+    if (db) {
+        setDoc(doc(db, 'conversations', merged.id), merged, { merge: true }).catch(() => {});
+    }
+    if (Array.isArray(merged.participants)) {
+        for (const uid of merged.participants) {
+            notifyUserInboxSubscribers(uid);
+        }
+    }
+    return merged;
+}
+
 /**
- * Lists all conversations for `userId` hydrated with friend profile, online presence,
+ * Lists all conversations for `userId` hydrated with friend profile (or group metadata), online presence,
  * unread message indicator, typing status, and search filtering.
- * Also seamlessly ensures direct conversation entries exist for current mutual friends.
  */
 export function getUserConversations(userId, { searchQuery = '', includeEmptyFriends = false } = {}) {
     if (!userId) return [];
@@ -334,6 +367,39 @@ export function getUserConversations(userId, { searchQuery = '', includeEmptyFri
     const list = Object.values(convMap)
         .filter((conv) => Array.isArray(conv.participants) && conv.participants.includes(userId))
         .map((conv) => {
+            const unreadCount = Number(conv.unreadCounts?.[userId] || 0);
+            let typingUsers = [];
+            try {
+                typingUsers = getActiveTypingUsers(conv.id, userId);
+            } catch {
+                typingUsers = [];
+            }
+
+            if (conv.type === 'group') {
+                const otherParticipantId = conv.participants.find((p) => p !== userId) || userId;
+                const friendProfile = {
+                    id: conv.groupId || conv.id,
+                    displayName: conv.title || 'Campus Group',
+                    username: `${conv.participants.length} members`,
+                    handle: 'group_chat',
+                    avatarId: conv.avatarUrl || 'cat',
+                    avatarUrl: conv.avatarUrl || '',
+                    isGroup: true
+                };
+                return {
+                    ...conv,
+                    otherParticipantId,
+                    friendProfile,
+                    presence: { state: 'online', lastSeen: null },
+                    unreadCount,
+                    hasUnread: unreadCount > 0,
+                    typingUsers,
+                    isTyping: typingUsers.length > 0,
+                    isBlocked: false,
+                    canSendMessage: true
+                };
+            }
+
             const otherParticipantId = conv.participants.find((p) => p !== userId) || userId;
             const friendProfile = getPublicProfileForViewer(otherParticipantId, userId) || getPublicProfile(otherParticipantId) || {
                 id: otherParticipantId,
@@ -345,13 +411,6 @@ export function getUserConversations(userId, { searchQuery = '', includeEmptyFri
             const blocked = isBlockedBetween(userId, otherParticipantId);
             const stillFriends = areFriends(userId, otherParticipantId);
             const presence = getUserPresenceForViewer(otherParticipantId, userId);
-            const unreadCount = Number(conv.unreadCounts?.[userId] || 0);
-            let typingUsers = [];
-            try {
-                typingUsers = getActiveTypingUsers(conv.id, userId);
-            } catch {
-                typingUsers = [];
-            }
 
             return {
                 ...conv,
@@ -451,7 +510,7 @@ export async function uploadConversationImage({
 }) {
     const conv = getConversationForParticipant(conversationId, senderId);
     const otherParticipantId = conv.participants.find((p) => p !== senderId);
-    if (otherParticipantId) {
+    if (conv.type === 'direct' && otherParticipantId) {
         if (isBlockedBetween(senderId, otherParticipantId)) {
             throw new Error('Cannot upload image: user is blocked.');
         }
@@ -749,15 +808,29 @@ export function sendMessage({
         }
         normalizedLocation = prepareLocationSharePayload(location);
     } else if (type === MESSAGE_TYPES.PAYMENT) {
-        // Phase 2 prepares the payment message structure for Phase 3 without executing money transfers in chat yet
         if (!paymentMetadata || paymentMetadata.schemaOnlyReservation !== true) {
             throw new Error('In-chat payment execution is reserved for KampusKash Connect Phase 3.');
         }
         normalizedPaymentMetadata = {
-            paymentType: paymentMetadata.paymentType || 'transfer', // 'transfer' | 'request' | 'split'
+            cardTitle: sanitizeText(paymentMetadata.cardTitle || 'Demo Money Sent', 60),
+            paymentType: paymentMetadata.paymentType || 'transfer', // 'transfer' | 'request' | 'split' | 'request_settlement' | 'split_bill_settlement'
             amountRM: Number(paymentMetadata.amountRM || 0),
-            currency: 'MYR',
-            note: sanitizeText(paymentMetadata.note || '', 120),
+            totalAmountRM: paymentMetadata.totalAmountRM ? Number(paymentMetadata.totalAmountRM) : null,
+            currency: paymentMetadata.currency || 'RM',
+            senderId: String(paymentMetadata.senderId || senderId),
+            senderName: sanitizeText(paymentMetadata.senderName || 'Student', 60),
+            senderHandle: sanitizeText(paymentMetadata.senderHandle || 'student', 40),
+            recipientId: String(paymentMetadata.recipientId || ''),
+            recipientName: sanitizeText(paymentMetadata.recipientName || 'Friend', 60),
+            recipientHandle: sanitizeText(paymentMetadata.recipientHandle || 'friend', 40),
+            status: sanitizeText(paymentMetadata.status || 'Completed', 30),
+            referenceCode: sanitizeText(paymentMetadata.referenceCode || '', 40),
+            transferRefId: paymentMetadata.transferRefId || null,
+            requestId: paymentMetadata.requestId || null,
+            splitBillId: paymentMetadata.splitBillId || null,
+            title: sanitizeText(paymentMetadata.title || '', 80),
+            note: sanitizeText(paymentMetadata.note || '', 140),
+            simulationBanner: 'DEMO MODE — SIMULATED MONEY — NO REAL FUNDS',
             isDemoOnly: true,
             phase: 3
         };

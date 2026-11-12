@@ -23,10 +23,16 @@ import {
     Loader2,
     Sparkles,
     ChevronUp,
-    UserCheck
+    UserCheck,
+    Wallet,
+    HandCoins,
+    Split,
+    ShieldCheck,
+    CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
+import { DEMO_P2P_BANNER_TEXT } from '../services/demoWalletService';
 import UserAvatar from '../components/UserAvatar';
 import { getAvatarSvg } from '../components/Avatars';
 import {
@@ -159,7 +165,15 @@ export default function MessagesView() {
         block,
         unblock,
         report,
-        refreshSocialAndWalletState
+        refreshSocialAndWalletState,
+        demoP2PWallet,
+        demoP2PRequests = [],
+        demoP2PSplitBills = [],
+        sendSocialDemoMoney,
+        requestSocialDemoMoney,
+        respondSocialDemoRequest,
+        createSocialDemoSplitBill,
+        paySocialDemoSplitBill
     } = useSocialWallet() || {};
 
     const userId = user?.id;
@@ -226,6 +240,177 @@ export default function MessagesView() {
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
     const [reportModalOpen, setReportModalOpen] = useState(false);
     const [reportReason, setReportReason] = useState('Spam or unwanted messages');
+
+    // Phase 3: Chat Demo Wallet Modals (Send Money, Request Money, Split Bill, Payment Card Details)
+    const [chatPaymentActionModal, setChatPaymentActionModal] = useState(null); // null | 'send' | 'request' | 'split'
+    const [chatSendStep, setChatSendStep] = useState('form'); // 'form' | 'review' | 'receipt'
+    const [chatAmount, setChatAmount] = useState('');
+    const [chatNote, setChatNote] = useState('');
+    const [chatSplitTitle, setChatSplitTitle] = useState('Group Meal');
+    const [chatSplitType, setChatSplitType] = useState('equal');
+    const [chatSplitFriendIds, setChatSplitFriendIds] = useState([]);
+    const [chatSplitCustomMap, setChatSplitCustomMap] = useState({});
+    const [chatPaymentError, setChatPaymentError] = useState('');
+    const [chatPaymentProcessing, setChatPaymentProcessing] = useState(false);
+    const [chatCompletedReceipt, setChatCompletedReceipt] = useState(null);
+    const [selectedPaymentCardDetail, setSelectedPaymentCardDetail] = useState(null);
+
+    const handleOpenChatPaymentAction = (mode) => {
+        setChatPaymentError('');
+        setChatAmount('');
+        setChatNote('');
+        setChatSendStep('form');
+        setChatCompletedReceipt(null);
+        if (mode === 'split' && selectedConversation?.otherParticipantId) {
+            setChatSplitFriendIds([selectedConversation.otherParticipantId]);
+            setChatSplitCustomMap({});
+        }
+        setChatPaymentActionModal(mode);
+    };
+
+    const handleReviewChatSendMoney = (e) => {
+        e.preventDefault();
+        setChatPaymentError('');
+        const amt = Number(chatAmount);
+        if (!Number.isFinite(amt) || amt <= 0) {
+            setChatPaymentError('Please enter a valid positive RM amount.');
+            return;
+        }
+        if (amt > Number(demoP2PWallet?.balance ?? 0)) {
+            setChatPaymentError(
+                `Insufficient demo balance. Available: RM ${Number(demoP2PWallet?.balance ?? 0).toFixed(2)}`
+            );
+            return;
+        }
+        setChatSendStep('review');
+    };
+
+    const handleConfirmChatSendMoney = async () => {
+        if (!selectedConversation?.otherParticipantId) return;
+        setChatPaymentError('');
+        setChatPaymentProcessing(true);
+        try {
+            const res = await sendSocialDemoMoney({
+                recipientId: selectedConversation.otherParticipantId,
+                amount: Number(chatAmount),
+                note: chatNote,
+                confirmed: true,
+                conversationId: selectedConversation.id,
+                postToChat: true,
+                idempotencyKey: `chat_send_${userId}_${selectedConversation.otherParticipantId}_${Date.now()}`
+            });
+            setChatCompletedReceipt({
+                amount: res.transferReference.amount,
+                recipientName: res.transferReference.recipientName,
+                referenceCode: res.referenceCode,
+                createdAt: res.transferReference.createdAt
+            });
+            setChatSendStep('receipt');
+            refreshConversationList();
+        } catch (err) {
+            setChatPaymentError(err.message || 'Transfer failed.');
+        } finally {
+            setChatPaymentProcessing(false);
+        }
+    };
+
+    const handleConfirmChatRequestMoney = async (e) => {
+        e.preventDefault();
+        if (!selectedConversation?.otherParticipantId) return;
+        setChatPaymentError('');
+        setChatPaymentProcessing(true);
+        try {
+            const res = await requestSocialDemoMoney({
+                recipientId: selectedConversation.otherParticipantId,
+                amount: Number(chatAmount),
+                note: chatNote,
+                conversationId: selectedConversation.id,
+                postToChat: true
+            });
+            const req = res.request || res;
+            showToast(`Requested RM ${Number(req.amount).toFixed(2)} (${req.referenceCode})`);
+            setChatPaymentActionModal(null);
+            refreshConversationList();
+        } catch (err) {
+            setChatPaymentError(err.message || 'Request failed.');
+        } finally {
+            setChatPaymentProcessing(false);
+        }
+    };
+
+    const handleConfirmChatSplitBill = async (e) => {
+        e.preventDefault();
+        setChatPaymentError('');
+        if (chatSplitFriendIds.length === 0) {
+            setChatPaymentError('Select at least one friend to split with.');
+            return;
+        }
+        setChatPaymentProcessing(true);
+        try {
+            const participants =
+                chatSplitType === 'custom'
+                    ? [
+                          {
+                              userId,
+                              amount: Number(chatSplitCustomMap[userId] || 0)
+                          },
+                          ...chatSplitFriendIds.map((fid) => ({
+                              userId: fid,
+                              amount: Number(chatSplitCustomMap[fid] || 0)
+                          }))
+                      ]
+                    : chatSplitFriendIds;
+            const res = await createSocialDemoSplitBill({
+                title: chatSplitTitle,
+                totalAmount: Number(chatAmount),
+                splitMode: chatSplitType,
+                participants,
+                conversationId: selectedConversation.id,
+                postToChat: true
+            });
+            const bill = res.splitBill || res;
+            showToast(`Split bill created (${bill.referenceCode})!`);
+            setChatPaymentActionModal(null);
+            refreshConversationList();
+        } catch (err) {
+            setChatPaymentError(err.message || 'Could not create split bill.');
+        } finally {
+            setChatPaymentProcessing(false);
+        }
+    };
+
+    const handleRespondPaymentCardRequest = async (requestId, action) => {
+        try {
+            const res = await respondSocialDemoRequest({
+                requestId,
+                action,
+                idempotencyKey: `chat_req_${requestId}_${action}`
+            });
+            if (action === 'accept') {
+                const amt = res.transferResult?.transferReference?.amount || 0;
+                const ref = res.transferResult?.referenceCode || '';
+                showToast(`Paid RM ${Number(amt).toFixed(2)} (${ref})`);
+            } else {
+                showToast(`Request ${action}d.`);
+            }
+            refreshConversationList();
+        } catch (err) {
+            showToast(err.message || 'Could not update request.', 'error');
+        }
+    };
+
+    const handlePaySplitShareFromCard = async (splitBillId) => {
+        try {
+            const res = await paySocialDemoSplitBill({
+                splitBillId,
+                idempotencyKey: `chat_split_${splitBillId}_${userId}`
+            });
+            showToast(`Paid your split share (${res.transferResult?.referenceCode})!`);
+            refreshConversationList();
+        } catch (err) {
+            showToast(err.message || 'Could not pay split share.', 'error');
+        }
+    };
 
     // Notification & Presence privacy state
     const [notifPrefs, setNotifPrefs] = useState(() => getMessagingNotificationPrefs(userId));
@@ -1545,6 +1730,193 @@ export default function MessagesView() {
                                                                 </div>
                                                             )}
 
+                                                        {/* Phase 3: Demo Payment Message Card */}
+                                                        {!msg.deleted &&
+                                                            msg.type === MESSAGE_TYPES.PAYMENT &&
+                                                            msg.paymentMetadata && (() => {
+                                                                const pm = msg.paymentMetadata;
+                                                                const matchedRequest = pm.requestId
+                                                                    ? demoP2PRequests.find((r) => r.id === pm.requestId)
+                                                                    : null;
+                                                                const matchedSplit = pm.splitBillId
+                                                                    ? demoP2PSplitBills.find((b) => b.id === pm.splitBillId)
+                                                                    : null;
+                                                                const mySplitParticipant = matchedSplit?.participants?.find(
+                                                                    (p) => p.userId === userId
+                                                                );
+                                                                const liveStatus = matchedRequest
+                                                                    ? matchedRequest.status
+                                                                    : mySplitParticipant
+                                                                    ? mySplitParticipant.status
+                                                                    : pm.status || 'completed';
+
+                                                                return (
+                                                                    <div
+                                                                        onClick={() => setSelectedPaymentCardDetail(pm)}
+                                                                        style={{
+                                                                            padding: '12px 14px',
+                                                                            borderRadius: 14,
+                                                                            background: isMine
+                                                                                ? 'rgba(0,0,0,0.24)'
+                                                                                : 'var(--bg-secondary)',
+                                                                            border: '1px solid var(--border-primary)',
+                                                                            marginBottom: 6,
+                                                                            cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        <div
+                                                                            style={{
+                                                                                fontSize: '0.64rem',
+                                                                                fontWeight: 800,
+                                                                                letterSpacing: '0.04em',
+                                                                                textTransform: 'uppercase',
+                                                                                color: isMine ? '#fde68a' : 'var(--accent-primary)',
+                                                                                marginBottom: 4,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                gap: 4
+                                                                            }}
+                                                                        >
+                                                                            <ShieldCheck size={12} />
+                                                                            <span>{pm.simulationBanner || DEMO_P2P_BANNER_TEXT}</span>
+                                                                        </div>
+
+                                                                        <div
+                                                                            style={{
+                                                                                fontWeight: 800,
+                                                                                fontSize: '0.88rem',
+                                                                                marginBottom: 2
+                                                                            }}
+                                                                        >
+                                                                            {pm.cardTitle || 'Demo Money Sent'}
+                                                                        </div>
+
+                                                                        <div
+                                                                            style={{
+                                                                                fontSize: '1.35rem',
+                                                                                fontWeight: 800,
+                                                                                margin: '4px 0 8px'
+                                                                            }}
+                                                                        >
+                                                                            RM {Number(pm.amountRM ?? pm.amount ?? 0).toFixed(2)}
+                                                                        </div>
+
+                                                                        <div
+                                                                            style={{
+                                                                                fontSize: '0.76rem',
+                                                                                display: 'grid',
+                                                                                gap: 3,
+                                                                                opacity: 0.94
+                                                                            }}
+                                                                        >
+                                                                            <div>
+                                                                                <strong>From:</strong> {pm.senderName || 'Student'}
+                                                                            </div>
+                                                                            <div>
+                                                                                <strong>To:</strong> {pm.recipientName || 'Friend'}
+                                                                            </div>
+                                                                            <div>
+                                                                                <strong>Status:</strong>{' '}
+                                                                                <span style={{ textTransform: 'capitalize', fontWeight: 700 }}>
+                                                                                    {liveStatus}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div style={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>
+                                                                                <strong>Reference:</strong> {pm.referenceCode || pm.transferRefId}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Interactive Request Accept/Decline buttons for Recipient */}
+                                                                        {pm.paymentType === 'request' &&
+                                                                            pm.recipientId === userId &&
+                                                                            liveStatus === 'pending' &&
+                                                                            pm.requestId && (
+                                                                                <div
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                    style={{
+                                                                                        display: 'flex',
+                                                                                        gap: 6,
+                                                                                        marginTop: 10
+                                                                                    }}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() =>
+                                                                                            handleRespondPaymentCardRequest(
+                                                                                                pm.requestId,
+                                                                                                'accept'
+                                                                                            )
+                                                                                        }
+                                                                                        style={{
+                                                                                            padding: '6px 12px',
+                                                                                            borderRadius: 8,
+                                                                                            border: 'none',
+                                                                                            background: 'var(--accent-green)',
+                                                                                            color: '#ffffff',
+                                                                                            fontSize: '0.75rem',
+                                                                                            fontWeight: 800,
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                    >
+                                                                                        Accept &amp; Pay RM {Number(pm.amountRM || 0).toFixed(2)}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() =>
+                                                                                            handleRespondPaymentCardRequest(
+                                                                                                pm.requestId,
+                                                                                                'decline'
+                                                                                            )
+                                                                                        }
+                                                                                        style={{
+                                                                                            padding: '6px 10px',
+                                                                                            borderRadius: 8,
+                                                                                            border: '1px solid var(--border-primary)',
+                                                                                            background: 'var(--bg-card)',
+                                                                                            color: 'var(--text-primary)',
+                                                                                            fontSize: '0.75rem',
+                                                                                            fontWeight: 700,
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                    >
+                                                                                        Decline
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+
+                                                                        {/* Interactive Split Bill Pay Share button for Participant */}
+                                                                        {pm.paymentType === 'split_bill' &&
+                                                                            pm.recipientId === userId &&
+                                                                            liveStatus === 'pending' &&
+                                                                            pm.splitBillId && (
+                                                                                <div
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                    style={{ marginTop: 10 }}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() =>
+                                                                                            handlePaySplitShareFromCard(pm.splitBillId)
+                                                                                        }
+                                                                                        style={{
+                                                                                            padding: '6px 12px',
+                                                                                            borderRadius: 8,
+                                                                                            border: 'none',
+                                                                                            background: 'var(--accent-green)',
+                                                                                            color: '#ffffff',
+                                                                                            fontSize: '0.75rem',
+                                                                                            fontWeight: 800,
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                    >
+                                                                                        Pay Share RM {Number(pm.amountRM || 0).toFixed(2)}
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+
                                                         {/* Text Body */}
                                                         {(msg.text || msg.deleted) && (
                                                             <div
@@ -1846,18 +2218,111 @@ export default function MessagesView() {
                                         </button>
                                     </div>
                                 ) : (
-                                    <form
-                                        onSubmit={handleSendTextMessage}
+                                    <div
                                         style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                            padding: '12px 14px',
                                             background: 'var(--bg-card)',
                                             borderTop: '1px solid var(--border-primary)',
                                             flexShrink: 0
                                         }}
                                     >
+                                        {/* Phase 3: Chat Wallet Action Controls Bar (Send Money, Request Money, Split Bill, Share Location, Send Image) */}
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                padding: '8px 14px 2px',
+                                                overflowX: 'auto'
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenChatPaymentAction('send')}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 5,
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid var(--accent-primary)',
+                                                    background: 'var(--accent-glow)',
+                                                    color: 'var(--accent-primary)',
+                                                    fontSize: '0.74rem',
+                                                    fontWeight: 800,
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <Wallet size={13} />
+                                                <span>Send Money</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenChatPaymentAction('request')}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 5,
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid var(--border-primary)',
+                                                    background: 'var(--bg-secondary)',
+                                                    color: 'var(--text-primary)',
+                                                    fontSize: '0.74rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <HandCoins size={13} />
+                                                <span>Request Money</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenChatPaymentAction('split')}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 5,
+                                                    padding: '5px 10px',
+                                                    borderRadius: 999,
+                                                    border: '1px solid var(--border-primary)',
+                                                    background: 'var(--bg-secondary)',
+                                                    color: 'var(--text-primary)',
+                                                    fontSize: '0.74rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <Split size={13} />
+                                                <span>Split Bill</span>
+                                            </button>
+
+                                            <span
+                                                style={{
+                                                    marginLeft: 'auto',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 700,
+                                                    color: 'var(--text-muted)',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                Demo Wallet: RM {Number(demoP2PWallet?.balance ?? 100).toFixed(2)}
+                                            </span>
+                                        </div>
+
+                                        <form
+                                            onSubmit={handleSendTextMessage}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                padding: '8px 14px 12px'
+                                            }}
+                                        >
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -1964,7 +2429,8 @@ export default function MessagesView() {
                                         >
                                             <Send size={18} />
                                         </button>
-                                    </form>
+                                        </form>
+                                    </div>
                                 )}
                             </>
                         )}
@@ -2706,6 +3172,834 @@ export default function MessagesView() {
                             </button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* MODAL 7 (PHASE 3): CHAT DEMO WALLET ACTIONS (SEND MONEY, REQUEST MONEY, SPLIT BILL) */}
+            {chatPaymentActionModal && selectedConversation && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.68)',
+                        zIndex: 1300,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 16
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            maxWidth: 460,
+                            borderRadius: 20,
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-primary)',
+                            padding: 20,
+                            boxShadow: 'var(--shadow-lg)',
+                            maxHeight: '90vh',
+                            overflowY: 'auto'
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                background: 'var(--accent-glow)',
+                                color: 'var(--accent-primary)',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                marginBottom: 10
+                            }}
+                        >
+                            <ShieldCheck size={13} />
+                            <span>{DEMO_P2P_BANNER_TEXT}</span>
+                        </div>
+
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 12
+                            }}
+                        >
+                            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                                {chatPaymentActionModal === 'send'
+                                    ? `Send Demo Money to ${selectedConversation.friendProfile?.displayName}`
+                                    : chatPaymentActionModal === 'request'
+                                    ? `Request Demo Money from ${selectedConversation.friendProfile?.displayName}`
+                                    : 'Split Bill with Friends'}
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setChatPaymentActionModal(null)}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div
+                            style={{
+                                fontSize: '0.78rem',
+                                color: 'var(--text-secondary)',
+                                marginBottom: 12
+                            }}
+                        >
+                            Available KampusKash Demo Balance:{' '}
+                            <strong style={{ color: 'var(--text-primary)' }}>
+                                RM {Number(demoP2PWallet?.balance ?? 100).toFixed(2)}
+                            </strong>
+                        </div>
+
+                        {chatPaymentError && (
+                            <div
+                                style={{
+                                    padding: '8px 10px',
+                                    borderRadius: 10,
+                                    background: 'rgba(239,68,68,0.12)',
+                                    color: 'var(--accent-red)',
+                                    fontSize: '0.8rem',
+                                    marginBottom: 12
+                                }}
+                            >
+                                {chatPaymentError}
+                            </div>
+                        )}
+
+                        {/* CHAT SEND MONEY: FORM STEP */}
+                        {chatPaymentActionModal === 'send' && chatSendStep === 'form' && (
+                            <form onSubmit={handleReviewChatSendMoney}>
+                                <div style={{ marginBottom: 12 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Amount (RM)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        placeholder="25.00"
+                                        value={chatAmount}
+                                        onChange={(e) => setChatAmount(e.target.value)}
+                                        required
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            borderRadius: 11,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.95rem',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Optional Note
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Nasi Lemak lunch share"
+                                        value={chatNote}
+                                        onChange={(e) => setChatNote(e.target.value)}
+                                        maxLength={140}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            borderRadius: 11,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.88rem',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setChatPaymentActionModal(null)}
+                                        style={{
+                                            padding: '9px 14px',
+                                            borderRadius: 10,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        style={{
+                                            padding: '9px 16px',
+                                            borderRadius: 10,
+                                            border: 'none',
+                                            background: 'var(--gradient-primary)',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Review Payment Details
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* CHAT SEND MONEY: REVIEW & CONFIRM STEP */}
+                        {chatPaymentActionModal === 'send' && chatSendStep === 'review' && (
+                            <div>
+                                <div
+                                    style={{
+                                        padding: 14,
+                                        borderRadius: 14,
+                                        background: 'var(--bg-secondary)',
+                                        border: '1px solid var(--border-primary)',
+                                        marginBottom: 14
+                                    }}
+                                >
+                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                        Review Simulated Transfer
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: '1.5rem',
+                                            fontWeight: 800,
+                                            color: 'var(--text-primary)',
+                                            margin: '4px 0 8px'
+                                        }}
+                                    >
+                                        RM {Number(chatAmount || 0).toFixed(2)}
+                                    </div>
+                                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                        <div>
+                                            <strong>Recipient:</strong>{' '}
+                                            {selectedConversation.friendProfile?.displayName} (@
+                                            {selectedConversation.friendProfile?.username})
+                                        </div>
+                                        <div>
+                                            <strong>Note:</strong> {chatNote || 'Simulated P2P Transfer'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setChatSendStep('form')}
+                                        style={{
+                                            padding: '9px 14px',
+                                            borderRadius: 10,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={chatPaymentProcessing}
+                                        onClick={handleConfirmChatSendMoney}
+                                        style={{
+                                            padding: '9px 16px',
+                                            borderRadius: 10,
+                                            border: 'none',
+                                            background: 'var(--accent-green)',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {chatPaymentProcessing ? 'Processing...' : 'Confirm Transfer'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CHAT SEND MONEY: SUCCESS RECEIPT STEP */}
+                        {chatPaymentActionModal === 'send' &&
+                            chatSendStep === 'receipt' &&
+                            chatCompletedReceipt && (
+                                <div style={{ textAlign: 'center' }}>
+                                    <CheckCircle2
+                                        size={38}
+                                        color="var(--accent-green)"
+                                        style={{ margin: '0 auto 6px' }}
+                                    />
+                                    <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)' }}>
+                                        Demo Transfer Successful
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: '1.55rem',
+                                            fontWeight: 800,
+                                            color: 'var(--accent-green)',
+                                            margin: '4px 0 10px'
+                                        }}
+                                    >
+                                        RM {Number(chatCompletedReceipt.amount).toFixed(2)}
+                                    </div>
+                                    <div
+                                        style={{
+                                            textAlign: 'left',
+                                            padding: 12,
+                                            borderRadius: 12,
+                                            background: 'var(--bg-secondary)',
+                                            fontSize: '0.8rem',
+                                            display: 'grid',
+                                            gap: 5,
+                                            marginBottom: 14
+                                        }}
+                                    >
+                                        <div>
+                                            <strong>Recipient:</strong> {chatCompletedReceipt.recipientName}
+                                        </div>
+                                        <div>
+                                            <strong>Reference:</strong>{' '}
+                                            <code>{chatCompletedReceipt.referenceCode}</code>
+                                        </div>
+                                        <div>
+                                            <strong>Date &amp; Time:</strong>{' '}
+                                            {new Date(chatCompletedReceipt.createdAt).toLocaleString()}
+                                        </div>
+                                        <div>
+                                            <strong>Status:</strong> DEMO COMPLETED
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setChatPaymentActionModal(null)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 16px',
+                                            borderRadius: 10,
+                                            border: 'none',
+                                            background: 'var(--gradient-primary)',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            )}
+
+                        {/* CHAT REQUEST MONEY */}
+                        {chatPaymentActionModal === 'request' && (
+                            <form onSubmit={handleConfirmChatRequestMoney}>
+                                <div style={{ marginBottom: 12 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Request Amount (RM)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        placeholder="15.00"
+                                        value={chatAmount}
+                                        onChange={(e) => setChatAmount(e.target.value)}
+                                        required
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            borderRadius: 11,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.95rem',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Reason / Note
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Grab ride share"
+                                        value={chatNote}
+                                        onChange={(e) => setChatNote(e.target.value)}
+                                        maxLength={140}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            borderRadius: 11,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.88rem',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setChatPaymentActionModal(null)}
+                                        style={{
+                                            padding: '9px 14px',
+                                            borderRadius: 10,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={chatPaymentProcessing}
+                                        style={{
+                                            padding: '9px 16px',
+                                            borderRadius: 10,
+                                            border: 'none',
+                                            background: 'var(--gradient-primary)',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {chatPaymentProcessing ? 'Sending...' : 'Send Demo Request'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* CHAT SPLIT BILL */}
+                        {chatPaymentActionModal === 'split' && (
+                            <form onSubmit={handleConfirmChatSplitBill}>
+                                <div style={{ marginBottom: 10 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Bill Title
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={chatSplitTitle}
+                                        onChange={(e) => setChatSplitTitle(e.target.value)}
+                                        required
+                                        style={{
+                                            width: '100%',
+                                            padding: '9px 12px',
+                                            borderRadius: 10,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                                    <div>
+                                        <label
+                                            style={{
+                                                display: 'block',
+                                                fontSize: '0.78rem',
+                                                fontWeight: 700,
+                                                marginBottom: 4,
+                                                color: 'var(--text-secondary)'
+                                            }}
+                                        >
+                                            Total Bill (RM)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0.02"
+                                            placeholder="90.00"
+                                            value={chatAmount}
+                                            onChange={(e) => setChatAmount(e.target.value)}
+                                            required
+                                            style={{
+                                                width: '100%',
+                                                padding: '9px 12px',
+                                                borderRadius: 10,
+                                                border: '1px solid var(--border-primary)',
+                                                background: 'var(--bg-input)',
+                                                color: 'var(--text-primary)',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            style={{
+                                                display: 'block',
+                                                fontSize: '0.78rem',
+                                                fontWeight: 700,
+                                                marginBottom: 4,
+                                                color: 'var(--text-secondary)'
+                                            }}
+                                        >
+                                            Split Mode
+                                        </label>
+                                        <select
+                                            value={chatSplitType}
+                                            onChange={(e) => setChatSplitType(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '9px 12px',
+                                                borderRadius: 10,
+                                                border: '1px solid var(--border-primary)',
+                                                background: 'var(--bg-input)',
+                                                color: 'var(--text-primary)',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        >
+                                            <option value="equal">Equal Split</option>
+                                            <option value="custom">Custom Amounts</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 12 }}>
+                                    <label
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            marginBottom: 4,
+                                            color: 'var(--text-secondary)'
+                                        }}
+                                    >
+                                        Include Friends ({chatSplitFriendIds.length} selected + You)
+                                    </label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {friendsList.map((f) => {
+                                            const selected = chatSplitFriendIds.includes(f.id);
+                                            return (
+                                                <button
+                                                    key={f.id}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setChatSplitFriendIds((prev) =>
+                                                            prev.includes(f.id)
+                                                                ? prev.filter((id) => id !== f.id)
+                                                                : [...prev, f.id]
+                                                        )
+                                                    }
+                                                    style={{
+                                                        padding: '5px 10px',
+                                                        borderRadius: 999,
+                                                        border: selected
+                                                            ? '1.5px solid var(--accent-primary)'
+                                                            : '1px solid var(--border-primary)',
+                                                        background: selected
+                                                            ? 'var(--accent-glow)'
+                                                            : 'var(--bg-secondary)',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: '0.76rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {selected ? '✓ ' : '+ '}
+                                                    {f.displayName}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {chatSplitType === 'custom' && (
+                                    <div
+                                        style={{
+                                            padding: 10,
+                                            borderRadius: 10,
+                                            background: 'var(--bg-secondary)',
+                                            marginBottom: 12,
+                                            display: 'grid',
+                                            gap: 6
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>Your Share (RM)</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                style={{ width: 100, padding: '5px 8px', borderRadius: 8 }}
+                                                value={chatSplitCustomMap[userId] || ''}
+                                                onChange={(e) =>
+                                                    setChatSplitCustomMap((prev) => ({
+                                                        ...prev,
+                                                        [userId]: e.target.value
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+                                        {chatSplitFriendIds.map((fid) => {
+                                            const f = friendsList.find((x) => x.id === fid);
+                                            return (
+                                                <div
+                                                    key={fid}
+                                                    style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                                                        {f?.displayName || fid} (RM)
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        style={{ width: 100, padding: '5px 8px', borderRadius: 8 }}
+                                                        value={chatSplitCustomMap[fid] || ''}
+                                                        onChange={(e) =>
+                                                            setChatSplitCustomMap((prev) => ({
+                                                                ...prev,
+                                                                [fid]: e.target.value
+                                                            }))
+                                                        }
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setChatPaymentActionModal(null)}
+                                        style={{
+                                            padding: '9px 14px',
+                                            borderRadius: 10,
+                                            border: '1px solid var(--border-primary)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={chatPaymentProcessing}
+                                        style={{
+                                            padding: '9px 16px',
+                                            borderRadius: 10,
+                                            border: 'none',
+                                            background: 'var(--gradient-primary)',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {chatPaymentProcessing ? 'Creating...' : 'Create Split Bill'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 8 (PHASE 3): DEMO TRANSACTION DETAILS MODAL FROM PAYMENT MESSAGE CARD */}
+            {selectedPaymentCardDetail && (
+                <div
+                    onClick={() => setSelectedPaymentCardDetail(null)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.68)',
+                        zIndex: 1350,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 16
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            maxWidth: 420,
+                            borderRadius: 20,
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-primary)',
+                            padding: 20,
+                            boxShadow: 'var(--shadow-lg)'
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                background: 'var(--accent-glow)',
+                                color: 'var(--accent-primary)',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                marginBottom: 10
+                            }}
+                        >
+                            <ShieldCheck size={13} />
+                            <span>{DEMO_P2P_BANNER_TEXT}</span>
+                        </div>
+
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 10
+                            }}
+                        >
+                            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                                {selectedPaymentCardDetail.cardTitle || 'Demo Transaction Details'}
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedPaymentCardDetail(null)}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div
+                            style={{
+                                fontSize: '1.6rem',
+                                fontWeight: 800,
+                                color: 'var(--accent-primary)',
+                                marginBottom: 12
+                            }}
+                        >
+                            RM {Number(selectedPaymentCardDetail.amountRM ?? selectedPaymentCardDetail.amount ?? 0).toFixed(2)}
+                        </div>
+
+                        <div
+                            style={{
+                                padding: 12,
+                                borderRadius: 12,
+                                background: 'var(--bg-secondary)',
+                                fontSize: '0.82rem',
+                                display: 'grid',
+                                gap: 6,
+                                marginBottom: 14
+                            }}
+                        >
+                            <div>
+                                <strong>From:</strong> {selectedPaymentCardDetail.senderName || 'Student'}
+                            </div>
+                            <div>
+                                <strong>To:</strong> {selectedPaymentCardDetail.recipientName || 'Friend'}
+                            </div>
+                            <div>
+                                <strong>Status:</strong>{' '}
+                                <span style={{ textTransform: 'uppercase', fontWeight: 800 }}>
+                                    {selectedPaymentCardDetail.status || 'completed'}
+                                </span>
+                            </div>
+                            <div>
+                                <strong>Reference:</strong>{' '}
+                                <code>
+                                    {selectedPaymentCardDetail.referenceCode ||
+                                        selectedPaymentCardDetail.transferRefId}
+                                </code>
+                            </div>
+                            {selectedPaymentCardDetail.note && (
+                                <div>
+                                    <strong>Note:</strong> {selectedPaymentCardDetail.note}
+                                </div>
+                            )}
+                            <div>
+                                <strong>Ledger Isolation:</strong> Simulated Social P2P Demo Ledger Only
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedPaymentCardDetail(null)}
+                            style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                borderRadius: 10,
+                                border: 'none',
+                                background: 'var(--gradient-primary)',
+                                color: '#ffffff',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Close Details
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
