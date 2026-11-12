@@ -5,8 +5,27 @@ import { KAMPUSKASH_ACCOUNT_ID } from '../services/accountService';
 import {
     ensurePublicProfileForUser,
     getPublicProfile,
+    getPublicProfileForViewer,
     updatePublicSocialProfile,
+    updateProfilePrivacySettings,
+    changeUsername as serviceChangeUsername,
+     isHandleAvailable,
     searchPublicProfiles,
+    getFriendSuggestions,
+    getFriendIds,
+    areFriends as serviceAreFriends,
+    getFriendsList,
+    getMutualFriends as serviceGetMutualFriends,
+    getIncomingFriendRequests,
+    getOutgoingFriendRequests,
+    getFriendshipStatus as serviceGetFriendshipStatus,
+    sendFriendRequest as serviceSendFriendRequest,
+    acceptFriendRequest as serviceAcceptFriendRequest,
+    rejectFriendRequest as serviceRejectFriendRequest,
+    cancelFriendRequest as serviceCancelFriendRequest,
+    removeFriend as serviceRemoveFriend,
+    subscribeToUserFriendRequests,
+    subscribeToUserFriendships,
     getFollowingIds,
     getFollowerIds,
     getFollowersProfiles,
@@ -17,6 +36,7 @@ import {
     getSavedSpotIds,
     toggleSaveSpot,
     getBlockedUserIds,
+    isBlockedBetween,
     blockUser,
     unblockUser,
     reportUserOrContent,
@@ -60,6 +80,13 @@ import {
     generatePitchSpots,
     generatePitchWalletData
 } from '../demo/pitchSeedData';
+import {
+    ensureDirectConversation,
+    getUserConversations,
+    getTotalUnreadMessageCount,
+    subscribeToUserConversations,
+    setUserPresence
+} from '../services/messengerService';
 
 const SocialWalletContext = createContext();
 
@@ -96,10 +123,17 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     const [publicProfile, setPublicProfile] = useState(null);
     const [followingIds, setFollowingIds] = useState([]);
     const [followerIds, setFollowerIds] = useState([]);
+    const [friendsList, setFriendsList] = useState([]);
+    const [incomingFriendRequests, setIncomingFriendRequests] = useState([]);
+    const [outgoingFriendRequests, setOutgoingFriendRequests] = useState([]);
+    const [friendSuggestions, setFriendSuggestions] = useState([]);
     const [savedSpotIds, setSavedSpotIds] = useState([]);
     const [blockedUserIds, setBlockedUserIds] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [conversations, setConversations] = useState([]);
+    const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+    const [activeConversationId, setActiveConversationId] = useState(null);
 
     const [wallet, setWallet] = useState(null);
     const [dailyTransferred, setDailyTransferred] = useState(0);
@@ -137,10 +171,17 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             setPublicProfile(null);
             setFollowingIds([]);
             setFollowerIds([]);
+            setFriendsList([]);
+            setIncomingFriendRequests([]);
+            setOutgoingFriendRequests([]);
+            setFriendSuggestions([]);
             setSavedSpotIds([]);
             setBlockedUserIds([]);
             setNotifications([]);
             setUnreadCount(0);
+            setConversations([]);
+            setTotalUnreadMessages(0);
+            setActiveConversationId(null);
             setWallet(null);
             setDailyTransferred(0);
             setWalletHistory([]);
@@ -154,17 +195,37 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             name: targetUser.username || targetUser.name || targetUser.displayName || 'Student',
             handle: targetUser.handle,
             university: targetUser.university,
+            course: targetUser.course,
             bio: targetUser.bio,
             avatarId: targetUser.avatarId || targetUser.avatar || 'cat',
             photoURL: targetUser.photoURL,
+            achievements: targetUser.achievements,
+            privacySettings: targetUser.privacySettings,
             isPitchDemo: targetUser.isPitchDemo
         });
         setPublicProfile(prof);
 
         setFollowingIds(getFollowingIds(uid));
         setFollowerIds(getFollowerIds(uid));
+        const currentFriends = getFriendsList(uid);
+        setFriendsList(currentFriends);
+        setIncomingFriendRequests(getIncomingFriendRequests(uid));
+        setOutgoingFriendRequests(getOutgoingFriendRequests(uid));
+        setFriendSuggestions(getFriendSuggestions(uid, { limit: 12 }));
         setSavedSpotIds(getSavedSpotIds(uid));
         setBlockedUserIds(getBlockedUserIds(uid));
+
+        // Ensure current user presence is online and direct conversation records exist for friends
+        setUserPresence(uid, 'online');
+        for (const friend of currentFriends) {
+            try {
+                ensureDirectConversation(uid, friend.id);
+            } catch {
+                // ignore if blocked
+            }
+        }
+        setConversations(getUserConversations(uid));
+        setTotalUnreadMessages(getTotalUnreadMessageCount(uid));
 
         const notifs = getUserNotifications(uid);
         setNotifications(notifs);
@@ -187,6 +248,48 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     useEffect(() => {
         refreshSocialAndWalletState(user);
     }, [user, refreshSocialAndWalletState]);
+
+    // Real-time Messenger inbox & online presence synchronization
+    useEffect(() => {
+        if (!userId) return;
+        setUserPresence(userId, 'online');
+
+        const unsubConv = subscribeToUserConversations(userId, (liveConvs) => {
+            if (Array.isArray(liveConvs)) {
+                setConversations(liveConvs);
+                setTotalUnreadMessages(getTotalUnreadMessageCount(userId));
+            }
+        });
+
+        const handleOnline = () => setUserPresence(userId, 'online');
+        const handleOffline = () => setUserPresence(userId, 'offline', { isBackgroundTab: false });
+        const handleBeforeUnload = () => setUserPresence(userId, 'offline', { isBackgroundTab: false });
+        // Do NOT mark offline when tab is simply backgrounded
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                setUserPresence(userId, 'online');
+            } else {
+                setUserPresence(userId, 'offline', { isBackgroundTab: true });
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('online', handleOnline);
+            window.addEventListener('offline', handleOffline);
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        return () => {
+            if (unsubConv) unsubConv();
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('online', handleOnline);
+                window.removeEventListener('offline', handleOffline);
+                window.removeEventListener('beforeunload', handleBeforeUnload);
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
+        };
+    }, [userId]);
 
     // Live real-time Firestore listeners for real users across separate devices/browsers
     useEffect(() => {
@@ -216,14 +319,84 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             }
         });
 
+        const unsubFriendReqs = subscribeToUserFriendRequests(userId, ({ incoming, outgoing }) => {
+            if (Array.isArray(incoming)) setIncomingFriendRequests(incoming);
+            if (Array.isArray(outgoing)) setOutgoingFriendRequests(outgoing);
+            setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+        });
+
+        const unsubFriendships = subscribeToUserFriendships(userId, (liveFriends) => {
+            if (Array.isArray(liveFriends)) {
+                setFriendsList(liveFriends);
+                setPublicProfile(getPublicProfile(userId));
+                setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+            }
+        });
+
         return () => {
             if (unsubWallet) unsubWallet();
             if (unsubNotifs) unsubNotifs();
             if (unsubRequests) unsubRequests();
+            if (unsubFriendReqs) unsubFriendReqs();
+            if (unsubFriendships) unsubFriendships();
         };
     }, [userId, user?.isPitchDemo, updateAccount]);
 
-    // Social actions
+    // Social & Connect actions
+    const sendFriendRequest = useCallback(async (targetUserId, options = {}) => {
+        if (!user) throw new Error('Sign in required.');
+        const res = await serviceSendFriendRequest(
+            { id: user.id, name: publicProfile?.displayName || user.username, handle: publicProfile?.handle },
+            targetUserId,
+            options
+        );
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, publicProfile, refreshSocialAndWalletState]);
+
+    const acceptFriendRequest = useCallback(async (requestIdOrSenderId) => {
+        if (!user) throw new Error('Sign in required.');
+        const res = await serviceAcceptFriendRequest(user.id, requestIdOrSenderId);
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const rejectFriendRequest = useCallback(async (requestIdOrSenderId) => {
+        if (!user) throw new Error('Sign in required.');
+        const res = await serviceRejectFriendRequest(user.id, requestIdOrSenderId);
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const cancelFriendRequest = useCallback(async (requestIdOrReceiverId) => {
+        if (!user) throw new Error('Sign in required.');
+        const res = await serviceCancelFriendRequest(user.id, requestIdOrReceiverId);
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const removeFriend = useCallback(async (friendUserId) => {
+        if (!user) throw new Error('Sign in required.');
+        const res = await serviceRemoveFriend(user.id, friendUserId);
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const updatePrivacySettings = useCallback(async (privacyUpdates) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const updated = await updateProfilePrivacySettings(user.id, privacyUpdates);
+        setPublicProfile(updated);
+        updateUserProfile({ privacySettings: updated.privacySettings });
+        return updated;
+    }, [user, updateUserProfile]);
+
+    const changeUsername = useCallback(async (newHandle) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const updated = await serviceChangeUsername(user.id, newHandle);
+        setPublicProfile(updated);
+        updateUserProfile({ handle: updated.handle });
+        return updated;
+    }, [user, updateUserProfile]);
     const follow = useCallback(async (targetUserId) => {
         if (!user) throw new Error('Sign in required.');
         const res = await followUser(
@@ -280,11 +453,15 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             handle: updated.handle,
             bio: updated.bio,
             university: updated.university,
+            course: updated.course,
+            achievements: updated.achievements,
+            privacySettings: updated.privacySettings,
             avatar: updated.avatarId,
             avatarId: updated.avatarId
         });
+        refreshSocialAndWalletState(user);
         return updated;
-    }, [user, updateUserProfile]);
+    }, [user, updateUserProfile, refreshSocialAndWalletState]);
 
     const notifySocialInteraction = useCallback((payload) => {
         createNotification(payload);
@@ -478,6 +655,18 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         }
     }, [onNavigateTab]);
 
+    const openChatWithFriend = useCallback((friendUserId) => {
+        if (!user?.id || !friendUserId) return null;
+        setSelectedPublicProfileId(null);
+        const conv = ensureDirectConversation(user.id, friendUserId);
+        setActiveConversationId(conv.id);
+        setConversations(getUserConversations(user.id));
+        if (typeof onNavigateTab === 'function') {
+            onNavigateTab('messages');
+        }
+        return conv;
+    }, [user?.id, onNavigateTab]);
+
     const openWalletReceiptById = useCallback((receiptId) => {
         const receipt = getWalletReceipt(receiptId);
         if (receipt) {
@@ -551,12 +740,27 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         followerIds,
         followersProfiles: userId ? getFollowersProfiles(userId) : [],
         followingProfiles: userId ? getFollowingProfiles(userId) : [],
+        friendsList,
+        friendIds: userId ? getFriendIds(userId) : [],
+        incomingFriendRequests,
+        outgoingFriendRequests,
+        friendSuggestions,
+        areFriends: (targetId) => serviceAreFriends(userId, targetId),
+        getFriendshipStatus: (targetId) => serviceGetFriendshipStatus(userId, targetId),
+        getMutualFriends: (targetId) => serviceGetMutualFriends(userId, targetId),
+        getPublicProfileForViewer: (targetId) => getPublicProfileForViewer(targetId, userId),
+        isBlockedBetween: (targetId) => isBlockedBetween(userId, targetId),
+        isHandleAvailable: (handle) => isHandleAvailable(handle, userId),
         recentRecipients: userId ? getRecentRecipients(userId) : [],
         isFollowing: (targetId) => isFollowingUser(userId, targetId),
         savedSpotIds,
         blockedUserIds,
         notifications,
         unreadCount,
+        conversations,
+        totalUnreadMessages,
+        activeConversationId,
+        setActiveConversationId,
         wallet,
         dailyTransferred,
         walletHistory,
@@ -579,6 +783,13 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         openScanPaySheet,
         closeScanPaySheet,
         // Actions
+        sendFriendRequest,
+        acceptFriendRequest,
+        rejectFriendRequest,
+        cancelFriendRequest,
+        removeFriend,
+        updatePrivacySettings,
+        changeUsername,
         follow,
         unfollow,
         toggleSave,
@@ -599,6 +810,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         performRequestMoney,
         performRespondToRequest,
         startSendMoneyToUser,
+        openChatWithFriend,
         openWalletReceiptById,
         loadPitchDemoData,
         resetPitchDemoData,
@@ -606,6 +818,8 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         refreshSocialAndWalletState,
         // Helpers
         getPublicProfile,
+        getFriendsList,
+        getFriendSuggestions,
         searchPublicProfiles,
         encodeWalletQrPayload,
         parseWalletQrPayload
@@ -613,11 +827,19 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         publicProfile,
         followingIds,
         followerIds,
+        friendsList,
+        incomingFriendRequests,
+        outgoingFriendRequests,
+        friendSuggestions,
         userId,
         savedSpotIds,
         blockedUserIds,
         notifications,
         unreadCount,
+        conversations,
+        totalUnreadMessages,
+        activeConversationId,
+        setActiveConversationId,
         wallet,
         dailyTransferred,
         walletHistory,
@@ -632,6 +854,13 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         scanPayInitialTab,
         openScanPaySheet,
         closeScanPaySheet,
+        sendFriendRequest,
+        acceptFriendRequest,
+        rejectFriendRequest,
+        cancelFriendRequest,
+        removeFriend,
+        updatePrivacySettings,
+        changeUsername,
         follow,
         unfollow,
         toggleSave,
@@ -652,6 +881,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         performRequestMoney,
         performRespondToRequest,
         startSendMoneyToUser,
+        openChatWithFriend,
         openWalletReceiptById,
         loadPitchDemoData,
         resetPitchDemoData,
