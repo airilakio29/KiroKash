@@ -22,7 +22,8 @@ import {
   fileToDataUrl,
   saveFullUserProfile
 } from '../services/profileService';
-import { normalizeHandle } from '../utils/safetyUtils';
+import { normalizeHandle, validateUsernameFormat } from '../utils/safetyUtils';
+import { PROFILE_ACHIEVEMENTS } from '../config/appConstants';
 
 export default function ProfileModal({ isOpen, onClose }) {
   const { user } = useAuth();
@@ -40,14 +41,27 @@ export default function ProfileModal({ isOpen, onClose }) {
 
 function ProfileModalContent({ user, onClose }) {
   const { updateUserProfile } = useAuth();
-  const { publicProfile, updateSocialProfile } = useSocialWallet();
+  const { publicProfile, updateSocialProfile, isHandleAvailable } = useSocialWallet();
   const fileInputRef = useRef(null);
 
   // Form State initialized directly from user / publicProfile prop
   const [username, setUsername] = useState(() => publicProfile?.displayName || user?.username || '');
-  const [handle, setHandle] = useState(() => publicProfile?.handle || user?.handle || normalizeHandle(user?.username || 'student'));
+  const [handle, setHandle] = useState(() => publicProfile?.handle || user?.handle || normalizeHandle(user?.username || 'student', 'student', user?.id));
   const [bio, setBio] = useState(() => publicProfile?.bio || user?.bio || '');
   const [university, setUniversity] = useState(() => publicProfile?.university || user?.university || '');
+  const [course, setCourse] = useState(() => publicProfile?.course || user?.course || '');
+  const [selectedAchievements, setSelectedAchievements] = useState(() =>
+    Array.isArray(publicProfile?.achievements) ? publicProfile.achievements : ['early_adopter']
+  );
+  const [profileVisibility, setProfileVisibility] = useState(
+    () => publicProfile?.privacySettings?.profileVisibility || 'public'
+  );
+  const [allowFriendRequests, setAllowFriendRequests] = useState(
+    () => publicProfile?.privacySettings?.allowFriendRequests !== false
+  );
+  const [allowDiscovery, setAllowDiscovery] = useState(
+    () => publicProfile?.privacySettings?.allowDiscovery !== false
+  );
   const [monthlyBudget, setMonthlyBudget] = useState(() => user?.monthlyBudget ? String(user.monthlyBudget) : '');
   const [currency, setCurrency] = useState(() => user?.currency || 'RM');
   const [selectedAvatar, setSelectedAvatar] = useState(() => user?.avatar || publicProfile?.avatarId || 'preset-scholar');
@@ -57,6 +71,12 @@ function ProfileModalContent({ user, onClose }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const toggleAchievement = (badgeId) => {
+    setSelectedAchievements((prev) =>
+      prev.includes(badgeId) ? prev.filter((id) => id !== badgeId) : [...prev, badgeId].slice(0, 5)
+    );
+  };
 
   // Handle Escape key to close
   useEffect(() => {
@@ -106,11 +126,26 @@ function ProfileModalContent({ user, onClose }) {
       return;
     }
 
+    const handleCheck = validateUsernameFormat(handle || username, user?.id);
+    if (!handleCheck.valid) {
+      setErrorMsg(handleCheck.error);
+      return;
+    }
+    const cleanHandle = handleCheck.normalized;
+    if (isHandleAvailable && !isHandleAvailable(cleanHandle)) {
+      setErrorMsg(`@${cleanHandle} is already taken. Please choose another username.`);
+      return;
+    }
+
     setIsSaving(true);
     setErrorMsg('');
     setSuccessMsg('');
 
-    const cleanHandle = normalizeHandle(handle || username);
+    const privacySettings = {
+      profileVisibility,
+      allowFriendRequests,
+      allowDiscovery
+    };
 
     const profileData = {
       username: username.trim(),
@@ -118,6 +153,9 @@ function ProfileModalContent({ user, onClose }) {
       handle: cleanHandle,
       bio: bio.trim(),
       university: university.trim(),
+      course: course.trim(),
+      achievements: selectedAchievements,
+      privacySettings,
       monthlyBudget: monthlyBudget ? Math.max(0, Number(monthlyBudget)) : 0,
       currency,
       avatar: selectedAvatar
@@ -131,6 +169,9 @@ function ProfileModalContent({ user, onClose }) {
           handle: cleanHandle,
           bio: bio.trim(),
           university: university.trim(),
+          course: course.trim(),
+          achievements: selectedAchievements,
+          privacySettings,
           avatarId: selectedAvatar
         });
       }
@@ -459,19 +500,116 @@ function ProfileModalContent({ user, onClose }) {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="profile-university">
-              University / Campus Institution
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-university">
+                University / Campus Institution
+              </label>
+              <input
+                id="profile-university"
+                type="text"
+                className="form-control"
+                value={university}
+                onChange={(e) => setUniversity(e.target.value)}
+                placeholder="e.g. Universiti Malaya (UM)"
+                maxLength={60}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-course">
+                Course / Programme (Optional)
+              </label>
+              <input
+                id="profile-course"
+                type="text"
+                className="form-control"
+                value={course}
+                onChange={(e) => setCourse(e.target.value)}
+                placeholder="e.g. BSc Computer Science"
+                maxLength={80}
+              />
+            </div>
+          </div>
+
+          {/* Optional Student Achievements */}
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label className="form-label">
+              Profile Achievements &amp; Badges (Optional)
             </label>
-            <input
-              id="profile-university"
-              type="text"
-              className="form-control"
-              value={university}
-              onChange={(e) => setUniversity(e.target.value)}
-              placeholder="e.g. Universiti Malaya (UM)"
-              maxLength={60}
-            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {PROFILE_ACHIEVEMENTS.map((ach) => {
+                const active = selectedAchievements.includes(ach.id);
+                return (
+                  <button
+                    key={ach.id}
+                    type="button"
+                    onClick={() => toggleAchievement(ach.id)}
+                    style={{
+                      padding: '0.32rem 0.65rem',
+                      borderRadius: '999px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: active ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                      background: active ? 'color-mix(in srgb, var(--primary) 20%, transparent)' : 'var(--bg-card-subtle)',
+                      color: active ? 'var(--text-main)' : 'var(--text-muted)'
+                    }}
+                    title={ach.description}
+                  >
+                    {active ? '✓ ' : '+ '}{ach.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Connect Privacy Controls */}
+          <div style={{
+            padding: '0.85rem 1rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-card-subtle)',
+            border: '1px solid var(--border-light)',
+            marginBottom: '1rem'
+          }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+              KampusKash Connect Privacy Settings
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.55rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                <label htmlFor="profile-visibility-select" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Profile Visibility
+                </label>
+                <select
+                  id="profile-visibility-select"
+                  className="form-control"
+                  style={{ width: 'auto', minWidth: '165px', padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                  value={profileVisibility}
+                  onChange={(e) => setProfileVisibility(e.target.value)}
+                >
+                  <option value="public">Public (All Students)</option>
+                  <option value="friends">Friends Only</option>
+                </select>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <span>Allow incoming friend requests</span>
+                <input
+                  type="checkbox"
+                  checked={allowFriendRequests}
+                  onChange={(e) => setAllowFriendRequests(e.target.checked)}
+                />
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <span>Allow profile in public search &amp; discovery</span>
+                <input
+                  type="checkbox"
+                  checked={allowDiscovery}
+                  onChange={(e) => setAllowDiscovery(e.target.checked)}
+                />
+              </label>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

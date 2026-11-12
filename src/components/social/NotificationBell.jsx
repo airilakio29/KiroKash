@@ -40,6 +40,8 @@ export default function NotificationBell({ onNavigateTab }) {
   const getNotifIcon = (type) => {
     switch (type) {
       case 'follow':
+      case 'friend_request':
+      case 'friend_accept':
         return <UserPlus size={15} className="notif-icon follow" />;
       case 'like':
         return <Heart size={15} className="notif-icon like" />;
@@ -63,7 +65,10 @@ export default function NotificationBell({ onNavigateTab }) {
     } else if (notif.type === 'wallet_request' || notif.type === 'wallet_request_declined') {
       setIsOpen(false);
       if (onNavigateTab) onNavigateTab('accounts');
-    } else if (notif.type === 'follow' && notif.actorId) {
+    } else if (notif.type === 'friend_request' && onNavigateTab) {
+      setIsOpen(false);
+      onNavigateTab('connect');
+    } else if ((notif.type === 'follow' || notif.type === 'friend_accept') && notif.actorId) {
       setIsOpen(false);
       setSelectedPublicProfileId(notif.actorId);
     } else if ((notif.type === 'like' || notif.type === 'comment') && onNavigateTab) {

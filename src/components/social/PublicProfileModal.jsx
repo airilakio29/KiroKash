@@ -3,6 +3,9 @@ import {
   X,
   UserPlus,
   UserCheck,
+  UserMinus,
+  Clock,
+  Check,
   Send,
   Split,
   ShieldCheck,
@@ -13,14 +16,20 @@ import {
   Compass,
   Users,
   MapPin,
+  GraduationCap,
+  Calendar,
+  Award,
   Store,
-  CheckCircle2
+  CheckCircle2,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocialWallet, getStoredPitchSpots } from '../../context/SocialWalletContext';
 import {
   getFollowersProfiles,
   getFollowingProfiles,
+  getFriendsList,
+  getMutualFriends,
   fetchPublicProfileFromFirestore
 } from '../../services/socialService';
 import {
@@ -28,7 +37,8 @@ import {
   migrateExistingMakanMurahPosts
 } from '../../services/communityService';
 import { getAvatarSvg } from '../Avatars';
-import { SPOT_CATEGORIES } from '../../config/appConstants';
+import UserAvatar from '../UserAvatar';
+import { SPOT_CATEGORIES, PROFILE_ACHIEVEMENTS } from '../../config/appConstants';
 
 export default function PublicProfileModal() {
   const { user } = useAuth();
@@ -36,6 +46,13 @@ export default function PublicProfileModal() {
     selectedPublicProfileId,
     setSelectedPublicProfileId,
     getPublicProfile,
+    getPublicProfileForViewer,
+    getFriendshipStatus,
+    sendFriendRequest,
+    acceptFriendRequest,
+    rejectFriendRequest,
+    cancelFriendRequest,
+    removeFriend,
     isFollowing,
     follow,
     unfollow,
@@ -44,10 +61,11 @@ export default function PublicProfileModal() {
     block,
     unblock,
     report,
-    startSendMoneyToUser
+    startSendMoneyToUser,
+    openChatWithFriend
   } = useSocialWallet();
 
-  const [activeTab, setActiveTab] = useState('posts'); // 'posts' | 'saved' | 'followers' | 'following'
+  const [activeTab, setActiveTab] = useState('posts'); // 'posts' | 'friends' | 'saved' | 'followers' | 'following'
   const [showReportBox, setShowReportBox] = useState(false);
   const [reportReason, setReportReason] = useState('Spam or fake student account');
   const [reportDone, setReportDone] = useState(false);
@@ -57,21 +75,33 @@ export default function PublicProfileModal() {
   React.useEffect(() => {
     let isSubscribed = true;
     if (selectedPublicProfileId) {
-      const cached = getPublicProfile(selectedPublicProfileId);
+      const cached = getPublicProfileForViewer
+        ? getPublicProfileForViewer(selectedPublicProfileId)
+        : getPublicProfile(selectedPublicProfileId);
       if (cached) {
         setRemoteProfile(cached);
       } else {
         fetchPublicProfileFromFirestore(selectedPublicProfileId).then((res) => {
-          if (isSubscribed && res) setRemoteProfile(res);
+          if (isSubscribed && res) {
+            const tailored = getPublicProfileForViewer
+              ? getPublicProfileForViewer(res.id)
+              : res;
+            setRemoteProfile(tailored);
+          }
         });
       }
     } else {
       setRemoteProfile(null);
     }
-    return () => { isSubscribed = false; };
-  }, [selectedPublicProfileId, getPublicProfile]);
+    return () => {
+      isSubscribed = false;
+    };
+  }, [selectedPublicProfileId, getPublicProfile, getPublicProfileForViewer]);
 
-  const profile = remoteProfile || (selectedPublicProfileId ? getPublicProfile(selectedPublicProfileId) : null);
+  const rawProfile = selectedPublicProfileId
+    ? (getPublicProfileForViewer ? getPublicProfileForViewer(selectedPublicProfileId) : getPublicProfile(selectedPublicProfileId))
+    : null;
+  const profile = rawProfile || remoteProfile;
 
   const allSpots = useMemo(() => {
     if (!profile) return [];
@@ -92,12 +122,12 @@ export default function PublicProfileModal() {
   }, [profile]);
 
   const userPosts = useMemo(() => {
-    if (!profile) return [];
+    if (!profile || profile.isRestrictedView || profile.isBlockedView) return [];
     return allSpots.filter(
       (s) =>
         s.authorId === profile.id ||
-        (s.authorHandle && s.authorHandle.toLowerCase() === profile.handle.toLowerCase()) ||
-        (s.authorName && s.authorName.toLowerCase() === profile.displayName.toLowerCase())
+        (s.authorHandle && s.authorHandle.toLowerCase() === (profile.handle || '').toLowerCase()) ||
+        (s.authorName && s.authorName.toLowerCase() === (profile.displayName || '').toLowerCase())
     );
   }, [allSpots, profile]);
 
@@ -107,13 +137,23 @@ export default function PublicProfileModal() {
     return allSpots.filter((s) => savedSet.has(s.id));
   }, [allSpots, profile, user, savedSpotIds]);
 
+  const profileFriends = useMemo(
+    () => (profile && !profile.isRestrictedView && !profile.isBlockedView ? getFriendsList(profile.id) : []),
+    [profile]
+  );
+
+  const mutualFriends = useMemo(
+    () => (profile && user && user.id !== profile.id ? getMutualFriends(user.id, profile.id) : []),
+    [profile, user]
+  );
+
   const followersList = useMemo(
-    () => (profile ? getFollowersProfiles(profile.id) : []),
+    () => (profile && !profile.isRestrictedView && !profile.isBlockedView ? getFollowersProfiles(profile.id) : []),
     [profile]
   );
 
   const followingList = useMemo(
-    () => (profile ? getFollowingProfiles(profile.id) : []),
+    () => (profile && !profile.isRestrictedView && !profile.isBlockedView ? getFollowingProfiles(profile.id) : []),
     [profile]
   );
 
@@ -121,35 +161,76 @@ export default function PublicProfileModal() {
 
   const isOwnProfile = Boolean(user && user.id === profile.id);
   const following = isFollowing(profile.id);
-  const isBlocked = blockedUserIds.includes(profile.id);
+  const isBlocked = blockedUserIds.includes(profile.id) || Boolean(profile.isBlockedView);
+  const relStatus = getFriendshipStatus ? getFriendshipStatus(profile.id) : { status: 'none', canSendRequest: true };
+
+  const joinedLabel = (() => {
+    try {
+      const dt = new Date(profile.joinedAt || '2026-01-15T08:00:00.000Z');
+      if (isNaN(dt.getTime())) return 'Joined 2026';
+      return `Joined ${dt.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' })}`;
+    } catch {
+      return 'Joined 2026';
+    }
+  })();
+
+  const resolvedAchievements = (Array.isArray(profile.achievements) ? profile.achievements : [])
+    .map((id) => PROFILE_ACHIEVEMENTS.find((a) => a.id === id))
+    .filter(Boolean);
+
+  const showTimedFeedback = (msg) => {
+    setActionStatus(msg);
+    setTimeout(() => setActionStatus(''), 2800);
+  };
+
+  const handleFriendAction = async (actionType) => {
+    try {
+      if (actionType === 'send') {
+        await sendFriendRequest(profile.id);
+        showTimedFeedback(`Friend request sent to @${profile.handle}`);
+      } else if (actionType === 'cancel') {
+        await cancelFriendRequest(relStatus.requestId || profile.id);
+        showTimedFeedback(`Cancelled friend request to @${profile.handle}`);
+      } else if (actionType === 'accept') {
+        await acceptFriendRequest(relStatus.requestId || profile.id);
+        showTimedFeedback(`You and @${profile.handle} are now friends!`);
+      } else if (actionType === 'reject') {
+        await rejectFriendRequest(relStatus.requestId || profile.id);
+        showTimedFeedback(`Declined friend request from @${profile.handle}`);
+      } else if (actionType === 'remove') {
+        await removeFriend(profile.id);
+        showTimedFeedback(`Removed @${profile.handle} from friends`);
+      }
+    } catch (err) {
+      showTimedFeedback(err?.message || 'Could not complete friend action');
+    }
+  };
 
   const handleFollowToggle = async () => {
     try {
       if (following) {
         await unfollow(profile.id);
-        setActionStatus(`Unfollowed @${profile.handle}`);
+        showTimedFeedback(`Unfollowed @${profile.handle}`);
       } else {
         await follow(profile.id);
-        setActionStatus(`Following @${profile.handle}`);
+        showTimedFeedback(`Following @${profile.handle}`);
       }
-      setTimeout(() => setActionStatus(''), 2500);
     } catch (err) {
-      setActionStatus(err?.message || 'Action failed');
+      showTimedFeedback(err?.message || 'Action failed');
     }
   };
 
   const handleBlockToggle = async () => {
     try {
-      if (isBlocked) {
+      if (blockedUserIds.includes(profile.id)) {
         await unblock(profile.id);
-        setActionStatus(`Unblocked @${profile.handle}`);
+        showTimedFeedback(`Unblocked @${profile.handle}`);
       } else {
         await block(profile.id);
-        setActionStatus(`Blocked @${profile.handle}`);
+        showTimedFeedback(`Blocked @${profile.handle}`);
       }
-      setTimeout(() => setActionStatus(''), 2500);
     } catch (err) {
-      setActionStatus(err?.message || 'Could not update block status');
+      showTimedFeedback(err?.message || 'Could not update block status');
     }
   };
 
@@ -180,11 +261,23 @@ export default function PublicProfileModal() {
       >
         {/* Header */}
         <div className="community-modal-header">
-          <div className="spot-detail-header-badges">
+          <div className="spot-detail-header-badges" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span className="modal-badge">
               <Users size={13} />
-              Campus Student Profile
+              KampusKash Connect Profile
             </span>
+            {relStatus.status === 'friends' && (
+              <span className="modal-badge" style={{ background: 'var(--income-bg)', color: 'var(--income)' }}>
+                <UserCheck size={12} />
+                Friends
+              </span>
+            )}
+            {profile.privacySettings?.profileVisibility === 'friends' && (
+              <span className="modal-badge">
+                <Lock size={12} />
+                Friends-Only
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -200,7 +293,11 @@ export default function PublicProfileModal() {
         <div className="public-profile-hero">
           <div className="public-profile-top">
             <div className="public-profile-avatar-lg">
-              {getAvatarSvg(profile.avatarId || 'cat')}
+              {profile.avatarId?.startsWith('preset-') || profile.avatarId?.startsWith('data:') || profile.avatarId?.startsWith('http') ? (
+                <UserAvatar avatar={profile.avatarId} name={profile.displayName} size={64} />
+              ) : (
+                getAvatarSvg(profile.avatarId || 'cat')
+              )}
             </div>
 
             <div className="public-profile-identity">
@@ -210,13 +307,84 @@ export default function PublicProfileModal() {
                 <MapPin size={13} />
                 <span>{profile.university || 'Malaysia Campus'}</span>
               </div>
+              {!profile.isRestrictedView && !profile.isBlockedView && profile.course && (
+                <div className="public-profile-uni" style={{ marginTop: '0.15rem' }}>
+                  <GraduationCap size={13} />
+                  <span>{profile.course}</span>
+                </div>
+              )}
+              <div className="public-profile-uni" style={{ marginTop: '0.15rem', opacity: 0.8 }}>
+                <Calendar size={12} />
+                <span>{joinedLabel}</span>
+              </div>
             </div>
           </div>
 
-          {profile.bio && <p className="public-profile-bio">{profile.bio}</p>}
+          {!profile.isRestrictedView && !profile.isBlockedView && profile.bio && (
+            <p className="public-profile-bio">{profile.bio}</p>
+          )}
+
+          {/* Achievements Row */}
+          {!profile.isRestrictedView && !profile.isBlockedView && resolvedAchievements.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+              {resolvedAchievements.map((ach) => (
+                <span
+                  key={ach.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    padding: '0.22rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    background: 'color-mix(in srgb, var(--primary) 16%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--primary) 35%, transparent)',
+                    color: 'var(--text-main)'
+                  }}
+                  title={ach.description}
+                >
+                  <Award size={12} color="var(--primary)" />
+                  <span>{ach.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Mutual Friends Indicator */}
+          {!isOwnProfile && !profile.isBlockedView && mutualFriends.length > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-card-subtle)',
+              border: '1px solid var(--border-light)',
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+              marginTop: '0.35rem',
+              marginBottom: '0.35rem'
+            }}>
+              <Users size={14} color="var(--primary)" />
+              <span>
+                <strong>{mutualFriends.length} mutual friend{mutualFriends.length === 1 ? '' : 's'}:</strong>{' '}
+                {mutualFriends.slice(0, 3).map((m) => `@${m.handle}`).join(', ')}
+                {mutualFriends.length > 3 ? ` +${mutualFriends.length - 3} more` : ''}
+              </span>
+            </div>
+          )}
 
           {/* Stats Row */}
-          <div className="public-profile-stats-row">
+          <div className="public-profile-stats-row" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+            <button
+              type="button"
+              className={`profile-stat-box ${activeTab === 'friends' ? 'active' : ''}`}
+              onClick={() => setActiveTab('friends')}
+            >
+              <strong>{profile.friendsCount || profileFriends.length || 0}</strong>
+              <span>Friends</span>
+            </button>
             <button
               type="button"
               className={`profile-stat-box ${activeTab === 'posts' ? 'active' : ''}`}
@@ -247,16 +415,102 @@ export default function PublicProfileModal() {
             <div className="profile-action-feedback">{actionStatus}</div>
           )}
 
-          {/* Action Buttons for Other Users (Follow, Send Money, Split with a Friend, Block, Report) */}
+          {/* Relationship & Action Buttons for Other Users */}
           {!isOwnProfile && (
-            <div className="public-profile-actions-bar">
+            <div className="public-profile-actions-bar" style={{ flexWrap: 'wrap' }}>
+              {/* Primary Friend Relationship Button(s) */}
+              {relStatus.status === 'none' && (
+                <button
+                  type="button"
+                  className="btn btn-primary profile-follow-btn"
+                  onClick={() => handleFriendAction('send')}
+                  disabled={isBlocked || !relStatus.canSendRequest}
+                  title={!relStatus.canSendRequest ? 'This user restricts incoming friend requests' : 'Send Friend Request'}
+                >
+                  <UserPlus size={16} />
+                  <span>{relStatus.canSendRequest ? 'Add Friend' : 'Requests Restricted'}</span>
+                </button>
+              )}
+
+              {relStatus.status === 'outgoing_pending' && (
+                <>
+                  <span
+                    className="btn btn-secondary profile-follow-btn"
+                    style={{ cursor: 'default', opacity: 0.9 }}
+                  >
+                    <Clock size={15} />
+                    <span>Request Sent</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-outline profile-follow-btn"
+                    onClick={() => handleFriendAction('cancel')}
+                  >
+                    <X size={15} />
+                    <span>Cancel Request</span>
+                  </button>
+                </>
+              )}
+
+              {relStatus.status === 'incoming_pending' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary profile-follow-btn"
+                    onClick={() => handleFriendAction('accept')}
+                  >
+                    <Check size={16} />
+                    <span>Accept Request</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline profile-follow-btn"
+                    onClick={() => handleFriendAction('reject')}
+                  >
+                    <X size={15} />
+                    <span>Reject</span>
+                  </button>
+                </>
+              )}
+
+              {relStatus.status === 'friends' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary profile-follow-btn"
+                    onClick={() => openChatWithFriend && openChatWithFriend(profile.id)}
+                    title="Open Real-Time Chat"
+                  >
+                    <MessageSquare size={15} />
+                    <span>Message</span>
+                  </button>
+                  <span
+                    className="btn btn-secondary profile-follow-btn"
+                    style={{ cursor: 'default', borderColor: 'var(--income)', color: 'var(--income)' }}
+                  >
+                    <UserCheck size={16} />
+                    <span>Friends</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-outline profile-follow-btn"
+                    onClick={() => handleFriendAction('remove')}
+                    title="Remove Friend"
+                  >
+                    <UserMinus size={15} />
+                    <span>Remove Friend</span>
+                  </button>
+                </>
+              )}
+
+              {/* Secondary Follow Button for Spot Jimat Feed */}
               <button
                 type="button"
-                className={`btn ${following ? 'btn-outline' : 'btn-primary'} profile-follow-btn`}
+                className="btn btn-outline profile-follow-btn"
                 onClick={handleFollowToggle}
                 disabled={isBlocked}
               >
-                {following ? <UserCheck size={16} /> : <UserPlus size={16} />}
+                {following ? <UserCheck size={15} /> : <UserPlus size={15} />}
                 <span>{following ? 'Following' : 'Follow'}</span>
               </button>
 
@@ -296,8 +550,8 @@ export default function PublicProfileModal() {
                 type="button"
                 className="spot-owner-icon-btn danger"
                 onClick={handleBlockToggle}
-                title={isBlocked ? 'Unblock user' : 'Block user'}
-                aria-label={isBlocked ? 'Unblock user' : 'Block user'}
+                title={blockedUserIds.includes(profile.id) ? 'Unblock user' : 'Block user'}
+                aria-label={blockedUserIds.includes(profile.id) ? 'Unblock user' : 'Block user'}
               >
                 <Ban size={15} />
               </button>
@@ -333,169 +587,234 @@ export default function PublicProfileModal() {
           )}
         </div>
 
-        {/* Profile Tabs */}
-        <div className="public-profile-tabs">
-          <button
-            type="button"
-            className={`public-profile-tab ${activeTab === 'posts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('posts')}
-          >
-            <Compass size={15} />
-            <span>Spots ({userPosts.length})</span>
-          </button>
+        {/* Restricted or Blocked Notice */}
+        {profile.isBlockedView ? (
+          <div className="public-profile-tab-body">
+            <div className="replies-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <Ban size={24} color="var(--expense)" />
+              <strong>Interaction Restricted</strong>
+              <span>
+                {profile.blockedByViewer
+                  ? `You have blocked @${profile.handle}. Unblock them if you wish to view their profile.`
+                  : `This profile is currently unavailable.`}
+              </span>
+            </div>
+          </div>
+        ) : profile.isRestrictedView ? (
+          <div className="public-profile-tab-body">
+            <div className="replies-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <Lock size={24} color="var(--primary)" />
+              <strong>Friends-Only Profile</strong>
+              <span>
+                @{profile.handle} shares their full bio, programme, friends list, and campus spots only with confirmed friends.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Profile Tabs */}
+            <div className="public-profile-tabs">
+              <button
+                type="button"
+                className={`public-profile-tab ${activeTab === 'posts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('posts')}
+              >
+                <Compass size={15} />
+                <span>Spots ({userPosts.length})</span>
+              </button>
 
-          {/* Saved Tab is strictly visible ONLY to the owner */}
-          {isOwnProfile && (
-            <button
-              type="button"
-              className={`public-profile-tab ${activeTab === 'saved' ? 'active' : ''}`}
-              onClick={() => setActiveTab('saved')}
-            >
-              <Bookmark size={15} />
-              <span>Saved ({ownerSavedSpots.length})</span>
-              <Lock size={12} title="Only visible to you" />
-            </button>
-          )}
+              <button
+                type="button"
+                className={`public-profile-tab ${activeTab === 'friends' ? 'active' : ''}`}
+                onClick={() => setActiveTab('friends')}
+              >
+                <Users size={15} />
+                <span>Friends ({profileFriends.length})</span>
+              </button>
 
-          <button
-            type="button"
-            className={`public-profile-tab ${activeTab === 'followers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('followers')}
-          >
-            <Users size={15} />
-            <span>Followers ({followersList.length})</span>
-          </button>
+              {/* Saved Tab is strictly visible ONLY to the owner */}
+              {isOwnProfile && (
+                <button
+                  type="button"
+                  className={`public-profile-tab ${activeTab === 'saved' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('saved')}
+                >
+                  <Bookmark size={15} />
+                  <span>Saved ({ownerSavedSpots.length})</span>
+                  <Lock size={12} title="Only visible to you" />
+                </button>
+              )}
 
-          <button
-            type="button"
-            className={`public-profile-tab ${activeTab === 'following' ? 'active' : ''}`}
-            onClick={() => setActiveTab('following')}
-          >
-            <Users size={15} />
-            <span>Following ({followingList.length})</span>
-          </button>
-        </div>
+              <button
+                type="button"
+                className={`public-profile-tab ${activeTab === 'followers' ? 'active' : ''}`}
+                onClick={() => setActiveTab('followers')}
+              >
+                <Users size={15} />
+                <span>Followers ({followersList.length})</span>
+              </button>
 
-        {/* Tab Content */}
-        <div className="public-profile-tab-body">
-          {activeTab === 'posts' && (
-            userPosts.length === 0 ? (
-              <div className="replies-empty">
-                @{profile.handle} hasn&apos;t posted any spots yet.
-              </div>
-            ) : (
-              <div className="profile-spots-mini-list">
-                {userPosts.map((spot) => {
-                  const cat = SPOT_CATEGORIES.find((c) => c.id === spot.category) || SPOT_CATEGORIES[0];
-                  return (
-                    <div key={spot.id} className="profile-spot-mini-card">
-                      <div>
-                        <span className="spot-category-badge inline">{cat.label}</span>
-                        <h4>{spot.title}</h4>
-                        <div className="profile-spot-meta">
-                          <Store size={12} /> {spot.placeName || spot.stallName} • {spot.campusArea}
+              <button
+                type="button"
+                className={`public-profile-tab ${activeTab === 'following' ? 'active' : ''}`}
+                onClick={() => setActiveTab('following')}
+              >
+                <Users size={15} />
+                <span>Following ({followingList.length})</span>
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="public-profile-tab-body">
+              {activeTab === 'posts' && (
+                userPosts.length === 0 ? (
+                  <div className="replies-empty">
+                    @{profile.handle} hasn&apos;t posted any spots yet.
+                  </div>
+                ) : (
+                  <div className="profile-spots-mini-list">
+                    {userPosts.map((spot) => {
+                      const cat = SPOT_CATEGORIES.find((c) => c.id === spot.category) || SPOT_CATEGORIES[0];
+                      return (
+                        <div key={spot.id} className="profile-spot-mini-card">
+                          <div>
+                            <span className="spot-category-badge inline">{cat.label}</span>
+                            <h4>{spot.title}</h4>
+                            <div className="profile-spot-meta">
+                              <Store size={12} /> {spot.placeName || spot.stallName} • {spot.campusArea}
+                            </div>
+                          </div>
+                          <div className="community-price-badge">
+                            <span className="price-value">
+                              {spot.priceRange || `RM${Number(spot.priceRM || 0).toFixed(2)}`}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="community-price-badge">
-                        <span className="price-value">
-                          {spot.priceRange || `RM${Number(spot.priceRM || 0).toFixed(2)}`}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
+                      );
+                    })}
+                  </div>
+                )
+              )}
 
-          {activeTab === 'saved' && isOwnProfile && (
-            <div>
-              <div className="profile-private-saved-note">
-                <Lock size={14} />
-                <span>Only visible to you — your saved bookmarks never appear to other users.</span>
-              </div>
-              {ownerSavedSpots.length === 0 ? (
-                <div className="replies-empty">You haven&apos;t bookmarked any spots yet.</div>
-              ) : (
-                <div className="profile-spots-mini-list">
-                  {ownerSavedSpots.map((spot) => (
-                    <div key={spot.id} className="profile-spot-mini-card">
-                      <div>
-                        <h4>{spot.title}</h4>
-                        <div className="profile-spot-meta">
-                          <Store size={12} /> {spot.placeName || spot.stallName} • {spot.campusArea}
+              {activeTab === 'friends' && (
+                profileFriends.length === 0 ? (
+                  <div className="replies-empty">No friends connected yet.</div>
+                ) : (
+                  <div className="profile-people-list">
+                    {profileFriends.map((person) => (
+                      <div key={person.id} className="profile-person-row">
+                        <button
+                          type="button"
+                          className="profile-person-info"
+                          onClick={() => {
+                            setActiveTab('posts');
+                            setSelectedPublicProfileId(person.id);
+                          }}
+                        >
+                          <div className="community-author-avatar">
+                            {getAvatarSvg(person.avatarId || 'cat')}
+                          </div>
+                          <div>
+                            <strong>{person.displayName}</strong>
+                            <div className="person-handle">@{person.handle} • {person.university}</div>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'saved' && isOwnProfile && (
+                <div>
+                  <div className="profile-private-saved-note">
+                    <Lock size={14} />
+                    <span>Only visible to you — your saved bookmarks never appear to other users.</span>
+                  </div>
+                  {ownerSavedSpots.length === 0 ? (
+                    <div className="replies-empty">You haven&apos;t bookmarked any spots yet.</div>
+                  ) : (
+                    <div className="profile-spots-mini-list">
+                      {ownerSavedSpots.map((spot) => (
+                        <div key={spot.id} className="profile-spot-mini-card">
+                          <div>
+                            <h4>{spot.title}</h4>
+                            <div className="profile-spot-meta">
+                              <Store size={12} /> {spot.placeName || spot.stallName} • {spot.campusArea}
+                            </div>
+                          </div>
+                          <div className="community-price-badge">
+                            <span className="price-value">
+                              {spot.priceRange || `RM${Number(spot.priceRM || 0).toFixed(2)}`}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="community-price-badge">
-                        <span className="price-value">
-                          {spot.priceRange || `RM${Number(spot.priceRM || 0).toFixed(2)}`}
-                        </span>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
+
+              {activeTab === 'followers' && (
+                followersList.length === 0 ? (
+                  <div className="replies-empty">No followers yet.</div>
+                ) : (
+                  <div className="profile-people-list">
+                    {followersList.map((person) => (
+                      <div key={person.id} className="profile-person-row">
+                        <button
+                          type="button"
+                          className="profile-person-info"
+                          onClick={() => {
+                            setActiveTab('posts');
+                            setSelectedPublicProfileId(person.id);
+                          }}
+                        >
+                          <div className="community-author-avatar">
+                            {getAvatarSvg(person.avatarId || 'cat')}
+                          </div>
+                          <div>
+                            <strong>{person.displayName}</strong>
+                            <div className="person-handle">@{person.handle} • {person.university}</div>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'following' && (
+                followingList.length === 0 ? (
+                  <div className="replies-empty">Not following anyone yet.</div>
+                ) : (
+                  <div className="profile-people-list">
+                    {followingList.map((person) => (
+                      <div key={person.id} className="profile-person-row">
+                        <button
+                          type="button"
+                          className="profile-person-info"
+                          onClick={() => {
+                            setActiveTab('posts');
+                            setSelectedPublicProfileId(person.id);
+                          }}
+                        >
+                          <div className="community-author-avatar">
+                            {getAvatarSvg(person.avatarId || 'cat')}
+                          </div>
+                          <div>
+                            <strong>{person.displayName}</strong>
+                            <div className="person-handle">@{person.handle} • {person.university}</div>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
             </div>
-          )}
-
-          {activeTab === 'followers' && (
-            followersList.length === 0 ? (
-              <div className="replies-empty">No followers yet.</div>
-            ) : (
-              <div className="profile-people-list">
-                {followersList.map((person) => (
-                  <div key={person.id} className="profile-person-row">
-                    <button
-                      type="button"
-                      className="profile-person-info"
-                      onClick={() => {
-                        setActiveTab('posts');
-                        setSelectedPublicProfileId(person.id);
-                      }}
-                    >
-                      <div className="community-author-avatar">
-                        {getAvatarSvg(person.avatarId || 'cat')}
-                      </div>
-                      <div>
-                        <strong>{person.displayName}</strong>
-                        <div className="person-handle">@{person.handle} • {person.university}</div>
-                      </div>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-
-          {activeTab === 'following' && (
-            followingList.length === 0 ? (
-              <div className="replies-empty">Not following anyone yet.</div>
-            ) : (
-              <div className="profile-people-list">
-                {followingList.map((person) => (
-                  <div key={person.id} className="profile-person-row">
-                    <button
-                      type="button"
-                      className="profile-person-info"
-                      onClick={() => {
-                        setActiveTab('posts');
-                        setSelectedPublicProfileId(person.id);
-                      }}
-                    >
-                      <div className="community-author-avatar">
-                        {getAvatarSvg(person.avatarId || 'cat')}
-                      </div>
-                      <div>
-                        <strong>{person.displayName}</strong>
-                        <div className="person-handle">@{person.handle} • {person.university}</div>
-                      </div>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-        </div>
+          </>
+        )}
 
         {/* Financial Privacy Guarantee Footer */}
         <div className="public-profile-privacy-footer">
@@ -509,4 +828,3 @@ export default function PublicProfileModal() {
     </div>
   );
 }
-
