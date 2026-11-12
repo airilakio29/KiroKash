@@ -43,11 +43,14 @@ function isSensitiveOrBypass(request) {
   // Never cache backend /api routes
   if (url.pathname.startsWith('/api')) return true;
 
-  // Never cache Firebase Auth, Google APIs, or Firestore
+  // Never cache Firebase Auth, Google APIs, Firestore, Storage, or Realtime DB
   const bypassHosts = [
     'identitytoolkit.googleapis.com',
     'securetoken.googleapis.com',
     'firestore.googleapis.com',
+    'firebasestorage.googleapis.com',
+    'firebasedatabase.app',
+    'firebaseio.com',
     'firebaseinstallations.googleapis.com',
     'fcmregistrations.googleapis.com',
     'accounts.google.com',
@@ -175,3 +178,63 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// KampusKash Connect Messenger: Web Push / FCM Background Notification Handler
+self.addEventListener('push', (event) => {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
+  }
+
+  const data = payload.data || payload;
+  const senderName = data.senderName || 'A friend';
+  const showPreview = data.showPreviewText === true || data.showPreviewText === 'true';
+  // Lock-screen privacy: never expose private message text unless explicitly enabled
+  const body = showPreview && data.previewText
+    ? `${senderName}: ${data.previewText}`
+    : (data.lockScreenBody || `New message from ${senderName} on KampusKash Connect`);
+  const messageId = data.messageId || `msg_${Date.now()}`;
+  const conversationId = data.conversationId || '';
+
+  event.waitUntil(
+    self.registration.showNotification('KampusKash Connect', {
+      body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/favicon-32x32.png',
+      tag: `kk_msg_${messageId}`, // Deduplicates repeat push deliveries for the same messageId
+      renotify: false,
+      data: {
+        url: conversationId ? `/messages?c=${encodeURIComponent(conversationId)}` : '/messages',
+        conversationId,
+        messageId
+      }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/messages';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) {
+            return client.navigate(targetUrl);
+          }
+          return client;
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+      return null;
+    })
+  );
+});
+
