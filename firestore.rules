@@ -317,12 +317,18 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && request.resource.data.participants is list
-        && request.resource.data.participants.size() >= 2
+        && (
+          (request.resource.data.type == 'group' && request.resource.data.participants.size() >= 1) ||
+          request.resource.data.participants.size() >= 2
+        )
         && request.auth.uid in request.resource.data.participants;
 
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants
-        && request.resource.data.participants == resource.data.participants;
+        && (
+          request.resource.data.participants == resource.data.participants ||
+          (resource.data.type == 'group' && request.auth.uid in resource.data.adminIds)
+        );
 
       allow delete: if false;
 
@@ -361,6 +367,187 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId);
       allow delete: if false;
+    }
+
+    // =========================================================================
+    // 14. KampusKash Connect — Phase 3: Separate Demo Wallet & P2P Ledger
+    //     Clients can NEVER directly modify demo wallet balances or completed
+    //     ledger records; all balance changes occur via trusted backend transactions.
+    // =========================================================================
+    match /demoWallets/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /demoWalletTransactions/{txId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /demoTransferReferences/{refId} {
+      allow read: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow create, update, delete: if false;
+    }
+
+    match /demoPaymentRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.requesterId != request.resource.data.recipientId
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.status == 'pending'
+        && request.resource.data.isDemo == true;
+      allow update, delete: if false;
+    }
+
+    match /demoSplitBills/{splitId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.totalAmount is number
+        && request.resource.data.totalAmount > 0
+        && request.resource.data.isDemo == true;
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // 15. KampusKash Connect — Phase 4: Groups, Savings Challenges,
+    //     Gamification Achievements & Student Communities
+    // =========================================================================
+
+    // Private Group Metadata & Membership (Strictly readable only by members)
+    match /connectGroups/{groupId} {
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds
+        && request.auth.uid in request.resource.data.adminIds
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80;
+
+      // Only group admins can update group settings/membership, or a member leaving voluntarily
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.creatorId == resource.data.creatorId
+        && (
+          request.auth.uid in resource.data.adminIds ||
+          !(request.auth.uid in request.resource.data.memberIds)
+        );
+
+      allow delete: if isSignedIn()
+        && resource.data.creatorId == request.auth.uid;
+    }
+
+    match /groupInvitations/{inviteId} {
+      allow read: if isSignedIn() && (
+        resource.data.inviterId == request.auth.uid ||
+        resource.data.inviteeId == request.auth.uid
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.inviterId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && resource.data.inviteeId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['accepted', 'declined'];
+      allow delete: if false;
+    }
+
+    // Group Savings Challenges (Declared Progress Only — Never Deducts Balances)
+    match /savingsChallenges/{challengeId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.targetAmount is number
+        && request.resource.data.targetAmount > 0
+        && request.resource.data.isDeclaredOnly == true
+        && request.resource.data.verifiedBalanceDeducted == false;
+
+      allow update: if isSignedIn()
+        && request.resource.data.creatorId == resource.data.creatorId
+        && request.resource.data.isDeclaredOnly == true
+        && request.resource.data.verifiedBalanceDeducted == false;
+
+      allow delete: if isSignedIn()
+        && resource.data.creatorId == request.auth.uid;
+    }
+
+    // Gamification Achievements & Leaderboard Opt-In (No financial balances exposed)
+    match /connectAchievements/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId)
+        && !(request.resource.data.keys().hasAny(['balance', 'netWorth', 'bankBalance', 'income', 'expenses']));
+      allow delete: if false;
+    }
+
+    // Student Communities, Moderated Posts & Comments
+    match /communities/{communityId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.auth.uid in request.resource.data.adminIds
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 3
+        && request.resource.data.name.size() <= 60;
+
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.adminIds ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'postCount', 'updatedAt'])
+      );
+
+      allow delete: if false;
+
+      match /posts/{postId} {
+        allow read: if isSignedIn();
+
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.content is string
+          && request.resource.data.content.size() >= 2
+          && request.resource.data.content.size() <= 1200
+          && request.resource.data.status == 'active';
+
+        // Author or community admin can update/remove post; members can react
+        allow update: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid ||
+          request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.adminIds ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'commentCount', 'updatedAt'])
+        );
+
+        allow delete: if false;
+      }
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.content is string
+          && request.resource.data.content.size() >= 1
+          && request.resource.data.content.size() <= 600
+          && request.resource.data.status == 'active';
+
+        allow update: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid ||
+          request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.adminIds
+        );
+
+        allow delete: if false;
+      }
     }
   }
 }
