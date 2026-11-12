@@ -61,6 +61,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'aiman_utp',
     email: 'aiman.demo@kampuskash.my',
     university: 'Universiti Teknologi PETRONAS (UTP)',
+    course: 'BSc (Hons) Software Engineering',
+    joinedAt: '2026-01-15T08:00:00.000Z',
+    achievements: ['smart_saver', 'spot_hunter', 'campus_connector'],
     campus: 'utp',
     bio: 'Software Eng Y3 | Pemburu Spot Jimat & Futsal ⚽',
     avatar: 'preset-techie',
@@ -79,6 +82,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'sarah_um',
     email: 'sarah.demo@kampuskash.my',
     university: 'Universiti Malaya (UM)',
+    course: 'Bachelor of Computer Science (AI)',
+    joinedAt: '2026-01-20T09:30:00.000Z',
+    achievements: ['smart_saver', 'streak_master', 'early_adopter'],
     campus: 'um',
     bio: 'CS Undergrad | Matcha, Study Cafes & Thrift 🍵',
     avatar: 'preset-scholar',
@@ -97,6 +103,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'luqman_uitm',
     email: 'luqman.demo@kampuskash.my',
     university: 'Universiti Teknologi MARA (UiTM)',
+    course: 'BEng (Hons) Mechanical Engineering',
+    joinedAt: '2026-02-02T10:15:00.000Z',
+    achievements: ['spot_hunter', 'campus_connector'],
     campus: 'uitm',
     bio: 'Mechanical Eng | Badminton & Bundle Hunter 🏸',
     avatar: 'preset-explorer',
@@ -115,6 +124,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'weilun_usm',
     email: 'weilun.demo@kampuskash.my',
     university: 'Universiti Sains Malaysia (USM)',
+    course: 'BEng (Hons) Electrical & Electronic Engineering',
+    joinedAt: '2026-02-10T11:00:00.000Z',
+    achievements: ['smart_saver', 'goal_crusher'],
     campus: 'usm',
     bio: 'EE Student | Late night coding & Kopi Peng ⚡',
     avatar: 'preset-scientist',
@@ -133,6 +145,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'huda_ukm',
     email: 'huda.demo@kampuskash.my',
     university: 'Universiti Kebangsaan Malaysia (UKM)',
+    course: 'Bachelor of Accounting (Hons)',
+    joinedAt: '2026-02-14T14:20:00.000Z',
+    achievements: ['smart_saver', 'streak_master', 'goal_crusher'],
     campus: 'ukm',
     bio: 'Accounting Y2 | Smart Saver & Bookworm 📚',
     avatar: 'preset-bookworm',
@@ -151,6 +166,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'amirul_utm',
     email: 'amirul.demo@kampuskash.my',
     university: 'Universiti Teknologi Malaysia (UTM)',
+    course: 'BEng (Hons) Mechatronics & Robotics',
+    joinedAt: '2026-02-18T16:45:00.000Z',
+    achievements: ['spot_hunter', 'early_adopter'],
     campus: 'utm',
     bio: 'Robotics Club | Arcade & Tech Repair Geek 🤖',
     avatar: 'preset-achiever',
@@ -169,6 +187,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'priya_upm',
     email: 'priya.demo@kampuskash.my',
     university: 'Universiti Putra Malaysia (UPM)',
+    course: 'Bachelor of Industrial Design',
+    joinedAt: '2026-03-01T12:00:00.000Z',
+    achievements: ['campus_connector', 'spot_hunter'],
     campus: 'upm',
     bio: 'Design Student | Free Campus Events & Thrift 🎨',
     avatar: 'preset-creative',
@@ -187,6 +208,9 @@ export const PITCH_DEMO_USERS = [
     handle: 'danial_iium',
     email: 'danial.demo@kampuskash.my',
     university: 'International Islamic University (IIUM)',
+    course: 'Bachelor of Economics (Hons)',
+    joinedAt: '2026-03-05T15:10:00.000Z',
+    achievements: ['smart_saver', 'goal_crusher'],
     campus: 'iium',
     bio: 'Economics Y3 | Budget Meal Prep & Bowling 🎳',
     avatar: 'preset-saver',
@@ -883,6 +907,63 @@ export function generatePitchFollows(baseDate = new Date()) {
     isPitchDemo: true,
     createdAt: now
   }));
+}
+
+/**
+ * Generates initial mutual friendships between the demo users for KampusKash Connect
+ */
+export function generatePitchFriendships(baseDate = new Date()) {
+  const now = baseDate.toISOString();
+  const pairs = [
+    ['demo-student-aiman', 'demo-student-sarah'],
+    ['demo-student-aiman', 'demo-student-luqman'],
+    ['demo-student-sarah', 'demo-student-huda'],
+    ['demo-student-luqman', 'demo-student-weilun']
+  ];
+
+  return pairs.map(([u1, u2]) => {
+    const [userA, userB] = [u1, u2].sort();
+    const id = `${userA}_${userB}`;
+    return {
+      id,
+      users: [userA, userB],
+      userA,
+      userB,
+      conversationId: `conv_${id}`,
+      capabilities: {
+        messaging: true,
+        mediaSharing: true,
+        demoTransfers: true,
+        groupSplit: true
+      },
+      isPitchDemo: true,
+      createdAt: now,
+      updatedAt: now
+    };
+  });
+}
+
+/**
+ * Generates initial pending friend requests for KampusKash Connect demo
+ */
+export function generatePitchFriendRequests(baseDate = new Date()) {
+  const now = baseDate.toISOString();
+  return [
+    {
+      id: 'demo-student-priya_demo-student-aiman',
+      senderId: 'demo-student-priya',
+      receiverId: 'demo-student-aiman',
+      senderName: 'Priya Darshini',
+      senderHandle: 'priya_upm',
+      receiverName: 'Aiman Hafiz',
+      receiverHandle: 'aiman_utp',
+      note: 'Hey Aiman! Saw your Spot Jimat post on Canning Dim Sum!',
+      status: 'pending',
+      isPitchDemo: true,
+      createdAt: now,
+      updatedAt: now
+    }
+  ];
 }
 
 /**

@@ -170,8 +170,12 @@ export async function saveFullUserProfile(userId, profileData) {
   // 2. Persist in Firestore users/${userId}
   const fullProfile = {
     username: cleanName,
+    handle: (profileData.handle || '').trim().toLowerCase(),
     bio: (profileData.bio || '').trim(),
     university: (profileData.university || '').trim(),
+    course: (profileData.course || '').trim(),
+    achievements: Array.isArray(profileData.achievements) ? profileData.achievements : [],
+    privacySettings: profileData.privacySettings || undefined,
     monthlyBudget: Math.max(0, Number(profileData.monthlyBudget) || 0),
     currency: profileData.currency || 'RM',
     avatar: avatarValue,
