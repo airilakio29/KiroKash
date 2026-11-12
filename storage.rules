@@ -1,0 +1,34 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isConversationParticipant(conversationId) {
+      return isSignedIn()
+        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participants;
+    }
+
+    function isValidChatImageUpload() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
+    }
+
+    // Conversation image attachments: only participants of the conversation can upload or view
+    match /conversations/{conversationId}/attachments/{fileName} {
+      allow read: if isConversationParticipant(conversationId);
+      allow create, update: if isConversationParticipant(conversationId)
+        && isValidChatImageUpload();
+      allow delete: if false;
+    }
+
+    // Deny all other storage paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

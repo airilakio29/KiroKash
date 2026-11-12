@@ -35,15 +35,81 @@ service cloud.firestore {
           'balance',
           'walletBalance',
           'budgets',
+          'monthlyBudget',
           'transactions',
           'walletHistory',
           'ledger',
           'accounts',
           'savingsGoals',
+          'allowance',
+          'income',
+          'expenses',
+          'netWorth',
           'pin',
-          'pinHash'
+          'pinHash',
+          'walletPin',
+          'email',
+          'password',
+          'phoneNumber'
         ]);
       allow delete: if isOwner(userId);
+    }
+
+    // =========================================================================
+    // 2B. Case-Insensitive Unique Username Handles (KampusKash Connect)
+    // =========================================================================
+    match /userHandles/{handle} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.handle == handle
+        && handle.size() >= 3
+        && handle.size() <= 24;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 2C. KampusKash Connect — Friend Requests
+    // =========================================================================
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.senderId != request.resource.data.receiverId
+        && request.resource.data.status == 'pending';
+
+      allow update: if isSignedIn()
+        && resource.data.status == 'pending'
+        && (
+          (resource.data.receiverId == request.auth.uid && request.resource.data.status in ['accepted', 'rejected']) ||
+          (resource.data.senderId == request.auth.uid && request.resource.data.status in ['cancelled', 'removed'])
+        );
+
+      allow delete: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+    }
+
+    // =========================================================================
+    // 2D. KampusKash Connect — Mutual Friendships
+    // =========================================================================
+    match /friendships/{friendshipId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.users;
+
+      allow create: if isSignedIn()
+        && request.resource.data.users is list
+        && request.resource.data.users.size() == 2
+        && request.auth.uid in request.resource.data.users
+        && request.resource.data.userA != request.resource.data.userB;
+
+      allow update: if isSignedIn() && request.auth.uid in resource.data.users;
+
+      allow delete: if isSignedIn() && request.auth.uid in resource.data.users;
     }
 
     // =========================================================================
@@ -232,6 +298,68 @@ service cloud.firestore {
         && resource.data.status == 'pending'
         && request.resource.data.status in ['accepted', 'declined'];
 
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // 12. KampusKash Connect — Conversations & Real-Time Messages (Phase 2)
+    // =========================================================================
+    function hasNoForbiddenMessageBinaryKeys(data) {
+      return !(data.keys().hasAny([
+        'rawBytes', 'blob', 'fileBuffer', 'arrayBuffer', 'base64Data', 'binaryData', 'uint8Array'
+      ]));
+    }
+
+    match /conversations/{conversationId} {
+      // Only conversation participants can read or update conversation metadata
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+
+      allow create: if isSignedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() >= 2
+        && request.auth.uid in request.resource.data.participants;
+
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        // Only conversation participants can read messages
+        allow read: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+
+        // Only authenticated conversation participants can send messages as themselves,
+        // without raw binary blobs inside Firestore documents
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.conversationId == conversationId
+          && request.resource.data.type in ['text', 'image', 'location', 'system', 'payment', 'voice', 'group_challenge']
+          && hasNoForbiddenMessageBinaryKeys(request.resource.data);
+
+        // Sender can soft-delete their own message; participants can update read receipts and reactions only
+        allow update: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
+          && request.resource.data.senderId == resource.data.senderId
+          && hasNoForbiddenMessageBinaryKeys(request.resource.data)
+          && (
+            resource.data.senderId == request.auth.uid ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy', 'readAt', 'status', 'reactions', 'updatedAt'])
+          );
+
+        allow delete: if false;
+      }
+    }
+
+    // =========================================================================
+    // 13. KampusKash Connect — User Presence Mirror
+    // =========================================================================
+    match /userPresence/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId);
       allow delete: if false;
     }
   }
