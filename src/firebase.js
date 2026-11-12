@@ -30,10 +30,28 @@ import {
   deleteDoc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   runTransaction,
   increment,
   writeBatch
 } from 'firebase/firestore';
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
+import {
+  getDatabase,
+  ref as rtdbRef,
+  set as rtdbSet,
+  update as rtdbUpdate,
+  onValue as rtdbOnValue,
+  onDisconnect as rtdbOnDisconnect,
+  serverTimestamp as rtdbServerTimestamp
+} from 'firebase/database';
 
 // Credentials come exclusively from Vite env vars (.env), which you fill in
 // with the web app config from your own Firebase project.
@@ -44,6 +62,7 @@ const env = (typeof import.meta !== 'undefined' && import.meta.env)
 const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY,
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: env.VITE_FIREBASE_DATABASE_URL,
   projectId: env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -68,6 +87,8 @@ export const isFirebaseConfigured = missingFirebaseKeys.length === 0;
 let app = null;
 export let auth = null;
 export let db = null;
+export let storage = null;
+export let rtdb = null;
 export let googleProvider = null;
 export let microsoftProvider = null;
 
@@ -75,6 +96,18 @@ if (isFirebaseConfigured) {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);
+  try {
+    storage = getStorage(app);
+  } catch {
+    storage = null;
+  }
+  try {
+    if (firebaseConfig.databaseURL || firebaseConfig.projectId) {
+      rtdb = getDatabase(app);
+    }
+  } catch {
+    rtdb = null;
+  }
   googleProvider = new GoogleAuthProvider();
   googleProvider.setCustomParameters({ prompt: 'select_account' });
   microsoftProvider = new OAuthProvider('microsoft.com');
@@ -108,9 +141,21 @@ export {
   deleteDoc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   runTransaction,
   increment,
-  writeBatch
+  writeBatch,
+  storageRef,
+  uploadBytes,
+  getDownloadURL,
+  rtdbRef,
+  rtdbSet,
+  rtdbUpdate,
+  rtdbOnValue,
+  rtdbOnDisconnect,
+  rtdbServerTimestamp
 };
 
 export default app;
