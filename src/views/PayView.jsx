@@ -13,6 +13,7 @@ import {
 } from '../config/appConstants';
 import { KAMPUSKASH_ACCOUNT_ID, KAMPUSKASH_ACCOUNT_TYPE } from '../services/accountService';
 import UserAvatar from '../components/UserAvatar';
+import DemoP2PWalletPanel from '../components/wallet/DemoP2PWalletPanel';
 import {
   QrCode,
   Send,
@@ -128,7 +129,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
     pitchModeLoaded,
     pitchDemoUsers = [],
     prefilledWalletAction,
-    setPrefilledWalletAction
+    setPrefilledWalletAction,
+    openChatWithFriend
   } = useSocialWallet() || {};
 
   // Current view mode: null (dashboard) | 'scan' | 'my-qr' | 'transfer' | 'request' | 'history'
@@ -1960,6 +1962,14 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
               </div>
             )}
           </div>
+
+          {/* Phase 3: KampusKash Connect Demo P2P Wallet Panel (Strictly Isolated Social P2P Ledger) */}
+          <DemoP2PWalletPanel
+            onOpenChatWithFriend={(friendId) => {
+              if (openChatWithFriend) openChatWithFriend(friendId);
+              if (onNavigateTab) onNavigateTab('messages');
+            }}
+          />
 
           {/* Quick Action Tiles (Top 4 Big Cards) */}
           <div className="pay-tiles-grid">
