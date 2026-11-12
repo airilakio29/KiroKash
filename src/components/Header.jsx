@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Calendar, ShieldCheck, FileText, LogOut, ChevronDown, User, Palette, Sparkles, Globe } from 'lucide-react';
+import { Menu, Calendar, ShieldCheck, FileText, LogOut, ChevronDown, User, Users, MessageSquare, Palette, Sparkles, Globe } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
 import { PRESET_THEMES, loadSavedTheme, saveTheme } from '../utils/themeEngine';
@@ -266,6 +266,20 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           )}
         </div>
 
+        {/* KampusKash Connect Button */}
+        {onNavigateTab && (
+          <button
+            type="button"
+            onClick={() => onNavigateTab('connect')}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.7rem' }}
+            title="KampusKash Connect — Friends & Profiles"
+          >
+            <Users size={14} />
+            <span>Connect</span>
+          </button>
+        )}
+
         {/* Public Social Profile Button */}
         {user?.id && (
           <button
@@ -444,6 +458,31 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
 
             {/* Actions List */}
             <div style={{ padding: '0.5rem' }}>
+              {onNavigateTab && (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onNavigateTab('connect');
+                    }}
+                    className="dropdown-action-btn"
+                  >
+                    <Users size={17} color="var(--primary-light)" />
+                    <span>KampusKash Connect (Friends)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onNavigateTab('messages');
+                    }}
+                    className="dropdown-action-btn"
+                  >
+                    <MessageSquare size={17} color="var(--primary-light)" />
+                    <span>Messages (Real-Time Chat)</span>
+                  </button>
+                </>
+              )}
+
               {user?.id && (
                 <button
                   onClick={() => {

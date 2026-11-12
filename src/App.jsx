@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { SocialWalletProvider, useSocialWallet } from './context/SocialWalletContext';
 import { missingFirebaseKeys } from './firebase';
-import { SPOT_FEED_NAME } from './config/appConstants';
+import { SPOT_FEED_NAME, CONNECT_SECTION_NAME, MESSAGES_SECTION_NAME } from './config/appConstants';
 
 import FullScreenLoader from './components/FullScreenLoader';
 import OfflineBanner from './components/OfflineBanner';
@@ -33,6 +33,8 @@ import ExploreView from './views/ExploreView';
 import CommunityView from './views/CommunityView';
 import AIChatView from './views/AIChatView';
 import PayView from './views/PayView';
+import ConnectView from './views/ConnectView';
+import MessagesView from './views/MessagesView';
 import FloatingChatButton from './components/AIChat/FloatingChatButton';
 import FloatingNavButton from './components/FloatingNavButton';
 
@@ -78,6 +80,21 @@ function getInitialRouteInfo() {
       else if (pathname.includes('/pay/request') || hash.includes('request')) subroute = 'request';
       else if (pathname.includes('/pay/history') || hash.includes('history')) subroute = 'history';
       return { tab: 'pay', subroute };
+    }
+    if (
+      pathname.includes('/connect') ||
+      hash.startsWith('#connect') ||
+      hash.startsWith('#/connect')
+    ) {
+      return { tab: 'connect', subroute: null };
+    }
+    if (
+      pathname.includes('/messages') ||
+      pathname.includes('/messenger') ||
+      hash.startsWith('#messages') ||
+      hash.startsWith('#/messages')
+    ) {
+      return { tab: 'messages', subroute: null };
     }
     if (pathname.includes('/explore') || hash === '#explore') return { tab: 'explore', subroute: null };
     if (pathname.includes('/transactions') || hash === '#transactions') return { tab: 'transactions', subroute: null };
@@ -280,6 +297,14 @@ function AppLayout({
             onNavigateToExplore={() => handleTabChange('explore')}
           />
         );
+      case 'connect':
+        return (
+          <ConnectView
+            onOpenProfileModal={handleOpenProfileModal}
+          />
+        );
+      case 'messages':
+        return <MessagesView />;
       case 'explore':
         return (
           <ExploreView
@@ -331,6 +356,8 @@ function AppLayout({
         return 'Pay — QR & Instant Transfer';
       }
       case 'community': return `${SPOT_FEED_NAME} (Student Spots)`;
+      case 'connect': return `KampusKash ${CONNECT_SECTION_NAME} — Friends & Profiles`;
+      case 'messages': return `KampusKash ${MESSAGES_SECTION_NAME} — Real-Time Messenger`;
       case 'explore': return 'Explore Ipoh';
       case 'reports': return 'Reports & Analytics';
       case 'settings': return 'App Settings & Backup';

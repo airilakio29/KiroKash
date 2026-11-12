@@ -12,19 +12,21 @@ import {
   Landmark,
   BarChart3,
   User as UserIcon,
+  Users,
   Compass,
   Sparkles,
   UtensilsCrossed,
   QrCode,
   LayoutGrid,
   Menu,
-  Download
+  Download,
+  MessageSquare
 } from 'lucide-react';
 import KampusKashLogo from './KampusKashLogo';
 import UserAvatar from './UserAvatar';
 import { triggerInstallPrompt } from './PWAInstallPrompt';
 import { isPWAInstalled } from '../registerServiceWorker';
-import { SPOT_FEED_NAME, DEMO_WALLET, PAY_SECTION_NAME } from '../config/appConstants';
+import { SPOT_FEED_NAME, DEMO_WALLET, PAY_SECTION_NAME, CONNECT_SECTION_NAME, MESSAGES_SECTION_NAME } from '../config/appConstants';
 import { useSocialWallet } from '../context/SocialWalletContext';
 import { getAuthLabel } from '../utils/authLabels';
 
@@ -39,6 +41,7 @@ export default function Sidebar({
   setIsMobileOpen
 }) {
   const { user, logout } = useAuth();
+  const { incomingFriendRequests = [], totalUnreadMessages = 0 } = useSocialWallet() || {};
   const [hasVisitedPay, setHasVisitedPay] = React.useState(() => {
     try {
       return localStorage.getItem('kirokash_visited_pay_tab') === 'true';
@@ -81,6 +84,18 @@ export default function Sidebar({
       isHighlight: true
     },
     { id: 'ai-chat', label: 'KampusKash AI', icon: Sparkles, badge: 'AI' },
+    {
+      id: 'connect',
+      label: CONNECT_SECTION_NAME,
+      icon: Users,
+      badge: incomingFriendRequests.length > 0 ? String(incomingFriendRequests.length) : 'Connect'
+    },
+    {
+      id: 'messages',
+      label: MESSAGES_SECTION_NAME,
+      icon: MessageSquare,
+      badge: totalUnreadMessages > 0 ? String(totalUnreadMessages) : null
+    },
     { id: 'community', label: SPOT_FEED_NAME, icon: UtensilsCrossed },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
     { id: 'accounts', label: 'Accounts', icon: Landmark },
