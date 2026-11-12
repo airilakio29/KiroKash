@@ -87,6 +87,18 @@ import {
     subscribeToUserConversations,
     setUserPresence
 } from '../services/messengerService';
+import {
+    ensureDemoWallet,
+    topUpDemoWallet,
+    sendDemoMoney,
+    createDemoPaymentRequest,
+    respondToDemoPaymentRequest,
+    createDemoSplitBill,
+    payDemoSplitBillShare,
+    getDemoWalletHistory,
+    getUserDemoPaymentRequests,
+    getUserDemoSplitBills
+} from '../services/demoWalletService';
 
 const SocialWalletContext = createContext();
 
@@ -141,6 +153,12 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     const [walletRequests, setWalletRequests] = useState([]);
     const [firstUseNoticeSeen, setFirstUseNoticeSeen] = useState(false);
 
+    // Phase 3: Separate Social Demo P2P Wallet (100% isolated from real financial tracker)
+    const [demoP2PWallet, setDemoP2PWallet] = useState(null);
+    const [demoP2PHistory, setDemoP2PHistory] = useState([]);
+    const [demoP2PRequests, setDemoP2PRequests] = useState([]);
+    const [demoP2PSplitBills, setDemoP2PSplitBills] = useState([]);
+
     const [pitchModeLoaded, setPitchModeLoaded] = useState(() => isPitchModeLoaded());
     const [pitchSpotsVersion, setPitchSpotsVersion] = useState(0);
 
@@ -186,6 +204,10 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             setDailyTransferred(0);
             setWalletHistory([]);
             setWalletRequests([]);
+            setDemoP2PWallet(null);
+            setDemoP2PHistory([]);
+            setDemoP2PRequests([]);
+            setDemoP2PSplitBills([]);
             return;
         }
 
@@ -242,6 +264,18 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setWalletHistory(getUserWalletHistory(uid, 'all'));
         setWalletRequests(getUserWalletRequests(uid));
         setFirstUseNoticeSeen(hasSeenWalletFirstUseNotice(uid));
+
+        // Phase 3 Separate Social Demo P2P Wallet (completely independent from financial tracker)
+        const p2pWallet = ensureDemoWallet({
+            id: uid,
+            displayName: prof?.displayName || targetUser.username || 'Student',
+            handle: prof?.username || prof?.handle || targetUser.handle
+        });
+        setDemoP2PWallet(p2pWallet);
+        setDemoP2PHistory(getDemoWalletHistory(uid, { filter: 'all' }));
+        setDemoP2PRequests(getUserDemoPaymentRequests(uid));
+        setDemoP2PSplitBills(getUserDemoSplitBills(uid));
+
         setPitchModeLoaded(isPitchModeLoaded());
     }, [user]);
 
@@ -667,6 +701,116 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         return conv;
     }, [user?.id, onNavigateTab]);
 
+    // Phase 3: Separate Social Demo P2P Wallet Actions (Zero impact on real finance tracker!)
+    const topUpSocialDemoWallet = useCallback(async ({ amount, note, idempotencyKey }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = await topUpDemoWallet({
+            authenticatedUid: user.id,
+            userId: user.id,
+            amount,
+            note,
+            idempotencyKey
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const sendSocialDemoMoney = useCallback(async ({
+        recipientId,
+        amount,
+        note,
+        confirmed = true,
+        idempotencyKey = null,
+        conversationId = null,
+        postToChat = false
+    }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = await sendDemoMoney({
+            authenticatedUid: user.id,
+            senderId: user.id,
+            recipientId,
+            amount,
+            note,
+            confirmed,
+            idempotencyKey,
+            conversationId,
+            postToChat
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const requestSocialDemoMoney = useCallback(async ({
+        recipientId,
+        amount,
+        note,
+        conversationId = null,
+        postToChat = false
+    }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = createDemoPaymentRequest({
+            authenticatedUid: user.id,
+            requesterId: user.id,
+            recipientId,
+            amount,
+            note,
+            conversationId,
+            postToChat
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const respondSocialDemoRequest = useCallback(async ({ requestId, action, idempotencyKey = null }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = await respondToDemoPaymentRequest({
+            authenticatedUid: user.id,
+            actorId: user.id,
+            requestId,
+            action,
+            idempotencyKey
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const createSocialDemoSplitBill = useCallback(async ({
+        title,
+        totalAmount,
+        splitMode = 'equal',
+        participants = [],
+        includeCreator = true,
+        conversationId = null,
+        postToChat = false
+    }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = createDemoSplitBill({
+            authenticatedUid: user.id,
+            creatorId: user.id,
+            title,
+            totalAmount,
+            splitMode,
+            participants,
+            includeCreator,
+            conversationId,
+            postToChat
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
+    const paySocialDemoSplitBill = useCallback(async ({ splitBillId, idempotencyKey = null }) => {
+        if (!user?.id) throw new Error('Sign in required.');
+        const res = await payDemoSplitBillShare({
+            authenticatedUid: user.id,
+            payerId: user.id,
+            splitBillId,
+            idempotencyKey
+        });
+        refreshSocialAndWalletState(user);
+        return res;
+    }, [user, refreshSocialAndWalletState]);
+
     const openWalletReceiptById = useCallback((receiptId) => {
         const receipt = getWalletReceipt(receiptId);
         if (receipt) {
@@ -766,6 +910,10 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         walletHistory,
         walletRequests,
         firstUseNoticeSeen,
+        demoP2PWallet,
+        demoP2PHistory,
+        demoP2PRequests,
+        demoP2PSplitBills,
         pitchModeLoaded,
         pitchSpotsVersion,
         pitchDemoUsers: PITCH_DEMO_USERS,
@@ -809,6 +957,12 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         performTransfer,
         performRequestMoney,
         performRespondToRequest,
+        topUpSocialDemoWallet,
+        sendSocialDemoMoney,
+        requestSocialDemoMoney,
+        respondSocialDemoRequest,
+        createSocialDemoSplitBill,
+        paySocialDemoSplitBill,
         startSendMoneyToUser,
         openChatWithFriend,
         openWalletReceiptById,
@@ -845,6 +999,10 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         walletHistory,
         walletRequests,
         firstUseNoticeSeen,
+        demoP2PWallet,
+        demoP2PHistory,
+        demoP2PRequests,
+        demoP2PSplitBills,
         pitchModeLoaded,
         pitchSpotsVersion,
         selectedPublicProfileId,
@@ -880,6 +1038,12 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         performTransfer,
         performRequestMoney,
         performRespondToRequest,
+        topUpSocialDemoWallet,
+        sendSocialDemoMoney,
+        requestSocialDemoMoney,
+        respondSocialDemoRequest,
+        createSocialDemoSplitBill,
+        paySocialDemoSplitBill,
         startSendMoneyToUser,
         openChatWithFriend,
         openWalletReceiptById,
