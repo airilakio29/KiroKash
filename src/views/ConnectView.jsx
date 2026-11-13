@@ -65,7 +65,7 @@ function renderProfileAvatar(profile, size = 46) {
   );
 }
 
-export default function ConnectView({ onOpenProfileModal }) {
+export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
   const { user } = useAuth();
   const {
     publicProfile,
@@ -602,7 +602,9 @@ export default function ConnectView({ onOpenProfileModal }) {
           type="button"
           className="btn btn-sm btn-secondary"
           onClick={() => {
-            if (typeof window !== 'undefined') {
+            if (onNavigateTab) {
+              onNavigateTab('messages');
+            } else if (typeof window !== 'undefined') {
               window.history.pushState({}, '', '/messages');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }
@@ -653,7 +655,9 @@ export default function ConnectView({ onOpenProfileModal }) {
           activeTab={activeSection}
           onOpenConversationInMessenger={(conversationId) => {
             if (setActiveConversationId) setActiveConversationId(conversationId);
-            if (typeof window !== 'undefined') {
+            if (onNavigateTab) {
+              onNavigateTab('messages');
+            } else if (typeof window !== 'undefined') {
               window.history.pushState({}, '', '/messages');
               window.dispatchEvent(new PopStateEvent('popstate'));
             }

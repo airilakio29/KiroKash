@@ -298,7 +298,7 @@ export default function DemoP2PWalletPanel({ onOpenChatWithFriend }) {
                 style={{
                     padding: '10px 18px',
                     background: 'var(--gradient-primary)',
-                    color: '#ffffff',
+                    color: 'var(--text-on-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -490,7 +490,7 @@ export default function DemoP2PWalletPanel({ onOpenChatWithFriend }) {
                             borderRadius: 14,
                             border: 'none',
                             background: 'var(--gradient-primary)',
-                            color: '#ffffff',
+                            color: 'var(--text-on-primary)',
                             fontWeight: 800,
                             fontSize: '0.86rem',
                             cursor: 'pointer',

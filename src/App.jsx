@@ -301,6 +301,7 @@ function AppLayout({
         return (
           <ConnectView
             onOpenProfileModal={handleOpenProfileModal}
+            onNavigateTab={handleTabChange}
           />
         );
       case 'messages':

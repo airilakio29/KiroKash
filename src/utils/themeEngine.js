@@ -459,7 +459,24 @@ export function buildThemeTokens(spec, customColors = null) {
     '--shadow-sm': `0 1px 3px 0 rgba(${shadowRgb}, ${shadowA[0]})`,
     '--shadow-card': `0 4px 14px -2px rgba(${shadowRgb}, ${shadowA[1]}), 0 1px 3px rgba(${shadowRgb}, ${shadowA[0]})`,
     '--shadow-hover': `0 14px 28px -6px rgba(${shadowRgb}, ${shadowA[2]})`,
-    '--shadow-modal': `0 24px 48px -12px rgba(${shadowRgb}, ${shadowA[3]})`
+    '--shadow-modal': `0 24px 48px -12px rgba(${shadowRgb}, ${shadowA[3]})`,
+    '--shadow-lg': `0 24px 48px -12px rgba(${shadowRgb}, ${shadowA[3]})`,
+    '--shadow-glow': `0 4px 14px -2px rgba(${shadowRgb}, ${shadowA[1]})`,
+
+    /* Connect / Messenger / Demo Wallet semantic aliases */
+    '--gradient-primary': `linear-gradient(135deg, ${s.primary} 0%, ${primaryHover} 100%)`,
+    '--bg-primary': s.card,
+    '--bg-secondary': s.cardSubtle,
+    '--bg-input': s.cardSubtle,
+    '--border-primary': s.border,
+    '--text-primary': s.textMain,
+    '--text-secondary': s.textMuted,
+    '--accent-primary': s.primary,
+    '--accent-secondary': s.primaryLight,
+    '--accent-green': s.income,
+    '--accent-red': s.expense,
+    '--accent-glow': `color-mix(in srgb, ${s.primary} ${s.isDark ? 20 : 14}%, transparent)`,
+    '--gold-sparkle': s.warning
   };
 
   return { tokens, isDark: s.isDark, bgStops: s.bg, spec: s };

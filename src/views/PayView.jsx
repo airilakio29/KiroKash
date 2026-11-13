@@ -1963,14 +1963,6 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
             )}
           </div>
 
-          {/* Phase 3: KampusKash Connect Demo P2P Wallet Panel (Strictly Isolated Social P2P Ledger) */}
-          <DemoP2PWalletPanel
-            onOpenChatWithFriend={(friendId) => {
-              if (openChatWithFriend) openChatWithFriend(friendId);
-              if (onNavigateTab) onNavigateTab('messages');
-            }}
-          />
-
           {/* Quick Action Tiles (Top 4 Big Cards) */}
           <div className="pay-tiles-grid">
             <div
@@ -2037,6 +2029,14 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
               <ChevronRight size={18} className="pay-tile-chevron" />
             </div>
           </div>
+
+          {/* Phase 3: KampusKash Connect Demo P2P Wallet Panel (Strictly Isolated Social P2P Ledger) */}
+          <DemoP2PWalletPanel
+            onOpenChatWithFriend={(friendId) => {
+              if (openChatWithFriend) openChatWithFriend(friendId);
+              if (onNavigateTab) onNavigateTab('messages');
+            }}
+          />
 
           {/* Favourites & Quick Send Row */}
           <div className="card" style={{ marginBottom: '1.25rem' }}>

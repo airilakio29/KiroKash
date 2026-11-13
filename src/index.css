@@ -64,6 +64,23 @@
   --shadow-card: 0 4px 14px -2px rgba(17, 20, 52, 0.18), 0 1px 3px rgba(17, 20, 52, 0.1);
   --shadow-hover: 0 14px 28px -6px rgba(17, 20, 52, 0.24);
   --shadow-modal: 0 24px 48px -12px rgba(17, 20, 52, 0.34);
+  --shadow-lg: var(--shadow-modal);
+  --shadow-glow: var(--shadow-card);
+
+  /* Connect / Messenger / Demo Wallet semantic aliases */
+  --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  --bg-primary: var(--bg-card);
+  --bg-secondary: var(--bg-card-subtle);
+  --bg-input: var(--input-bg);
+  --border-primary: var(--border-light);
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --accent-primary: var(--primary);
+  --accent-secondary: var(--primary-light);
+  --accent-green: var(--income);
+  --accent-red: var(--expense);
+  --accent-glow: color-mix(in srgb, var(--primary) 14%, transparent);
+  --gold-sparkle: var(--warning);
 
   --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -2700,6 +2717,35 @@ body {
 
 .modal-content {
   animation: modalScaleUp var(--anim-duration-modal) var(--anim-ease-out) forwards;
+}
+
+/* Connect & Pay Modal Backdrop / Content Overlay */
+.pay-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim, rgba(17, 20, 52, 0.62));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: modalFadeIn var(--anim-duration-modal, 240ms) var(--anim-ease-out) forwards;
+}
+
+.pay-modal-content {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl, 18px);
+  padding: 1.35rem 1.5rem;
+  box-shadow: var(--shadow-modal);
+  animation: modalScaleUp var(--anim-duration-modal, 240ms) var(--anim-ease-out) forwards;
 }
 
 @keyframes modalFadeIn {

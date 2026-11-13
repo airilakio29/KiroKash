@@ -1361,6 +1361,8 @@ export default function MessagesView() {
                                                         color:
                                                             typingUsers.length > 0
                                                                 ? 'var(--accent-primary)'
+                                                                : selectedConversation.type === 'group'
+                                                                ? 'var(--text-muted)'
                                                                 : partnerPresence?.state === 'online'
                                                                 ? 'var(--accent-green)'
                                                                 : 'var(--text-muted)',
@@ -1369,6 +1371,8 @@ export default function MessagesView() {
                                                 >
                                                     {typingUsers.length > 0
                                                         ? 'Typing...'
+                                                        : selectedConversation.type === 'group'
+                                                        ? `👥 ${selectedConversation.participants?.length || 1} group members`
                                                         : partnerPresence?.state === 'online'
                                                         ? '● Online'
                                                         : partnerPresence?.lastSeen
@@ -1568,6 +1572,19 @@ export default function MessagesView() {
                                                         maxWidth: '100%'
                                                     }}
                                                 >
+                                                    {selectedConversation.type === 'group' && !isMine && msg.senderName && (
+                                                        <div
+                                                            style={{
+                                                                fontSize: '0.72rem',
+                                                                fontWeight: 700,
+                                                                color: 'var(--primary)',
+                                                                marginBottom: 2,
+                                                                paddingLeft: 4
+                                                            }}
+                                                        >
+                                                            {msg.senderName}
+                                                        </div>
+                                                    )}
                                                     <div
                                                         style={{
                                                             maxWidth: isMobileView ? '84%' : '68%',
@@ -1583,7 +1600,7 @@ export default function MessagesView() {
                                                             color: msg.deleted
                                                                 ? 'var(--text-muted)'
                                                                 : isMine
-                                                                ? '#ffffff'
+                                                                ? 'var(--text-on-primary)'
                                                                 : 'var(--text-primary)',
                                                             border: isMine
                                                                 ? 'none'
@@ -1756,10 +1773,9 @@ export default function MessagesView() {
                                                                         style={{
                                                                             padding: '12px 14px',
                                                                             borderRadius: 14,
-                                                                            background: isMine
-                                                                                ? 'rgba(0,0,0,0.24)'
-                                                                                : 'var(--bg-secondary)',
-                                                                            border: '1px solid var(--border-primary)',
+                                                                            background: 'var(--bg-card-subtle)',
+                                                                            color: 'var(--text-main)',
+                                                                            border: '1px solid var(--border-light)',
                                                                             marginBottom: 6,
                                                                             cursor: 'pointer'
                                                                         }}
@@ -1770,7 +1786,7 @@ export default function MessagesView() {
                                                                                 fontWeight: 800,
                                                                                 letterSpacing: '0.04em',
                                                                                 textTransform: 'uppercase',
-                                                                                color: isMine ? '#fde68a' : 'var(--accent-primary)',
+                                                                                color: 'var(--primary)',
                                                                                 marginBottom: 4,
                                                                                 display: 'flex',
                                                                                 alignItems: 'center',
