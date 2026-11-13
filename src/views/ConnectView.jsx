@@ -472,7 +472,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
             {onOpenProfileModal && (
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm connect-action-btn"
                 onClick={onOpenProfileModal}
               >
                 <Edit3 size={14} />
@@ -482,7 +482,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
             {user?.id && (
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary btn-sm connect-action-btn"
                 onClick={() => setSelectedPublicProfileId(user.id)}
               >
                 <Globe size={14} />
@@ -491,7 +491,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
             )}
             <button
               type="button"
-              className={`btn btn-sm ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
+              className={`btn btn-sm connect-action-btn ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveSection(activeSection === 'privacy' ? 'all' : 'privacy')}
             >
               <Lock size={14} />
@@ -552,10 +552,10 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
       )}
 
       {/* Navigation Pills for Connect Sections */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div className="connect-tabs-bar">
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'all' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('all')}
         >
           <Sparkles size={14} />
@@ -563,7 +563,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'discover' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'discover' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('discover')}
         >
           <Search size={14} />
@@ -571,7 +571,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'requests' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'requests' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('requests')}
         >
           <UserPlus size={14} />
@@ -592,7 +592,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'friends' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'friends' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('friends')}
         >
           <Users size={14} />
@@ -600,7 +600,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className="btn btn-sm btn-secondary"
+          className="btn btn-sm btn-secondary connect-tab-btn"
           onClick={() => {
             if (onNavigateTab) {
               onNavigateTab('messages');
@@ -615,7 +615,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'groups' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'groups' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('groups')}
         >
           <Users size={14} />
@@ -623,7 +623,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'challenges' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'challenges' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('challenges')}
         >
           <Target size={14} />
@@ -631,7 +631,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'communities' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'communities' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('communities')}
         >
           <Globe size={14} />
@@ -639,7 +639,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`btn btn-sm connect-tab-btn ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSection('privacy')}
         >
           <Lock size={14} />
@@ -1472,6 +1472,48 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
           </div>
         </section>
       )}
+
+      <style>{`
+        .connect-tabs-bar {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+          padding: 0.25rem 0;
+          margin-bottom: 0.75rem;
+        }
+
+        .connect-tab-btn {
+          border-radius: 999px !important;
+          font-weight: 600 !important;
+          letter-spacing: 0.01em;
+          padding: 0.45rem 0.95rem !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 0.45rem !important;
+          transition: all 0.16s ease !important;
+          cursor: pointer;
+        }
+
+        .connect-tab-btn:hover {
+          transform: translateY(-1px);
+        }
+
+        .connect-action-btn {
+          border-radius: 999px !important;
+          font-weight: 600 !important;
+          padding: 0.45rem 0.9rem !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 0.45rem !important;
+          cursor: pointer;
+          transition: all 0.16s ease !important;
+        }
+
+        .connect-action-btn:hover {
+          transform: translateY(-1px);
+        }
+      `}</style>
     </div>
   );
 }

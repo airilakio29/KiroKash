@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { useToast } from '../context/ToastContext';
 import { validateSavingsGoal } from '../services/savingsService';
@@ -118,7 +119,7 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
     }
   };
 
-  return (
+  const modalMarkup = (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="savings-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
@@ -234,4 +235,9 @@ export default function SavingsModal({ isOpen, onClose, mode = 'create', goalId 
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalMarkup, document.body);
+  }
+  return modalMarkup;
 }

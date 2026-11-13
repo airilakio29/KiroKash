@@ -587,10 +587,16 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          flex-wrap: wrap;
-          gap: 0.5rem;
+          flex-wrap: nowrap;
+          gap: 0.4rem;
           min-width: 0;
           max-width: 100%;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+
+        .header-desktop-actions::-webkit-scrollbar {
+          display: none;
         }
 
         .header-pitch-switcher {
@@ -709,7 +715,7 @@ export default function Header({ onOpenMobileMenu, onOpenProfileModal, onNavigat
           background: rgba(231, 76, 60, 0.2);
         }
 
-        @media (max-width: 1320px) {
+        @media (max-width: 1440px) {
           .header-date-pill,
           .header-bio-pill {
             display: none !important;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Wallet,
   TrendingUp,
@@ -90,7 +91,7 @@ export default function WelcomeIntroModal({ isOpen, onComplete, onSkip }) {
     }
   };
 
-  return (
+  const modalMarkup = (
     <div
       className="modal-overlay"
       role="dialog"
@@ -319,4 +320,9 @@ export default function WelcomeIntroModal({ isOpen, onComplete, onSkip }) {
       `}</style>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalMarkup, document.body);
+  }
+  return modalMarkup;
 }

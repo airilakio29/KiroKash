@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
 import {
@@ -195,7 +196,7 @@ function ProfileModalContent({ user, onClose }) {
     }
   };
 
-  return (
+  const modalMarkup = (
     <div
       className="modal-overlay"
       onClick={(e) => {
@@ -794,4 +795,9 @@ function ProfileModalContent({ user, onClose }) {
       `}</style>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalMarkup, document.body);
+  }
+  return modalMarkup;
 }

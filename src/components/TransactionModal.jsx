@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { useToast } from '../context/ToastContext';
 import { X, Repeat, Loader2 } from 'lucide-react';
@@ -102,7 +103,7 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
     }
   };
 
-  return (
+  const modalMarkup = (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="tx-modal-title">
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
@@ -298,4 +299,9 @@ export default function TransactionModal({ isOpen, onClose, initialData = null }
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalMarkup, document.body);
+  }
+  return modalMarkup;
 }

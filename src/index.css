@@ -257,6 +257,7 @@ body {
     overflow-x: hidden;
     overflow-x: clip;
   }
+}
 
 .content-area {
   flex: 1;
@@ -479,13 +480,13 @@ body {
 .btn-primary {
   background: var(--primary);
   color: var(--text-white);
-  box-shadow: 0 4px 14px rgba(25, 114, 71, 0.3);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(25, 114, 71, 0.4);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 .btn-secondary {

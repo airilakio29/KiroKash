@@ -50,7 +50,7 @@ describe('KampusKash Phase 2 — AI Financial Intelligence Test Suite', () => {
         { id: '3', date: '2026-10-10', amount: 20.00, type: 'expense', categoryId: 'cat-food' }
       ];
 
-      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10');
+      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10', new Date('2026-10-18'));
       assert.equal(res.totalExpense, 100.00);
       // For current month (2026-10), daysElapsed is 18 (as of 2026-10-18)
       assert.ok(res.daysElapsed >= 1);
@@ -121,7 +121,7 @@ describe('KampusKash Phase 2 — AI Financial Intelligence Test Suite', () => {
       const transactions = [
         { id: '1', date: '2026-10-03', amount: 250.00, type: 'expense', categoryId: 'cat-food' }
       ];
-      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10');
+      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10', new Date('2026-10-18'));
       assert.equal(res.totalIncome, 0);
       assert.equal(res.totalExpense, 250.00);
       assert.equal(res.netCashFlow, -250.00);
@@ -169,7 +169,7 @@ describe('KampusKash Phase 2 — AI Financial Intelligence Test Suite', () => {
       const transactions = [
         { id: 'undated', amount: 45.00, type: 'expense', categoryId: 'cat-food' } // date is missing
       ];
-      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10');
+      const res = calculateMonthlyCashFlow(transactions, categories, '2026-10', new Date('2026-10-18'));
       assert.equal(res.totalExpense, 45.00);
       assert.equal(res.categoryExpenses[0].total, 45.00);
     });

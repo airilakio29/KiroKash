@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Trash2, X } from 'lucide-react';
 
 /**
@@ -30,7 +31,7 @@ export default function ConfirmModal({
 
   if (!isOpen) return null;
 
-  return (
+  const modalMarkup = (
     <div
       className="modal-overlay"
       onClick={onCancel}
@@ -143,4 +144,9 @@ export default function ConfirmModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalMarkup, document.body);
+  }
+  return modalMarkup;
 }
