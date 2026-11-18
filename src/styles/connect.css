@@ -1,0 +1,813 @@
+/* =========================================================================
+   KAMPUSKASH CONNECT — MODERN SOCIAL STUDENT NETWORKING STYLESHEET
+   Supports all 10 KampusKash themes & viewports 320px – 1440px+
+   ========================================================================= */
+
+.kk-connect-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 36px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   1. Connect Hero Header & Self Profile Card
+   ------------------------------------------------------------------------- */
+.kk-connect-hero {
+  position: relative;
+  border-radius: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-highlight);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kk-connect-hero-banner {
+  position: relative;
+  padding: 20px 24px 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.22) 0%,
+    rgba(6, 182, 212, 0.14) 55%,
+    rgba(16, 185, 129, 0.1) 100%
+  );
+  border-bottom: 1px solid var(--border-color);
+}
+
+.kk-connect-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.kk-connect-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.kk-connect-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.kk-connect-online-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--success);
+  border: 2.5px solid var(--bg-card);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.55);
+}
+
+.kk-connect-online-dot.offline {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+.kk-connect-hero-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.kk-connect-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.kk-connect-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: rgba(139, 92, 246, 0.18);
+  color: var(--accent-primary);
+  border: 1px solid rgba(139, 92, 246, 0.32);
+}
+
+.kk-connect-pill.privacy {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.kk-connect-pill.friends-only {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.kk-connect-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kk-connect-display-name {
+  margin: 0;
+  font-size: 1.32rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.kk-connect-handle {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.kk-connect-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.kk-connect-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kk-connect-bio {
+  margin: 8px 0 0;
+  font-size: 0.83rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+  max-width: 640px;
+}
+
+.kk-connect-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kk-connect-privacy-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 24px;
+  background: rgba(16, 185, 129, 0.06);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+/* -------------------------------------------------------------------------
+   2. Primary Navigation Bar (Sticky / Scrollable Tabs)
+   ------------------------------------------------------------------------- */
+.kk-connect-nav-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kk-connect-nav-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.kk-connect-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.kk-connect-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.kk-connect-tab-btn.active {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.3);
+}
+
+.kk-connect-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+}
+
+.kk-connect-tab-btn:not(.active) .kk-connect-tab-badge.alert {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.kk-connect-tab-btn:not(.active) .kk-connect-tab-badge.info {
+  background: rgba(139, 92, 246, 0.18);
+  color: var(--accent-primary);
+}
+
+/* -------------------------------------------------------------------------
+   3. Prominent Search & Filter Bar
+   ------------------------------------------------------------------------- */
+.kk-connect-search-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.kk-connect-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kk-connect-search-input-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.kk-connect-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.kk-connect-search-input {
+  width: 100%;
+  padding: 11px 38px 11px 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.kk-connect-search-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.16);
+}
+
+.kk-connect-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.kk-connect-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.kk-connect-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.kk-connect-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.kk-connect-chip:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.kk-connect-chip.active {
+  background: rgba(139, 92, 246, 0.18);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* -------------------------------------------------------------------------
+   4. Section Cards & Grids
+   ------------------------------------------------------------------------- */
+.kk-connect-section {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.kk-connect-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.kk-connect-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kk-connect-section-sub {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.kk-connect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+}
+
+.kk-connect-overview-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 16px;
+}
+
+/* -------------------------------------------------------------------------
+   5. Student / Friend / Request Cards
+   ------------------------------------------------------------------------- */
+.kk-student-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.kk-student-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-highlight);
+  box-shadow: var(--shadow-sm);
+}
+
+.kk-student-card.incoming-highlight {
+  border-color: rgba(16, 185, 129, 0.38);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.07) 0%, var(--bg-secondary) 100%);
+}
+
+.kk-student-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.kk-student-card-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.kk-student-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.94rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.kk-student-name-btn:hover {
+  color: var(--accent-primary);
+}
+
+.kk-student-handle {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kk-student-uni {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 5px;
+}
+
+.kk-student-bio {
+  margin: 7px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kk-student-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.kk-student-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.kk-student-tag.mutual {
+  background: rgba(139, 92, 246, 0.14);
+  color: var(--accent-primary);
+  border-color: rgba(139, 92, 246, 0.28);
+}
+
+.kk-student-tag.same-campus {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-secondary);
+  border-color: rgba(6, 182, 212, 0.26);
+}
+
+.kk-student-tag.online {
+  background: rgba(16, 185, 129, 0.13);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.kk-student-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.kk-student-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+/* -------------------------------------------------------------------------
+   6. Action Buttons (Add Friend, Request Sent, Accept, Friends, Message)
+   ------------------------------------------------------------------------- */
+.kk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.kk-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.kk-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.kk-btn-primary {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 3px 10px rgba(139, 92, 246, 0.25);
+}
+
+.kk-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 5px 14px rgba(139, 92, 246, 0.35);
+}
+
+.kk-btn-sent {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.kk-btn-sent:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.kk-btn-accept {
+  background: var(--success);
+  color: #ffffff;
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.24);
+}
+
+.kk-btn-accept:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.kk-btn-friends {
+  background: rgba(16, 185, 129, 0.13);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.kk-btn-ghost {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.kk-btn-ghost:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-highlight);
+  background: var(--bg-card-hover);
+}
+
+.kk-btn-danger-ghost {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.26);
+}
+
+.kk-btn-danger-ghost:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.kk-btn-icon {
+  padding: 7px 9px;
+}
+
+/* More Options Menu (⋯) */
+.kk-more-menu-wrap {
+  position: relative;
+}
+
+.kk-more-dropdown {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 185px;
+  padding: 6px;
+  border-radius: 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-highlight);
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kk-more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.77rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.kk-more-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.kk-more-item.danger {
+  color: var(--danger);
+}
+
+.kk-more-item.danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* -------------------------------------------------------------------------
+   7. Friends Online Horizontal Strip
+   ------------------------------------------------------------------------- */
+.kk-online-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.kk-online-friend-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  min-width: 215px;
+  flex-shrink: 0;
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+.kk-online-friend-pill:hover {
+  border-color: var(--border-highlight);
+  transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------
+   8. Friendly Empty States
+   ------------------------------------------------------------------------- */
+.kk-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 20px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  gap: 10px;
+}
+
+.kk-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(139, 92, 246, 0.14);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------------------
+   9. Responsive Breakpoints (320px – 1440px)
+   ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .kk-connect-hero-banner {
+    padding: 16px;
+  }
+
+  .kk-connect-privacy-strip {
+    padding: 10px 16px;
+  }
+
+  .kk-connect-section {
+    padding: 14px 14px;
+  }
+
+  .kk-connect-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kk-connect-overview-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .kk-connect-hero-actions {
+    width: 100%;
+  }
+
+  .kk-connect-hero-actions .kk-btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .kk-connect-display-name {
+    font-size: 1.12rem;
+  }
+
+  .kk-connect-profile-main {
+    align-items: flex-start;
+  }
+
+  .kk-student-card {
+    padding: 13px;
+  }
+
+  .kk-student-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kk-student-actions {
+    width: 100%;
+  }
+
+  .kk-student-actions .kk-btn {
+    flex: 1 1 auto;
+  }
+}
+
