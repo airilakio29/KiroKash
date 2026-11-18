@@ -31,6 +31,20 @@ service cloud.firestore {
         && request.resource.data.handle is string
         && request.resource.data.handle.size() >= 3
         && request.resource.data.handle.size() <= 24
+        && (
+          !('qrCodeId' in request.resource.data) ||
+          request.resource.data.qrCodeId == null ||
+          (
+            request.resource.data.qrCodeId is string &&
+            request.resource.data.qrCodeId.matches('^kkid_[a-z0-9]{12,32}$') &&
+            (
+              resource == null ||
+              !('qrCodeId' in resource.data) ||
+              resource.data.qrCodeId == null ||
+              request.resource.data.qrCodeId == resource.data.qrCodeId
+            )
+          )
+        )
         && !request.resource.data.keys().hasAny([
           'balance',
           'walletBalance',
@@ -53,6 +67,22 @@ service cloud.firestore {
           'phoneNumber'
         ]);
       allow delete: if isOwner(userId);
+    }
+
+    // =========================================================================
+    // 2A. Unique Personal QR Code Registry (1:1 Opaque QR ID -> User Mapping)
+    // =========================================================================
+    match /userQrCodes/{qrCodeId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.qrCodeId == qrCodeId
+        && qrCodeId.matches('^kkid_[a-z0-9]{12,32}$');
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.qrCodeId == qrCodeId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // =========================================================================
