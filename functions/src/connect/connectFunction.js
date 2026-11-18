@@ -154,6 +154,38 @@ export function validateConnectOperation({ actorUid, action, payload = {}, exist
       return { valid: true, status: 200 };
     }
 
+    case 'register_qr': {
+      const { qrCodeId, ownerUid, existingOwnerUid = null } = payload;
+      if (ownerUid && ownerUid !== actorUid) {
+        return { valid: false, status: 403, error: 'Cannot register or modify a QR identifier for another user.' };
+      }
+      if (!qrCodeId || typeof qrCodeId !== 'string' || !/^kkid_[a-z0-9]{12,32}$/.test(qrCodeId)) {
+        return { valid: false, status: 400, error: 'Invalid personal QR identifier format.' };
+      }
+      if (existingOwnerUid && existingOwnerUid !== actorUid) {
+        return { valid: false, status: 409, error: 'QR identifier is already assigned to another user.' };
+      }
+      return {
+        valid: true,
+        status: 200,
+        qrCodeId,
+        verifiedOwnerUid: actorUid
+      };
+    }
+
+    case 'resolve_qr': {
+      const { qrCodeId } = payload;
+      if (!qrCodeId || typeof qrCodeId !== 'string' || !/^kkid_[a-z0-9]{12,32}$/.test(qrCodeId)) {
+        return { valid: false, status: 400, error: 'Invalid or unrecognized KampusKash QR identifier.' };
+      }
+      return {
+        valid: true,
+        status: 200,
+        qrCodeId,
+        scannerUid: actorUid
+      };
+    }
+
     default:
       return { valid: false, status: 400, error: `Unsupported Connect action: ${action}` };
   }
