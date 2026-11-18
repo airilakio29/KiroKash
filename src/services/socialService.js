@@ -1,4 +1,5 @@
 import {
+    auth,
     db,
     collection,
     doc,
@@ -575,8 +576,9 @@ export async function syncPublicProfilesFromFirestore() {
         const profiles = getAllPublicProfilesMap();
         snap.forEach((docSnap) => {
             const data = docSnap.data();
-            if (data && data.id) {
-                profiles[data.id] = stripFinancialFieldsFromProfile({ ...profiles[data.id], ...data });
+            if (data && (data.id || docSnap.id)) {
+                const uid = data.id || docSnap.id;
+                profiles[uid] = stripFinancialFieldsFromProfile({ ...profiles[uid], ...data, id: uid });
             }
         });
         recomputeAllSocialCounts(profiles);
@@ -585,6 +587,46 @@ export async function syncPublicProfilesFromFirestore() {
     } catch {
         return getAllPublicProfilesMap();
     }
+}
+
+/**
+ * Real-time Firestore listener for public student profiles so user discovery stays live.
+ */
+export function subscribeToPublicProfiles(onUpdate) {
+    if (!db) return () => {};
+    const colRef = collection(db, 'publicProfiles');
+    return onSnapshot(
+        colRef,
+        (snap) => {
+            const profiles = getAllPublicProfilesMap();
+            let changed = false;
+            snap.docChanges().forEach((change) => {
+                const uid = change.doc.id;
+                if (change.type === 'removed') {
+                    if (profiles[uid] && !profiles[uid].isPitchDemo) {
+                        delete profiles[uid];
+                        changed = true;
+                    }
+                } else {
+                    const data = change.doc.data();
+                    if (data) {
+                        profiles[uid] = stripFinancialFieldsFromProfile({
+                            ...profiles[uid],
+                            ...data,
+                            id: data.id || uid
+                        });
+                        changed = true;
+                    }
+                }
+            });
+            if (changed) {
+                recomputeAllSocialCounts(profiles);
+                writeStore(STORAGE_KEYS.PROFILES, profiles);
+                if (onUpdate) onUpdate(profiles);
+            }
+        },
+        () => {}
+    );
 }
 
 /**
@@ -758,9 +800,13 @@ export function areFriends(userAId, userBId) {
     );
 }
 
+function isCloudAuthenticatedFor(actorId) {
+    return Boolean(db && actorId && auth?.currentUser?.uid && auth.currentUser.uid === actorId);
+}
+
 export function getFriendsList(
     userId,
-    { searchQuery = '', page = 1, pageSize = 50, includePagination = false } = {}
+    { searchQuery = '', sortBy = 'name', page = 1, pageSize = 50, includePagination = false } = {}
 ) {
     if (!userId) {
         return includePagination
@@ -768,12 +814,45 @@ export function getFriendsList(
             : [];
     }
     const friendIds = getFriendIds(userId);
+    const friendships = getFriendshipsList();
+    const viewerProfile = getPublicProfile(userId);
     const safeQuery = sanitizeText(String(searchQuery || ''), 60)
         .toLowerCase()
         .replace(/^@+/, '');
 
     const profiles = friendIds
-        .map((id) => getPublicProfile(id))
+        .map((id) => {
+            let p = getPublicProfile(id);
+            if (!p) {
+                // Fallback from friendRequests if profile has not finished syncing from Firestore yet
+                const reqMatch = getFriendRequestsList().find(
+                    (r) =>
+                        (r.senderId === id && r.receiverId === userId) ||
+                        (r.receiverId === id && r.senderId === userId)
+                );
+                if (reqMatch) {
+                    const isSender = reqMatch.senderId === id;
+                    p = ensurePublicProfileForUser({
+                        id,
+                        displayName: isSender ? reqMatch.senderName : reqMatch.receiverName,
+                        handle: isSender ? reqMatch.senderHandle : reqMatch.receiverHandle,
+                        avatarId: isSender ? reqMatch.senderAvatar : reqMatch.receiverAvatar
+                    });
+                }
+            }
+            if (!p) return null;
+            const fDoc = friendships.find(
+                (f) =>
+                    f.id === getFriendshipDocId(userId, id) ||
+                    (Array.isArray(f.users) && f.users.includes(userId) && f.users.includes(id))
+            );
+            const mutuals = getMutualFriends(userId, id);
+            return {
+                ...p,
+                mutualFriendsCount: mutuals.length,
+                friendsSince: fDoc?.createdAt || p.joinedAt || null
+            };
+        })
         .filter((p) => {
             if (!p) return false;
             if (!safeQuery) return true;
@@ -784,7 +863,23 @@ export function getFriendsList(
                 (p.course || '').toLowerCase().includes(safeQuery)
             );
         })
-        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+        .sort((a, b) => {
+            if (sortBy === 'recent') {
+                const tA = new Date(a.friendsSince || 0).getTime();
+                const tB = new Date(b.friendsSince || 0).getTime();
+                if (tB !== tA) return tB - tA;
+            } else if (sortBy === 'mutuals') {
+                if ((b.mutualFriendsCount || 0) !== (a.mutualFriendsCount || 0)) {
+                    return (b.mutualFriendsCount || 0) - (a.mutualFriendsCount || 0);
+                }
+            } else if (sortBy === 'university') {
+                const viewerUni = (viewerProfile?.university || '').toLowerCase();
+                const aSame = viewerUni && (a.university || '').toLowerCase() === viewerUni ? 1 : 0;
+                const bSame = viewerUni && (b.university || '').toLowerCase() === viewerUni ? 1 : 0;
+                if (bSame !== aSame) return bSame - aSame;
+            }
+            return a.displayName.localeCompare(b.displayName);
+        });
 
     const safePage = Math.max(1, Number(page) || 1);
     const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 50));
@@ -821,10 +916,21 @@ export function getIncomingFriendRequests(userId) {
                 r.status === 'pending' &&
                 !isBlockedBetween(userId, r.senderId)
         )
-        .map((r) => ({
-            ...r,
-            senderProfile: getPublicProfile(r.senderId)
-        }))
+        .map((r) => {
+            const senderProfile =
+                getPublicProfile(r.senderId) ||
+                stripFinancialFieldsFromProfile({
+                    id: r.senderId,
+                    displayName: r.senderName || 'Student',
+                    handle: r.senderHandle || 'student',
+                    avatarId: r.senderAvatar || 'cat',
+                    university: r.senderUniversity || 'Malaysia Campus'
+                });
+            return {
+                ...r,
+                senderProfile
+            };
+        })
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 }
 
@@ -837,10 +943,21 @@ export function getOutgoingFriendRequests(userId) {
                 r.status === 'pending' &&
                 !isBlockedBetween(userId, r.receiverId)
         )
-        .map((r) => ({
-            ...r,
-            receiverProfile: getPublicProfile(r.receiverId)
-        }))
+        .map((r) => {
+            const receiverProfile =
+                getPublicProfile(r.receiverId) ||
+                stripFinancialFieldsFromProfile({
+                    id: r.receiverId,
+                    displayName: r.receiverName || 'Student',
+                    handle: r.receiverHandle || 'student',
+                    avatarId: r.receiverAvatar || 'cat',
+                    university: r.receiverUniversity || 'Malaysia Campus'
+                });
+            return {
+                ...r,
+                receiverProfile
+            };
+        })
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 }
 
@@ -983,7 +1100,10 @@ export async function sendFriendRequest(senderUser, receiverId, { note = '' } = 
         throw new Error('This user has already sent you a friend request. Please accept their request instead.');
     }
 
-    const receiverProfile = getPublicProfile(receiverId);
+    let receiverProfile = getPublicProfile(receiverId);
+    if (!receiverProfile && isCloudAuthenticatedFor(senderId)) {
+        receiverProfile = await fetchPublicProfileFromFirestore(receiverId);
+    }
     if (receiverProfile?.privacySettings?.allowFriendRequests === false) {
         throw new Error('This user has restricted incoming friend requests.');
     }
@@ -1011,9 +1131,11 @@ export async function sendFriendRequest(senderUser, receiverId, { note = '' } = 
         senderName: senderProfile?.displayName || 'Student',
         senderHandle: senderProfile?.handle || 'student',
         senderAvatar: senderProfile?.avatarId || 'cat',
+        senderUniversity: senderProfile?.university || 'Malaysia Campus',
         receiverName: receiverProfile?.displayName || 'Student',
         receiverHandle: receiverProfile?.handle || 'student',
         receiverAvatar: receiverProfile?.avatarId || 'cat',
+        receiverUniversity: receiverProfile?.university || 'Malaysia Campus',
         note: cleanNote,
         status: 'pending',
         createdAt: now,
@@ -1035,7 +1157,10 @@ export async function sendFriendRequest(senderUser, receiverId, { note = '' } = 
     });
 
     if (db) {
-        setDoc(doc(db, 'friendRequests', requestId), newRequest).catch(() => {});
+        const writeOp = setDoc(doc(db, 'friendRequests', requestId), newRequest, { merge: true }).catch(() => {});
+        if (isCloudAuthenticatedFor(senderId)) {
+            await writeOp;
+        }
     }
 
     return newRequest;
@@ -1083,13 +1208,26 @@ export async function acceptFriendRequest(actorUser, requestIdOrSenderId) {
     req.updatedAt = now;
 
     // Also close any reverse pending request if one existed
+    const reverseRequestsToSync = [];
     for (const r of requests) {
         if (r.senderId === req.receiverId && r.receiverId === req.senderId && r.status === 'pending') {
             r.status = 'accepted';
             r.updatedAt = now;
+            reverseRequestsToSync.push(r);
         }
     }
     writeStore(STORAGE_KEYS.FRIEND_REQUESTS, requests);
+
+    // Ensure sender's public profile exists in local store so they immediately appear in My Friends
+    if (!getPublicProfile(req.senderId)) {
+        ensurePublicProfileForUser({
+            id: req.senderId,
+            displayName: req.senderName || 'Student',
+            handle: req.senderHandle || 'student',
+            avatarId: req.senderAvatar || 'cat',
+            university: req.senderUniversity || 'Malaysia Campus'
+        });
+    }
 
     const [userA, userB] = [req.senderId, req.receiverId].sort();
     const friendshipId = getFriendshipDocId(userA, userB);
@@ -1133,8 +1271,16 @@ export async function acceptFriendRequest(actorUser, requestIdOrSenderId) {
     });
 
     if (db) {
-        setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
-        setDoc(doc(db, 'friendships', friendshipId), friendship, { merge: true }).catch(() => {});
+        const ops = [
+            setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {}),
+            setDoc(doc(db, 'friendships', friendshipId), friendship, { merge: true }).catch(() => {}),
+            ...reverseRequestsToSync.map((rev) =>
+                setDoc(doc(db, 'friendRequests', rev.id), rev, { merge: true }).catch(() => {})
+            )
+        ];
+        if (isCloudAuthenticatedFor(actorId)) {
+            await Promise.all(ops);
+        }
     }
 
     return { accepted: true, request: req, friendship };
@@ -1170,7 +1316,10 @@ export async function rejectFriendRequest(actorUser, requestIdOrSenderId) {
     writeStore(STORAGE_KEYS.FRIEND_REQUESTS, requests);
 
     if (db) {
-        setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
+        const writeOp = setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
+        if (isCloudAuthenticatedFor(actorId)) {
+            await writeOp;
+        }
     }
 
     return { rejected: true, request: req };
@@ -1206,7 +1355,10 @@ export async function cancelFriendRequest(actorUser, requestIdOrReceiverId) {
     writeStore(STORAGE_KEYS.FRIEND_REQUESTS, requests);
 
     if (db) {
-        setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
+        const writeOp = setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
+        if (isCloudAuthenticatedFor(actorId)) {
+            await writeOp;
+        }
     }
 
     return { cancelled: true, request: req };
@@ -1241,12 +1393,16 @@ export async function removeFriend(actorUser, friendUserId) {
     writeStore(STORAGE_KEYS.FRIENDSHIPS, remaining);
 
     // Mark any prior requests between the pair as removed so they can re-request later if desired
+    const now = new Date().toISOString();
+    const updatedRequestsToSync = [];
     const requests = getFriendRequestsList().map((r) => {
         const isPair =
             (r.senderId === actorId && r.receiverId === friendUserId) ||
             (r.senderId === friendUserId && r.receiverId === actorId);
         if (isPair && (r.status === 'accepted' || r.status === 'pending')) {
-            return { ...r, status: 'removed', updatedAt: new Date().toISOString() };
+            const updatedReq = { ...r, status: 'removed', updatedAt: now };
+            updatedRequestsToSync.push(updatedReq);
+            return updatedReq;
         }
         return r;
     });
@@ -1257,7 +1413,15 @@ export async function removeFriend(actorUser, friendUserId) {
     writeStore(STORAGE_KEYS.PROFILES, profiles);
 
     if (db) {
-        deleteDoc(doc(db, 'friendships', friendshipId)).catch(() => {});
+        const ops = [
+            deleteDoc(doc(db, 'friendships', friendshipId)).catch(() => {}),
+            ...updatedRequestsToSync.map((reqDoc) =>
+                setDoc(doc(db, 'friendRequests', reqDoc.id), reqDoc, { merge: true }).catch(() => {})
+            )
+        ];
+        if (isCloudAuthenticatedFor(actorId)) {
+            await Promise.all(ops);
+        }
     }
 
     return { removed: true, friendshipId };
@@ -1271,25 +1435,52 @@ export function subscribeToUserFriendRequests(userId, onUpdate) {
     const qIncoming = query(collection(db, 'friendRequests'), where('receiverId', '==', userId));
     const qOutgoing = query(collection(db, 'friendRequests'), where('senderId', '==', userId));
 
-    const mergeAndNotify = (snapDocs) => {
+    const mergeAndNotify = (snap) => {
         const list = getFriendRequestsList();
         const byId = new Map(list.map((r) => [r.id, r]));
-        snapDocs.forEach((d) => {
-            const data = d.data();
-            if (data) byId.set(d.id, { id: d.id, ...data });
+        const missingProfileIds = new Set();
+
+        snap.docChanges().forEach((change) => {
+            const d = change.doc;
+            if (change.type === 'removed') {
+                byId.delete(d.id);
+            } else {
+                const data = d.data();
+                if (data) {
+                    byId.set(d.id, { id: d.id, ...data });
+                    const peerId = data.senderId === userId ? data.receiverId : data.senderId;
+                    if (peerId && !getPublicProfile(peerId)) {
+                        missingProfileIds.add(peerId);
+                    }
+                }
+            }
         });
+
         const merged = Array.from(byId.values());
         writeStore(STORAGE_KEYS.FRIEND_REQUESTS, merged);
-        if (onUpdate) {
-            onUpdate({
-                incoming: getIncomingFriendRequests(userId),
-                outgoing: getOutgoingFriendRequests(userId)
-            });
+
+        const triggerCallback = () => {
+            if (onUpdate) {
+                onUpdate({
+                    incoming: getIncomingFriendRequests(userId),
+                    outgoing: getOutgoingFriendRequests(userId)
+                });
+            }
+        };
+
+        triggerCallback();
+
+        if (missingProfileIds.size > 0) {
+            Promise.all(
+                Array.from(missingProfileIds).map((pid) => fetchPublicProfileFromFirestore(pid))
+            )
+                .then(() => triggerCallback())
+                .catch(() => {});
         }
     };
 
-    const unsubIn = onSnapshot(qIncoming, (snap) => mergeAndNotify(snap.docs), () => {});
-    const unsubOut = onSnapshot(qOutgoing, (snap) => mergeAndNotify(snap.docs), () => {});
+    const unsubIn = onSnapshot(qIncoming, (snap) => mergeAndNotify(snap), () => {});
+    const unsubOut = onSnapshot(qOutgoing, (snap) => mergeAndNotify(snap), () => {});
     return () => {
         unsubIn();
         unsubOut();
@@ -1307,16 +1498,49 @@ export function subscribeToUserFriendships(userId, onUpdate) {
         (snap) => {
             const list = getFriendshipsList();
             const byId = new Map(list.map((f) => [f.id, f]));
-            snap.forEach((docSnap) => {
-                const data = docSnap.data();
-                if (data) byId.set(docSnap.id, { id: docSnap.id, ...data });
+            const missingProfileIds = new Set();
+
+            snap.docChanges().forEach((change) => {
+                const docSnap = change.doc;
+                if (change.type === 'removed') {
+                    byId.delete(docSnap.id);
+                } else {
+                    const data = docSnap.data();
+                    if (data) {
+                        byId.set(docSnap.id, { id: docSnap.id, ...data });
+                        const users = Array.isArray(data.users) ? data.users : [data.userA, data.userB];
+                        const peerId = users.find((u) => u && u !== userId);
+                        if (peerId && !getPublicProfile(peerId)) {
+                            missingProfileIds.add(peerId);
+                        }
+                    }
+                }
             });
+
             const merged = Array.from(byId.values());
             writeStore(STORAGE_KEYS.FRIENDSHIPS, merged);
             const profiles = getAllPublicProfilesMap();
             recomputeAllSocialCounts(profiles);
             writeStore(STORAGE_KEYS.PROFILES, profiles);
-            if (onUpdate) onUpdate(getFriendsList(userId));
+
+            const triggerCallback = () => {
+                if (onUpdate) onUpdate(getFriendsList(userId));
+            };
+
+            triggerCallback();
+
+            if (missingProfileIds.size > 0) {
+                Promise.all(
+                    Array.from(missingProfileIds).map((pid) => fetchPublicProfileFromFirestore(pid))
+                )
+                    .then(() => {
+                        const refreshedProfiles = getAllPublicProfilesMap();
+                        recomputeAllSocialCounts(refreshedProfiles);
+                        writeStore(STORAGE_KEYS.PROFILES, refreshedProfiles);
+                        triggerCallback();
+                    })
+                    .catch(() => {});
+            }
         },
         () => {}
     );
@@ -1533,12 +1757,16 @@ export async function blockUser(actorId, targetUserId) {
     await removeFriend(actorId, targetUserId);
 
     // 3. Cancel any pending friend requests in either direction
+    const now = new Date().toISOString();
+    const cancelledToSync = [];
     const requests = getFriendRequestsList().map((r) => {
         const isPair =
             (r.senderId === actorId && r.receiverId === targetUserId) ||
             (r.senderId === targetUserId && r.receiverId === actorId);
         if (isPair && r.status === 'pending') {
-            return { ...r, status: 'cancelled', updatedAt: new Date().toISOString() };
+            const updatedReq = { ...r, status: 'cancelled', updatedAt: now };
+            cancelledToSync.push(updatedReq);
+            return updatedReq;
         }
         return r;
     });
@@ -1549,11 +1777,19 @@ export async function blockUser(actorId, targetUserId) {
     writeStore(STORAGE_KEYS.PROFILES, profiles);
 
     if (db) {
-        setDoc(doc(db, 'blocks', `${actorId}_${targetUserId}`), {
-            blockerId: actorId,
-            blockedId: targetUserId,
-            createdAt: new Date().toISOString()
-        }).catch(() => {});
+        const ops = [
+            setDoc(doc(db, 'blocks', `${actorId}_${targetUserId}`), {
+                blockerId: actorId,
+                blockedId: targetUserId,
+                createdAt: now
+            }).catch(() => {}),
+            ...cancelledToSync.map((reqDoc) =>
+                setDoc(doc(db, 'friendRequests', reqDoc.id), reqDoc, { merge: true }).catch(() => {})
+            )
+        ];
+        if (isCloudAuthenticatedFor(actorId)) {
+            await Promise.all(ops);
+        }
     }
 
     return { blocked: true, blockedUserIds: blocks[actorId] };
@@ -1568,7 +1804,10 @@ export async function unblockUser(actorId, targetUserId) {
     writeStore(STORAGE_KEYS.BLOCKS, blocks);
 
     if (db) {
-        deleteDoc(doc(db, 'blocks', `${actorId}_${targetUserId}`)).catch(() => {});
+        const op = deleteDoc(doc(db, 'blocks', `${actorId}_${targetUserId}`)).catch(() => {});
+        if (isCloudAuthenticatedFor(actorId)) {
+            await op;
+        }
     }
 
     return { blocked: false, blockedUserIds: blocks[actorId] };
