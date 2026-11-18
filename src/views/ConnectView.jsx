@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   UserPlus,
@@ -22,51 +22,101 @@ import {
   Sparkles,
   ChevronRight,
   MessageSquare,
-  Target
+  Target,
+  MoreHorizontal,
+  ArrowUpDown,
+  Inbox,
+  SendHorizontal,
+  Compass
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
+import { useToast } from '../context/ToastContext';
 import UserAvatar from '../components/UserAvatar';
 import { getAvatarSvg } from '../components/Avatars';
+import ConfirmModal from '../components/ConfirmModal';
 import Phase4GroupsChallengesCommunitiesPanel from '../components/connect/Phase4GroupsChallengesCommunitiesPanel';
+import { getUserPresenceForViewer } from '../services/messengerService';
 import {
   CONNECT_SECTION_NAME,
   CONNECT_SECTION_SUBTITLE,
   PROFILE_ACHIEVEMENTS
 } from '../config/appConstants';
+import '../styles/connect.css';
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 9;
 
-function renderProfileAvatar(profile, size = 46) {
+const CAMPUS_QUICK_FILTERS = [
+  { label: 'All Campuses', value: '' },
+  { label: 'UM', value: 'Universiti Malaya' },
+  { label: 'UTM', value: 'Universiti Teknologi Malaysia' },
+  { label: 'USM', value: 'Universiti Sains Malaysia' },
+  { label: 'UKM', value: 'Universiti Kebangsaan Malaysia' },
+  { label: 'UiTM', value: 'UiTM' },
+  { label: 'Taylor’s / Sunway / Monash', value: 'University' }
+];
+
+function renderProfileAvatar(profile, size = 48, showOnlineDot = false, isOnline = false) {
   const avatarId = profile?.avatarId || profile?.avatar || 'cat';
-  if (
+  const isCustomOrPreset =
     typeof avatarId === 'string' &&
-    (avatarId.startsWith('preset-') || avatarId.startsWith('data:') || avatarId.startsWith('http'))
-  ) {
-    return <UserAvatar avatar={avatarId} name={profile?.displayName || 'Student'} size={size} />;
-  }
+    (avatarId.startsWith('preset-') || avatarId.startsWith('data:') || avatarId.startsWith('http'));
+
   return (
-    <div
-      style={{
-        width: `${size}px`,
-        height: `${size}px`,
-        borderRadius: '50%',
-        overflow: 'hidden',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-card-subtle)',
-        border: '1px solid var(--border-light)'
-      }}
-    >
-      {getAvatarSvg(avatarId)}
+    <div className="kk-connect-avatar-wrap" style={{ width: `${size}px`, height: `${size}px` }}>
+      {isCustomOrPreset ? (
+        <UserAvatar avatar={avatarId} name={profile?.displayName || 'Student'} size={size} />
+      ) : (
+        <div
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--bg-secondary)',
+            border: '1.5px solid var(--border-highlight)'
+          }}
+        >
+          {getAvatarSvg(avatarId)}
+        </div>
+      )}
+      {showOnlineDot && (
+        <span
+          className={`kk-connect-online-dot ${isOnline ? 'online' : 'offline'}`}
+          title={isOnline ? 'Online now' : 'Offline'}
+          aria-label={isOnline ? 'Online' : 'Offline'}
+        />
+      )}
     </div>
   );
 }
 
+function formatRelativeTime(isoString) {
+  if (!isoString) return 'Recently';
+  try {
+    const dt = new Date(isoString);
+    if (isNaN(dt.getTime())) return 'Recently';
+    const diffMs = Date.now() - dt.getTime();
+    const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return dt.toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
+  } catch {
+    return 'Recently';
+  }
+}
+
 export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
   const { user } = useAuth();
+  const toast = useToast();
   const {
     publicProfile,
     friendsList = [],
@@ -74,6 +124,8 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     outgoingFriendRequests = [],
     friendSuggestions = [],
     blockedUserIds = [],
+    totalUnreadMessages = 0,
+    socialGraphVersion = 0,
     getPublicProfile,
     getFriendshipStatus,
     getMutualFriends,
@@ -83,31 +135,129 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     rejectFriendRequest,
     cancelFriendRequest,
     removeFriend,
-    updatePrivacySettings,
+    block,
     unblock,
+    updatePrivacySettings,
     setSelectedPublicProfileId,
     startSendMoneyToUser,
     openChatWithFriend,
     setActiveConversationId
   } = useSocialWallet();
 
-  const [activeSection, setActiveSection] = useState('all'); // 'all' | 'friends' | 'requests' | 'discover' | 'privacy'
+  // Primary navigation tabs: 'overview' | 'discover' | 'friends' | 'requests' | 'groups' | 'challenges' | 'communities' | 'privacy'
+  const [activeSection, setActiveSection] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [universityFilter, setUniversityFilter] = useState('');
   const [discoverPage, setDiscoverPage] = useState(1);
-  const [friendsSearch, setFriendsSearch] = useState('');
-  const [friendsPage, setFriendsPage] = useState(1);
-  const [feedbackBanner, setFeedbackBanner] = useState(null); // { type: 'success' | 'error', text: string }
-  const [busyTargetId, setBusyTargetId] = useState(null);
 
-  const showFeedback = (text, type = 'success') => {
+  // My Friends controls
+  const [friendsSearch, setFriendsSearch] = useState('');
+  const [friendsSortBy, setFriendsSortBy] = useState('online'); // 'online' | 'name' | 'university' | 'mutuals' | 'recent'
+  const [friendsPage, setFriendsPage] = useState(1);
+  const [openMoreMenuFriendId, setOpenMoreMenuFriendId] = useState(null);
+
+  // Requests sub-filter ('all' | 'incoming' | 'outgoing')
+  const [requestsFilter, setRequestsFilter] = useState('all');
+
+  // Feedback & confirmation modal states
+  const [feedbackBanner, setFeedbackBanner] = useState(null);
+  const [busyTargetId, setBusyTargetId] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null); // { type: 'remove' | 'block', targetProfile }
+
+  // Close friend "⋯" menu when clicking outside
+  useEffect(() => {
+    if (!openMoreMenuFriendId) return undefined;
+    const handleDocClick = () => setOpenMoreMenuFriendId(null);
+    window.addEventListener('click', handleDocClick);
+    return () => window.removeEventListener('click', handleDocClick);
+  }, [openMoreMenuFriendId]);
+
+  const notify = (text, type = 'success') => {
     setFeedbackBanner({ text, type });
+    if (toast) {
+      if (type === 'error' && toast.showError) toast.showError(text);
+      else if (type === 'info' && toast.showInfo) toast.showInfo(text);
+      else if (toast.showSuccess) toast.showSuccess(text);
+    }
     setTimeout(() => {
       setFeedbackBanner((prev) => (prev?.text === text ? null : prev));
-    }, 3200);
+    }, 3400);
   };
 
-  // Paginated discovery search results
+  const navigateToMessages = () => {
+    if (onNavigateTab) {
+      onNavigateTab('messages');
+    } else if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/messages');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+
+  // Enrich friends list with online status & mutual friend count
+  const enrichedFriends = useMemo(() => {
+    const viewerUni = (publicProfile?.university || user?.university || '').toLowerCase();
+    return friendsList.map((f) => {
+      const presence = getUserPresenceForViewer(f.id, user?.id);
+      const mutuals = getMutualFriends ? getMutualFriends(f.id) : [];
+      const sameCampus =
+        Boolean(viewerUni && f.university && f.university.toLowerCase() === viewerUni);
+      return {
+        ...f,
+        isOnline: presence.state === 'online',
+        lastSeen: presence.lastSeen,
+        mutuals,
+        mutualFriendsCount: mutuals.length,
+        sameCampus
+      };
+    });
+  }, [friendsList, user?.id, user?.university, publicProfile?.university, getMutualFriends, socialGraphVersion]);
+
+  const onlineFriends = useMemo(
+    () => enrichedFriends.filter((f) => f.isOnline),
+    [enrichedFriends]
+  );
+
+  // Filtered & sorted friends list for My Friends tab
+  const filteredAndSortedFriends = useMemo(() => {
+    const q = friendsSearch.trim().toLowerCase().replace(/^@+/, '');
+    const list = enrichedFriends.filter((f) => {
+      if (!q) return true;
+      return (
+        (f.displayName || '').toLowerCase().includes(q) ||
+        (f.handle || '').toLowerCase().includes(q) ||
+        (f.university || '').toLowerCase().includes(q) ||
+        (f.course || '').toLowerCase().includes(q)
+      );
+    });
+
+    return [...list].sort((a, b) => {
+      if (friendsSortBy === 'online') {
+        if (Number(b.isOnline) !== Number(a.isOnline)) {
+          return Number(b.isOnline) - Number(a.isOnline);
+        }
+      } else if (friendsSortBy === 'university') {
+        if (Number(b.sameCampus) !== Number(a.sameCampus)) {
+          return Number(b.sameCampus) - Number(a.sameCampus);
+        }
+      } else if (friendsSortBy === 'mutuals') {
+        if ((b.mutualFriendsCount || 0) !== (a.mutualFriendsCount || 0)) {
+          return (b.mutualFriendsCount || 0) - (a.mutualFriendsCount || 0);
+        }
+      } else if (friendsSortBy === 'recent') {
+        const tA = new Date(a.friendsSince || a.joinedAt || 0).getTime();
+        const tB = new Date(b.friendsSince || b.joinedAt || 0).getTime();
+        if (tB !== tA) return tB - tA;
+      }
+      return (a.displayName || '').localeCompare(b.displayName || '');
+    });
+  }, [enrichedFriends, friendsSearch, friendsSortBy]);
+
+  const visibleFriends = useMemo(
+    () => filteredAndSortedFriends.slice(0, friendsPage * PAGE_SIZE),
+    [filteredAndSortedFriends, friendsPage]
+  );
+
+  // Paginated discovery search results (re-evaluates whenever socialGraphVersion updates)
   const discoveryData = useMemo(() => {
     if (!searchPublicProfiles) {
       return { results: [], totalCount: 0, hasMore: false, page: 1 };
@@ -121,25 +271,15 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
       pageSize: discoverPage * PAGE_SIZE,
       includePagination: true
     });
-  }, [searchPublicProfiles, searchQuery, user?.id, blockedUserIds, universityFilter, discoverPage]);
-
-  // Filtered & paginated friends list
-  const filteredFriends = useMemo(() => {
-    const q = friendsSearch.trim().toLowerCase().replace(/^@+/, '');
-    if (!q) return friendsList;
-    return friendsList.filter(
-      (f) =>
-        (f.displayName || '').toLowerCase().includes(q) ||
-        (f.handle || '').toLowerCase().includes(q) ||
-        (f.university || '').toLowerCase().includes(q) ||
-        (f.course || '').toLowerCase().includes(q)
-    );
-  }, [friendsList, friendsSearch]);
-
-  const visibleFriends = useMemo(
-    () => filteredFriends.slice(0, friendsPage * PAGE_SIZE),
-    [filteredFriends, friendsPage]
-  );
+  }, [
+    searchPublicProfiles,
+    searchQuery,
+    user?.id,
+    blockedUserIds,
+    universityFilter,
+    discoverPage,
+    socialGraphVersion
+  ]);
 
   const blockedProfiles = useMemo(
     () =>
@@ -147,7 +287,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         const p = getPublicProfile ? getPublicProfile(id) : null;
         return p || { id, displayName: 'Campus User', handle: 'restricted_user', university: 'KampusKash' };
       }),
-    [blockedUserIds, getPublicProfile]
+    [blockedUserIds, getPublicProfile, socialGraphVersion]
   );
 
   const myAchievements = useMemo(() => {
@@ -165,14 +305,15 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     }
   }, [publicProfile?.joinedAt]);
 
+  // Friend & Relationship Actions
   const handleSendRequest = async (targetProfile) => {
     if (!targetProfile?.id) return;
     setBusyTargetId(targetProfile.id);
     try {
       await sendFriendRequest(targetProfile.id);
-      showFeedback(`Friend request sent to ${targetProfile.displayName} (@${targetProfile.handle})!`);
+      notify(`Friend request sent to ${targetProfile.displayName} (@${targetProfile.handle})!`);
     } catch (err) {
-      showFeedback(err?.message || 'Failed to send friend request.', 'error');
+      notify(err?.message || 'Failed to send friend request.', 'error');
     } finally {
       setBusyTargetId(null);
     }
@@ -182,9 +323,9 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     setBusyTargetId(reqOrUserId);
     try {
       await acceptFriendRequest(reqOrUserId);
-      showFeedback(`You and ${label} are now friends!`);
+      notify(`Friend request accepted! You and ${label} are now connected.`);
     } catch (err) {
-      showFeedback(err?.message || 'Could not accept friend request.', 'error');
+      notify(err?.message || 'Could not accept friend request.', 'error');
     } finally {
       setBusyTargetId(null);
     }
@@ -194,9 +335,9 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     setBusyTargetId(reqOrUserId);
     try {
       await rejectFriendRequest(reqOrUserId);
-      showFeedback(`Declined friend request from ${label}.`);
+      notify(`Declined friend request from ${label}.`, 'info');
     } catch (err) {
-      showFeedback(err?.message || 'Could not reject friend request.', 'error');
+      notify(err?.message || 'Could not decline friend request.', 'error');
     } finally {
       setBusyTargetId(null);
     }
@@ -206,22 +347,45 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     setBusyTargetId(reqOrUserId);
     try {
       await cancelFriendRequest(reqOrUserId);
-      showFeedback(`Cancelled friend request to ${label}.`);
+      notify(`Cancelled friend request to ${label}.`, 'info');
     } catch (err) {
-      showFeedback(err?.message || 'Could not cancel friend request.', 'error');
+      notify(err?.message || 'Could not cancel friend request.', 'error');
     } finally {
       setBusyTargetId(null);
     }
   };
 
-  const handleRemoveFriend = async (friendProfile) => {
-    if (!friendProfile?.id) return;
-    setBusyTargetId(friendProfile.id);
+  const promptRemoveFriend = (friendProfile) => {
+    setOpenMoreMenuFriendId(null);
+    setConfirmDialog({
+      type: 'remove',
+      targetProfile: friendProfile
+    });
+  };
+
+  const promptBlockUser = (targetProfile) => {
+    setOpenMoreMenuFriendId(null);
+    setConfirmDialog({
+      type: 'block',
+      targetProfile
+    });
+  };
+
+  const handleConfirmDialogAction = async () => {
+    if (!confirmDialog?.targetProfile) return;
+    const { type, targetProfile } = confirmDialog;
+    setConfirmDialog(null);
+    setBusyTargetId(targetProfile.id);
     try {
-      await removeFriend(friendProfile.id);
-      showFeedback(`Removed @${friendProfile.handle} from your friends list.`);
+      if (type === 'remove') {
+        await removeFriend(targetProfile.id);
+        notify(`Removed @${targetProfile.handle} from your friends.`, 'info');
+      } else if (type === 'block') {
+        await block(targetProfile.id);
+        notify(`Blocked @${targetProfile.handle}. They can no longer interact with you.`, 'info');
+      }
     } catch (err) {
-      showFeedback(err?.message || 'Could not remove friend.', 'error');
+      notify(err?.message || 'Action could not be completed.', 'error');
     } finally {
       setBusyTargetId(null);
     }
@@ -230,47 +394,49 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
   const handlePrivacyToggle = async (key, value) => {
     try {
       await updatePrivacySettings({ [key]: value });
-      showFeedback('Privacy preferences saved.');
+      notify('Privacy preferences updated.');
     } catch (err) {
-      showFeedback(err?.message || 'Could not update privacy settings.', 'error');
+      notify(err?.message || 'Could not update privacy settings.', 'error');
     }
   };
 
   const handleUnblockUser = async (targetId, handle) => {
     try {
       await unblock(targetId);
-      showFeedback(`Unblocked @${handle || 'user'}.`);
+      notify(`Unblocked @${handle || 'user'}.`);
     } catch (err) {
-      showFeedback(err?.message || 'Could not unblock user.', 'error');
+      notify(err?.message || 'Could not unblock user.', 'error');
     }
   };
 
+  // Dynamic relationship button renderer for Discover & Suggestions cards
   const renderRelationshipControls = (person) => {
-    const rel = getFriendshipStatus ? getFriendshipStatus(person.id) : { status: 'none', canSendRequest: true };
+    const rel = getFriendshipStatus
+      ? getFriendshipStatus(person.id)
+      : { status: 'none', canSendRequest: true };
     const isBusy = busyTargetId === person.id || busyTargetId === rel.requestId;
 
     if (rel.status === 'friends') {
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <span
-            className="badge badge-income"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-          >
-            <UserCheck size={13} /> Friends
+        <div className="kk-student-actions">
+          <span className="kk-btn kk-btn-friends" aria-label="Friends status">
+            <UserCheck size={14} />
+            <span>Friends</span>
           </span>
           <button
             type="button"
-            className="btn btn-primary btn-sm"
+            className="kk-btn kk-btn-primary"
             onClick={() => openChatWithFriend && openChatWithFriend(person.id)}
           >
-            <MessageSquare size={13} /> Message
+            <MessageSquare size={14} />
+            <span>Message</span>
           </button>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="kk-btn kk-btn-ghost"
             onClick={() => setSelectedPublicProfileId(person.id)}
           >
-            View Profile
+            <span>Profile</span>
           </button>
         </div>
       );
@@ -278,29 +444,20 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
 
     if (rel.status === 'outgoing_pending') {
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <span
-            className="badge"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-              padding: '0.3rem 0.6rem',
-              fontSize: '0.74rem',
-              background: 'var(--bg-card-subtle)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-muted)'
-            }}
-          >
-            <Clock size={12} /> Request Sent
+        <div className="kk-student-actions">
+          <span className="kk-btn kk-btn-sent" aria-label="Friend request sent">
+            <Clock size={13} />
+            <span>Request Sent</span>
           </span>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="kk-btn kk-btn-ghost"
             disabled={isBusy}
             onClick={() => handleCancelRequest(rel.requestId || person.id, `@${person.handle}`)}
+            title="Cancel outgoing friend request"
           >
-            <X size={13} /> Cancel
+            <X size={13} />
+            <span>Cancel</span>
           </button>
         </div>
       );
@@ -308,235 +465,335 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
 
     if (rel.status === 'incoming_pending') {
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+        <div className="kk-student-actions">
           <button
             type="button"
-            className="btn btn-primary btn-sm"
+            className="kk-btn kk-btn-accept"
             disabled={isBusy}
             onClick={() => handleAcceptRequest(rel.requestId || person.id, `@${person.handle}`)}
           >
-            <Check size={14} /> Accept
+            <Check size={14} />
+            <span>Accept</span>
           </button>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="kk-btn kk-btn-ghost"
             disabled={isBusy}
             onClick={() => handleRejectRequest(rel.requestId || person.id, `@${person.handle}`)}
           >
-            <X size={14} /> Reject
+            <X size={14} />
+            <span>Decline</span>
           </button>
         </div>
       );
     }
 
+    if (rel.status === 'blocked') {
+      return (
+        <div className="kk-student-actions">
+          <span className="kk-btn kk-btn-danger-ghost">
+            <Ban size={13} />
+            <span>Blocked</span>
+          </span>
+        </div>
+      );
+    }
+
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+      <div className="kk-student-actions">
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className="kk-btn kk-btn-primary"
           disabled={isBusy || !rel.canSendRequest}
           onClick={() => handleSendRequest(person)}
-          title={!rel.canSendRequest ? 'User restricts incoming friend requests' : 'Send Friend Request'}
+          title={!rel.canSendRequest ? 'User restricts incoming friend requests' : `Add @${person.handle} as a friend`}
         >
           <UserPlus size={14} />
-          <span>{rel.canSendRequest ? 'Add Friend' : 'Restricted'}</span>
+          <span>{ isBusy ? 'Sending...' : rel.canSendRequest ? 'Add Friend' : 'Restricted' }</span>
         </button>
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className="kk-btn kk-btn-ghost"
           onClick={() => setSelectedPublicProfileId(person.id)}
         >
-          Profile
+          <span>View Profile</span>
         </button>
       </div>
+    );
+  };
+
+  const renderStudentDiscoverCard = (person) => {
+    const mutuals = getMutualFriends ? getMutualFriends(person.id) : [];
+    const presence = getUserPresenceForViewer(person.id, user?.id);
+    const isOnline = presence.state === 'online';
+    const sameCampus =
+      Boolean(
+        publicProfile?.university &&
+          person.university &&
+          publicProfile.university.toLowerCase() === person.university.toLowerCase()
+      );
+    const rel = getFriendshipStatus ? getFriendshipStatus(person.id) : { status: 'none' };
+
+    return (
+      <article
+        key={person.id}
+        className={`kk-student-card ${rel.status === 'incoming_pending' ? 'incoming-highlight' : ''}`}
+      >
+        <div>
+          <div className="kk-student-card-top">
+            <button
+              type="button"
+              onClick={() => setSelectedPublicProfileId(person.id)}
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label={`Open ${person.displayName}'s profile`}
+            >
+              {renderProfileAvatar(person, 50, true, isOnline)}
+            </button>
+
+            <div className="kk-student-card-info">
+              <button
+                type="button"
+                className="kk-student-name-btn"
+                onClick={() => setSelectedPublicProfileId(person.id)}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {person.displayName}
+                </span>
+              </button>
+              <span className="kk-student-handle">@{person.handle}</span>
+
+              {person.university && (
+                <div className="kk-student-uni">
+                  <MapPin size={12} style={{ flexShrink: 0, color: 'var(--accent-primary)' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {person.university}
+                  </span>
+                </div>
+              )}
+
+              {person.course && (
+                <div className="kk-student-uni" style={{ marginTop: '2px' }}>
+                  <GraduationCap size={12} style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {person.course}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {person.bio && <p className="kk-student-bio">{person.bio}</p>}
+
+          <div className="kk-student-tags">
+            {isOnline && (
+              <span className="kk-student-tag online">● Online</span>
+            )}
+            {mutuals.length > 0 && (
+              <span className="kk-student-tag mutual">
+                <Users size={11} />
+                {mutuals.length} mutual friend{mutuals.length === 1 ? '' : 's'}
+              </span>
+            )}
+            {sameCampus && (
+              <span className="kk-student-tag same-campus">Same Campus</span>
+            )}
+            <span className="kk-student-tag">
+              {person.friendsCount || 0} friend{(person.friendsCount || 0) === 1 ? '' : 's'}
+            </span>
+          </div>
+        </div>
+
+        <div className="kk-student-card-footer">
+          {renderRelationshipControls(person)}
+        </div>
+      </article>
     );
   };
 
   const totalRequestsCount = incomingFriendRequests.length + outgoingFriendRequests.length;
 
   return (
-    <div className="connect-view-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Hero & Current Student Social Profile Summary */}
-      <section className="card" style={{ padding: '1.35rem 1.5rem' }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: '1 1 280px' }}>
-            {renderProfileAvatar(publicProfile || user, 64)}
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span className="badge" style={{
-                  background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
-                  color: 'var(--primary)',
-                  fontWeight: 700,
-                  fontSize: '0.72rem',
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '999px'
-                }}>
-                  <Sparkles size={11} /> KampusKash {CONNECT_SECTION_NAME}
-                </span>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  fontSize: '0.73rem',
-                  color: 'var(--text-muted)'
-                }}>
-                  {publicProfile?.privacySettings?.profileVisibility === 'friends' ? (
-                    <><Lock size={12} /> Friends-Only Profile</>
-                  ) : (
-                    <><Globe size={12} /> Public Student Profile</>
-                  )}
-                </span>
-              </div>
+    <div className="kk-connect-page connect-view-container">
+      {/* 1. Connect Hero Header & Current Student Identity */}
+      <section className="kk-connect-hero" aria-label="KampusKash Connect Profile Header">
+        <div className="kk-connect-hero-banner">
+          <div className="kk-connect-hero-top">
+            <div className="kk-connect-profile-main">
+              {renderProfileAvatar(publicProfile || user, 68, true, true)}
 
-              <h1 style={{
-                fontFamily: 'Plus Jakarta Sans, var(--font-sans)',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-                color: 'var(--text-main)',
-                marginTop: '0.25rem',
-                marginBottom: '0.1rem'
-              }}>
-                {publicProfile?.displayName || user?.username || 'Student'}
-              </h1>
-
-              <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--primary)' }}>
-                @{publicProfile?.handle || user?.handle || 'student'}
-              </div>
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                fontSize: '0.78rem',
-                color: 'var(--text-muted)',
-                marginTop: '0.35rem'
-              }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <MapPin size={13} /> {publicProfile?.university || user?.university || 'Malaysia Campus'}
-                </span>
-                {publicProfile?.course && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <GraduationCap size={13} /> {publicProfile.course}
+              <div className="kk-connect-hero-meta">
+                <div className="kk-connect-badge-row">
+                  <span className="kk-connect-pill">
+                    <Sparkles size={11} />
+                    <span>KampusKash {CONNECT_SECTION_NAME}</span>
                   </span>
-                )}
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <Calendar size={13} /> {joinedLabel}
-                </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  <Users size={13} color="var(--primary)" /> {friendsList.length} Friend{friendsList.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
-              {publicProfile?.bio && (
-                <p style={{ fontSize: '0.83rem', color: 'var(--text-main)', marginTop: '0.45rem', opacity: 0.9 }}>
-                  &ldquo;{publicProfile.bio}&rdquo;
-                </p>
-              )}
-
-              {myAchievements.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.5rem' }}>
-                  {myAchievements.map((ach) => (
-                    <span
-                      key={ach.id}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.28rem',
-                        padding: '0.18rem 0.55rem',
-                        borderRadius: '999px',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        background: 'var(--bg-card-subtle)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-main)'
-                      }}
-                    >
-                      <Award size={11} color="var(--primary)" />
-                      {ach.label}
+                  {publicProfile?.privacySettings?.profileVisibility === 'friends' ? (
+                    <span className="kk-connect-pill friends-only">
+                      <Lock size={11} />
+                      <span>Friends-Only Profile</span>
                     </span>
-                  ))}
+                  ) : (
+                    <span className="kk-connect-pill privacy">
+                      <Globe size={11} />
+                      <span>Public Student Profile</span>
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Quick Profile & Privacy Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {onOpenProfileModal && (
+                <div className="kk-connect-name-row">
+                  <h1 className="kk-connect-display-name">
+                    {publicProfile?.displayName || user?.username || 'Student'}
+                  </h1>
+                  <span className="kk-connect-handle">
+                    @{publicProfile?.handle || user?.handle || 'student'}
+                  </span>
+                </div>
+
+                <div className="kk-connect-meta-row">
+                  <span className="kk-connect-meta-item">
+                    <MapPin size={13} color="var(--accent-primary)" />
+                    <span>{publicProfile?.university || user?.university || 'Malaysia Campus'}</span>
+                  </span>
+                  {publicProfile?.course && (
+                    <span className="kk-connect-meta-item">
+                      <GraduationCap size={13} />
+                      <span>{publicProfile.course}</span>
+                    </span>
+                  )}
+                  <span className="kk-connect-meta-item">
+                    <Calendar size={13} />
+                    <span>{joinedLabel}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('friends')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      color: 'var(--text-primary)',
+                      fontWeight: 800,
+                      fontSize: '0.78rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Users size={13} color="var(--accent-primary)" />
+                    <span>
+                      {friendsList.length} Friend{friendsList.length === 1 ? '' : 's'}
+                    </span>
+                  </button>
+                </div>
+
+                {publicProfile?.bio && (
+                  <p className="kk-connect-bio">&ldquo;{publicProfile.bio}&rdquo;</p>
+                )}
+
+                {myAchievements.length > 0 && (
+                  <div className="kk-student-tags" style={{ marginTop: '9px' }}>
+                    {myAchievements.map((ach) => (
+                      <span key={ach.id} className="kk-student-tag mutual">
+                        <Award size={11} />
+                        <span>{ach.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Header Actions */}
+            <div className="kk-connect-hero-actions">
+              {onOpenProfileModal && (
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-primary"
+                  onClick={onOpenProfileModal}
+                >
+                  <Edit3 size={14} />
+                  <span>Edit Profile &amp; @Username</span>
+                </button>
+              )}
+              {user?.id && (
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => setSelectedPublicProfileId(user.id)}
+                >
+                  <Globe size={14} />
+                  <span>View My Public Profile</span>
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn-primary btn-sm connect-action-btn"
-                onClick={onOpenProfileModal}
+                className="kk-btn kk-btn-ghost"
+                onClick={navigateToMessages}
               >
-                <Edit3 size={14} />
-                <span>Edit Profile &amp; @Username</span>
+                <MessageSquare size={14} />
+                <span>Messages</span>
+                {totalUnreadMessages > 0 && (
+                  <span className="kk-connect-tab-badge alert">{totalUnreadMessages}</span>
+                )}
               </button>
-            )}
-            {user?.id && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm connect-action-btn"
-                onClick={() => setSelectedPublicProfileId(user.id)}
-              >
-                <Globe size={14} />
-                <span>Preview Public Profile</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className={`btn btn-sm connect-action-btn ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setActiveSection(activeSection === 'privacy' ? 'all' : 'privacy')}
-            >
-              <Lock size={14} />
-              <span>Privacy &amp; Safety</span>
-            </button>
+            </div>
           </div>
         </div>
 
-        {/* Financial Privacy Banner */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
-          marginTop: '1rem',
-          paddingTop: '0.85rem',
-          borderTop: '1px solid var(--border-light)',
-          fontSize: '0.76rem',
-          color: 'var(--text-muted)'
-        }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <ShieldCheck size={15} color="var(--income)" />
+        {/* Strict Financial Privacy Strip */}
+        <div className="kk-connect-privacy-strip">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
+            <ShieldCheck size={15} color="var(--success)" style={{ flexShrink: 0 }} />
             <span>
-              <strong>Financial Privacy Guaranteed:</strong> {CONNECT_SECTION_SUBTITLE}. Account balances, budgets, and transactions are never visible to other users.
+              <strong>Financial Privacy Guaranteed:</strong> {CONNECT_SECTION_SUBTITLE}. Your real bank balances, budgets, and transactions are never visible to other students.
             </span>
           </span>
+          <button
+            type="button"
+            onClick={() => setActiveSection(activeSection === 'privacy' ? 'overview' : 'privacy')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--accent-primary)',
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Lock size={12} />
+            <span>Privacy Settings</span>
+          </button>
         </div>
       </section>
 
-      {/* Feedback Banner */}
+      {/* Inline Status Banner */}
       {feedbackBanner && (
         <div
           role="status"
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: 'var(--radius-md)',
-            background: feedbackBanner.type === 'error' ? 'var(--expense-bg)' : 'var(--income-bg)',
-            color: feedbackBanner.type === 'error' ? 'var(--expense)' : 'var(--income)',
-            border: '1px solid var(--border-light)',
-            fontSize: '0.84rem',
-            fontWeight: 600,
+            padding: '11px 16px',
+            borderRadius: '14px',
+            background:
+              feedbackBanner.type === 'error'
+                ? 'rgba(239, 68, 68, 0.14)'
+                : 'rgba(16, 185, 129, 0.14)',
+            color: feedbackBanner.type === 'error' ? 'var(--danger)' : 'var(--success)',
+            border: `1px solid ${
+              feedbackBanner.type === 'error'
+                ? 'rgba(239, 68, 68, 0.35)'
+                : 'rgba(16, 185, 129, 0.35)'
+            }`,
+            fontSize: '0.83rem',
+            fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            gap: '10px'
           }}
         >
           <span>{feedbackBanner.text}</span>
@@ -551,282 +808,668 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </div>
       )}
 
-      {/* Navigation Pills for Connect Sections */}
-      <div className="connect-tabs-bar">
+      {/* 2. Primary Connect Navigation Tabs */}
+      <nav className="kk-connect-nav-wrap" aria-label="KampusKash Connect Navigation">
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveSection('all')}
+          className={`kk-connect-tab-btn ${activeSection === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveSection('overview')}
         >
-          <Sparkles size={14} />
+          <Sparkles size={15} />
           <span>Overview</span>
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'discover' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`kk-connect-tab-btn ${activeSection === 'discover' ? 'active' : ''}`}
           onClick={() => setActiveSection('discover')}
         >
-          <Search size={14} />
-          <span>Discover Students</span>
+          <Compass size={15} />
+          <span>Discover Users</span>
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'requests' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveSection('requests')}
-        >
-          <UserPlus size={14} />
-          <span>Friend Requests ({totalRequestsCount})</span>
-          {incomingFriendRequests.length > 0 && (
-            <span style={{
-              marginLeft: '0.25rem',
-              padding: '0.05rem 0.45rem',
-              borderRadius: '999px',
-              background: 'var(--expense)',
-              color: '#FFFFFF',
-              fontSize: '0.7rem',
-              fontWeight: 800
-            }}>
-              {incomingFriendRequests.length}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'friends' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`kk-connect-tab-btn ${activeSection === 'friends' ? 'active' : ''}`}
           onClick={() => setActiveSection('friends')}
         >
-          <Users size={14} />
-          <span>Friends ({friendsList.length})</span>
+          <Users size={15} />
+          <span>My Friends</span>
+          <span className="kk-connect-tab-badge info">{friendsList.length}</span>
         </button>
+
         <button
           type="button"
-          className="btn btn-sm btn-secondary connect-tab-btn"
-          onClick={() => {
-            if (onNavigateTab) {
-              onNavigateTab('messages');
-            } else if (typeof window !== 'undefined') {
-              window.history.pushState({}, '', '/messages');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }
-          }}
+          className={`kk-connect-tab-btn ${activeSection === 'requests' ? 'active' : ''}`}
+          onClick={() => setActiveSection('requests')}
         >
-          <MessageSquare size={14} />
-          <span>Messages</span>
+          <UserPlus size={15} />
+          <span>Friend Requests</span>
+          {incomingFriendRequests.length > 0 ? (
+            <span className="kk-connect-tab-badge alert">{incomingFriendRequests.length}</span>
+          ) : (
+            <span className="kk-connect-tab-badge info">{totalRequestsCount}</span>
+          )}
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'groups' ? 'btn-primary' : 'btn-secondary'}`}
+          className="kk-connect-tab-btn"
+          onClick={navigateToMessages}
+        >
+          <MessageSquare size={15} />
+          <span>Messages</span>
+          {totalUnreadMessages > 0 && (
+            <span className="kk-connect-tab-badge alert">{totalUnreadMessages}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`kk-connect-tab-btn ${activeSection === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveSection('groups')}
         >
-          <Users size={14} />
+          <Users size={15} />
           <span>Groups</span>
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'challenges' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`kk-connect-tab-btn ${activeSection === 'challenges' ? 'active' : ''}`}
           onClick={() => setActiveSection('challenges')}
         >
-          <Target size={14} />
+          <Target size={15} />
           <span>Challenges</span>
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'communities' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`kk-connect-tab-btn ${activeSection === 'communities' ? 'active' : ''}`}
           onClick={() => setActiveSection('communities')}
         >
-          <Globe size={14} />
+          <Globe size={15} />
           <span>Communities</span>
         </button>
+
         <button
           type="button"
-          className={`btn btn-sm connect-tab-btn ${activeSection === 'privacy' ? 'btn-primary' : 'btn-secondary'}`}
+          className={`kk-connect-tab-btn ${activeSection === 'privacy' ? 'active' : ''}`}
           onClick={() => setActiveSection('privacy')}
         >
-          <Lock size={14} />
-          <span>Privacy &amp; Blocked ({blockedProfiles.length})</span>
+          <Lock size={15} />
+          <span>Privacy &amp; Safety</span>
+          {blockedProfiles.length > 0 && (
+            <span className="kk-connect-tab-badge info">{blockedProfiles.length}</span>
+          )}
         </button>
-      </div>
+      </nav>
 
-      {/* Phase 4: Groups, Savings Challenges, Leaderboards & Student Communities */}
-      {(activeSection === 'groups' ||
-        activeSection === 'challenges' ||
-        activeSection === 'communities') && (
-        <Phase4GroupsChallengesCommunitiesPanel
-          activeTab={activeSection}
-          onOpenConversationInMessenger={(conversationId) => {
-            if (setActiveConversationId) setActiveConversationId(conversationId);
-            if (onNavigateTab) {
-              onNavigateTab('messages');
-            } else if (typeof window !== 'undefined') {
-              window.history.pushState({}, '', '/messages');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }
-          }}
-        />
-      )}
-
-      {/* 1. Search & User Discovery Section */}
-      {(activeSection === 'all' || activeSection === 'discover') && (
-        <section className="card" style={{ padding: '1.25rem 1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Search size={18} color="var(--primary)" />
-                <span>Discover KampusKash Users</span>
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                Search by @username, display name, university, or course. Email addresses and financial data are never exposed.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.65rem', marginBottom: '1rem' }}>
-            <div style={{ position: 'relative' }}>
-              <Search
-                size={16}
-                style={{
-                  position: 'absolute',
-                  left: '0.85rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-muted)'
-                }}
-              />
+      {/* Prominent User Search Bar (Visible on Overview & Discover) */}
+      {(activeSection === 'overview' || activeSection === 'discover') && (
+        <div className="kk-connect-search-shell">
+          <div className="kk-connect-search-row">
+            <div className="kk-connect-search-input-wrap">
+              <Search size={17} className="kk-connect-search-icon" />
               <input
                 type="search"
-                className="form-control"
-                style={{ paddingLeft: '2.4rem' }}
-                placeholder="Search students by @username or display name (e.g. @sarah_um, Aiman, UTP)..."
+                className="kk-connect-search-input"
+                placeholder="Search students by @username, display name, university, or course..."
                 value={searchQuery}
                 maxLength={60}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  const val = e.target.value;
+                  setSearchQuery(val);
                   setDiscoverPage(1);
                 }}
                 aria-label="Search KampusKash users by username or display name"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="kk-connect-search-clear"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDiscoverPage(1);
+                  }}
+                  aria-label="Clear search query"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            <input
-              type="text"
-              className="form-control"
-              style={{ maxWidth: '210px' }}
-              placeholder="Filter university..."
-              value={universityFilter}
-              maxLength={60}
-              onChange={(e) => {
-                setUniversityFilter(e.target.value);
-                setDiscoverPage(1);
-              }}
-              aria-label="Filter by university"
-            />
+            {activeSection === 'overview' && (
+              <button
+                type="button"
+                className="kk-btn kk-btn-primary"
+                onClick={() => setActiveSection('discover')}
+              >
+                <Compass size={14} />
+                <span>Explore Directory ({discoveryData.totalCount})</span>
+              </button>
+            )}
           </div>
 
-          {/* Search Results Grid */}
+          <div className="kk-connect-filter-chips" role="group" aria-label="Filter by university">
+            {CAMPUS_QUICK_FILTERS.map((chip) => {
+              const isActive = universityFilter === chip.value;
+              return (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className={`kk-connect-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => {
+                    setUniversityFilter(isActive ? '' : chip.value);
+                    setDiscoverPage(1);
+                  }}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+         SECTION A: CONNECT LANDING PAGE (OVERVIEW)
+         ===================================================================== */}
+      {activeSection === 'overview' && (
+        <>
+          {/* If user is actively typing a search query on Overview, show instant search results right away */}
+          {(searchQuery.trim() !== '' || universityFilter !== '') && (
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <Search size={18} color="var(--accent-primary)" />
+                    <span>Search Results ({discoveryData.totalCount})</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Showing matching students across KampusKash Connect
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setUniversityFilter('');
+                  }}
+                >
+                  Clear Filter
+                </button>
+              </div>
+
+              {discoveryData.results.length === 0 ? (
+                <div className="kk-empty-state">
+                  <div className="kk-empty-icon">
+                    <Search size={22} />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                    No matching students found
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '360px' }}>
+                    Try searching another @username, student name, or clear the university filter.
+                  </div>
+                </div>
+              ) : (
+                <div className="kk-connect-grid">
+                  {discoveryData.results.map((person) => renderStudentDiscoverCard(person))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Friends Online Strip */}
+          <section className="kk-connect-section">
+            <div className="kk-connect-section-header">
+              <div>
+                <h2 className="kk-connect-section-title">
+                  <span
+                    style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '999px',
+                      background: 'var(--success)',
+                      boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)'
+                    }}
+                  />
+                  <span>Friends Online ({onlineFriends.length})</span>
+                </h2>
+                <p className="kk-connect-section-sub">
+                  Start an instant chat or split a campus meal with friends currently active
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => setActiveSection('friends')}
+                >
+                  <span>All Friends ({friendsList.length})</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {onlineFriends.length === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '14px',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)'
+                }}
+              >
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  {friendsList.length === 0
+                    ? 'You have no friends connected yet. Add campus friends below to see when they are online!'
+                    : 'No friends are online right now. You can still message them anytime.'}
+                </span>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-primary"
+                  onClick={() =>
+                    friendsList.length === 0 ? setActiveSection('discover') : navigateToMessages()
+                  }
+                >
+                  {friendsList.length === 0 ? (
+                    <>
+                      <UserPlus size={14} />
+                      <span>Discover Friends</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare size={14} />
+                      <span>Open Messenger</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="kk-online-strip">
+                {onlineFriends.map((friend) => (
+                  <div key={friend.id} className="kk-online-friend-pill">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPublicProfileId(friend.id)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    >
+                      {renderProfileAvatar(friend, 42, true, true)}
+                    </button>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <button
+                        type="button"
+                        className="kk-student-name-btn"
+                        style={{ fontSize: '0.85rem' }}
+                        onClick={() => setSelectedPublicProfileId(friend.id)}
+                      >
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {friend.displayName}
+                        </span>
+                      </button>
+                      <span className="kk-student-handle" style={{ fontSize: '0.72rem' }}>
+                        @{friend.handle}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="kk-btn kk-btn-primary kk-btn-icon"
+                      onClick={() => openChatWithFriend && openChatWithFriend(friend.id)}
+                      title={`Message ${friend.displayName}`}
+                      aria-label={`Message ${friend.displayName}`}
+                    >
+                      <MessageSquare size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Overview Two-Column Row: Incoming Friend Requests Preview & Quick Messenger Access */}
+          <div className="kk-connect-overview-columns">
+            {/* Incoming Friend Request Preview */}
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <Inbox size={18} color="var(--accent-primary)" />
+                    <span>Incoming Friend Requests ({incomingFriendRequests.length})</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Students who want to connect with you on KampusKash
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => setActiveSection('requests')}
+                >
+                  <span>Manage ({totalRequestsCount})</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              {incomingFriendRequests.length === 0 ? (
+                <div className="kk-empty-state" style={{ padding: '22px 16px' }}>
+                  <div className="kk-empty-icon">
+                    <UserPlus size={20} />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                    No pending incoming requests
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    {outgoingFriendRequests.length > 0
+                      ? `You have ${outgoingFriendRequests.length} outgoing request${
+                          outgoingFriendRequests.length === 1 ? '' : 's'
+                        } awaiting response.`
+                      : 'When students send you a friend request, it will appear here instantly.'}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {incomingFriendRequests.slice(0, 3).map((req) => {
+                    const sender = req.senderProfile || {
+                      id: req.senderId,
+                      displayName: req.senderName || 'Student',
+                      handle: req.senderHandle || 'student',
+                      avatarId: req.senderAvatar || 'cat',
+                      university: req.senderUniversity || 'Malaysia Campus'
+                    };
+                    const mutuals = getMutualFriends ? getMutualFriends(sender.id) : [];
+                    return (
+                      <div
+                        key={req.id}
+                        className="kk-student-card incoming-highlight"
+                        style={{ padding: '12px 14px' }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPublicProfileId(sender.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {renderProfileAvatar(sender, 44)}
+                            </button>
+                            <div style={{ minWidth: 0 }}>
+                              <button
+                                type="button"
+                                className="kk-student-name-btn"
+                                onClick={() => setSelectedPublicProfileId(sender.id)}
+                              >
+                                {sender.displayName}
+                              </button>
+                              <span className="kk-student-handle">@{sender.handle}</span>
+                              <div style={{ fontSize: '0.71rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {mutuals.length > 0
+                                  ? `${mutuals.length} mutual friend${mutuals.length === 1 ? '' : 's'} · `
+                                  : ''}
+                                {formatRelativeTime(req.createdAt)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-accept"
+                              disabled={busyTargetId === req.id}
+                              onClick={() => handleAcceptRequest(req.id, `@${sender.handle}`)}
+                            >
+                              <Check size={14} />
+                              <span>Accept</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-ghost"
+                              disabled={busyTargetId === req.id}
+                              onClick={() => handleRejectRequest(req.id, `@${sender.handle}`)}
+                            >
+                              <X size={14} />
+                              <span>Decline</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Suggested Friends Preview */}
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <Sparkles size={18} color="var(--accent-primary)" />
+                    <span>Suggested for You</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Campus peers from {publicProfile?.university || 'your university'} or with mutual friends
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => setActiveSection('discover')}
+                >
+                  <span>See All</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              {friendSuggestions.length === 0 ? (
+                <div className="kk-empty-state" style={{ padding: '22px 16px' }}>
+                  <div className="kk-empty-icon">
+                    <Compass size={20} />
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                    You’ve explored all current suggestions!
+                  </div>
+                  <button
+                    type="button"
+                    className="kk-btn kk-btn-primary"
+                    onClick={() => setActiveSection('discover')}
+                  >
+                    Browse Full Directory
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {friendSuggestions.slice(0, 3).map((sug) => {
+                    const rel = getFriendshipStatus
+                      ? getFriendshipStatus(sug.id)
+                      : { status: 'none', canSendRequest: true };
+                    const isBusy = busyTargetId === sug.id || busyTargetId === rel.requestId;
+
+                    return (
+                      <div
+                        key={sug.id}
+                        className="kk-student-card"
+                        style={{ padding: '12px 14px' }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPublicProfileId(sug.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {renderProfileAvatar(sug, 44)}
+                            </button>
+                            <div style={{ minWidth: 0 }}>
+                              <button
+                                type="button"
+                                className="kk-student-name-btn"
+                                onClick={() => setSelectedPublicProfileId(sug.id)}
+                              >
+                                {sug.displayName}
+                              </button>
+                              <span className="kk-student-handle">@{sug.handle}</span>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {sug.mutualFriendsCount > 0
+                                  ? `${sug.mutualFriendsCount} mutual friend${sug.mutualFriendsCount === 1 ? '' : 's'}`
+                                  : sug.university}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            {rel.status === 'outgoing_pending' ? (
+                              <button
+                                type="button"
+                                className="kk-btn kk-btn-sent"
+                                disabled={isBusy}
+                                onClick={() => handleCancelRequest(rel.requestId || sug.id, `@${sug.handle}`)}
+                              >
+                                <Clock size={13} />
+                                <span>Request Sent</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="kk-btn kk-btn-primary"
+                                disabled={isBusy || !rel.canSendRequest}
+                                onClick={() => handleSendRequest(sug)}
+                              >
+                                <UserPlus size={14} />
+                                <span>{isBusy ? 'Sending...' : 'Add Friend'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Discover Campus Directory Preview on Overview */}
+          {searchQuery.trim() === '' && universityFilter === '' && (
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <Compass size={18} color="var(--accent-primary)" />
+                    <span>Discover Campus Students</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Connect with verified students across Malaysian universities
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost"
+                  onClick={() => setActiveSection('discover')}
+                >
+                  <span>View All ({discoveryData.totalCount})</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              <div className="kk-connect-grid">
+                {discoveryData.results.slice(0, 6).map((person) => renderStudentDiscoverCard(person))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {/* =====================================================================
+         SECTION B: DISCOVER USERS
+         ===================================================================== */}
+      {activeSection === 'discover' && (
+        <section className="kk-connect-section">
+          <div className="kk-connect-section-header">
+            <div>
+              <h2 className="kk-connect-section-title">
+                <Compass size={18} color="var(--accent-primary)" />
+                <span>Discover KampusKash Users ({discoveryData.totalCount})</span>
+              </h2>
+              <p className="kk-connect-section-sub">
+                Search by @username or display name. Email addresses and private financial data are never exposed.
+              </p>
+            </div>
+            {(searchQuery || universityFilter) && (
+              <button
+                type="button"
+                className="kk-btn kk-btn-ghost"
+                onClick={() => {
+                  setSearchQuery('');
+                  setUniversityFilter('');
+                  setDiscoverPage(1);
+                }}
+              >
+                Reset Search
+              </button>
+            )}
+          </div>
+
           {discoveryData.results.length === 0 ? (
-            <div style={{
-              padding: '1.75rem 1rem',
-              textAlign: 'center',
-              background: 'var(--bg-card-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-muted)',
-              fontSize: '0.85rem'
-            }}>
-              No matching students found. Try searching another @username or display name.
+            <div className="kk-empty-state">
+              <div className="kk-empty-icon">
+                <Search size={22} />
+              </div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                No students match &ldquo;{searchQuery || universityFilter}&rdquo;
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '380px' }}>
+                Check the spelling of their @username or display name, or clear the campus filter to browse all students.
+              </div>
+              <button
+                type="button"
+                className="kk-btn kk-btn-primary"
+                onClick={() => {
+                  setSearchQuery('');
+                  setUniversityFilter('');
+                }}
+              >
+                Show All Students
+              </button>
             </div>
           ) : (
             <>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: '0.85rem'
-              }}>
-                {discoveryData.results.map((person) => {
-                  const mutuals = getMutualFriends ? getMutualFriends(person.id) : [];
-                  return (
-                    <div
-                      key={person.id}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        padding: '0.95rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-card-subtle)',
-                        border: '1px solid var(--border-light)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPublicProfileId(person.id)}
-                          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                          aria-label={`Open ${person.displayName} profile`}
-                        >
-                          {renderProfileAvatar(person, 46)}
-                        </button>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPublicProfileId(person.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              padding: 0,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              fontWeight: 700,
-                              fontSize: '0.92rem',
-                              color: 'var(--text-main)',
-                              display: 'block',
-                              width: '100%',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {person.displayName}
-                          </button>
-                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary)' }}>
-                            @{person.handle}
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {person.university}
-                          </div>
-                          {person.course && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {person.course}
-                            </div>
-                          )}
-                          {mutuals.length > 0 && (
-                            <div style={{ fontSize: '0.71rem', color: 'var(--primary)', fontWeight: 600, marginTop: '0.2rem' }}>
-                              {mutuals.length} mutual friend{mutuals.length === 1 ? '' : 's'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-light)' }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {person.friendsCount || 0} friends
-                        </span>
-                        {renderRelationshipControls(person)}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="kk-connect-grid">
+                {discoveryData.results.map((person) => renderStudentDiscoverCard(person))}
               </div>
 
               {discoveryData.hasMore && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '18px' }}>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    className="kk-btn kk-btn-ghost"
                     onClick={() => setDiscoverPage((p) => p + 1)}
                   >
-                    <span>Load More Students ({discoveryData.results.length} of {discoveryData.totalCount})</span>
+                    <span>
+                      Load More Students ({discoveryData.results.length} of {discoveryData.totalCount})
+                    </span>
                     <ChevronRight size={14} />
                   </button>
                 </div>
@@ -836,489 +1479,265 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </section>
       )}
 
-      {/* 2. Friend Suggestions (Campus Peers & Mutual Connections) */}
-      {(activeSection === 'all' || activeSection === 'discover') && friendSuggestions.length > 0 && !searchQuery && (
-        <section className="card" style={{ padding: '1.25rem 1.5rem' }}>
-          <div style={{ marginBottom: '0.9rem' }}>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <Sparkles size={17} color="var(--primary)" />
-              <span>Suggested Campus Friends</span>
-            </h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-              Students from your university or with mutual friends on KampusKash
-            </p>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-            gap: '0.8rem'
-          }}>
-            {friendSuggestions.slice(0, 4).map((sug) => (
-              <div
-                key={sug.id}
-                style={{
-                  padding: '0.9rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-card-subtle)',
-                  border: '1px solid var(--border-light)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '0.65rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-                  {renderProfileAvatar(sug, 42)}
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPublicProfileId(sug.id)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: '0.88rem',
-                        color: 'var(--text-main)',
-                        textAlign: 'left'
-                      }}
-                    >
-                      {sug.displayName}
-                    </button>
-                    <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
-                      @{sug.handle}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sug.mutualFriendsCount > 0
-                        ? `${sug.mutualFriendsCount} mutual friend${sug.mutualFriendsCount === 1 ? '' : 's'}`
-                        : sug.university}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    style={{ flex: 1 }}
-                    disabled={busyTargetId === sug.id}
-                    onClick={() => handleSendRequest(sug)}
-                  >
-                    <UserPlus size={14} />
-                    <span>Add Friend</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setSelectedPublicProfileId(sug.id)}
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 3. Incoming & Outgoing Friend Requests */}
-      {(activeSection === 'all' || activeSection === 'requests') && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
-          {/* Incoming Requests Card */}
-          <section className="card" style={{ padding: '1.25rem 1.4rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-              <h2 style={{ fontSize: '1.02rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <UserPlus size={17} color="var(--primary)" />
-                <span>Incoming Requests ({incomingFriendRequests.length})</span>
-              </h2>
-            </div>
-
-            {incomingFriendRequests.length === 0 ? (
-              <div style={{
-                padding: '1.35rem 1rem',
-                textAlign: 'center',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-card-subtle)',
-                border: '1px solid var(--border-light)',
-                fontSize: '0.82rem',
-                color: 'var(--text-muted)'
-              }}>
-                No pending incoming friend requests right now.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {incomingFriendRequests.map((req) => {
-                  const sender = req.senderProfile || {
-                    id: req.senderId,
-                    displayName: req.senderName || 'Student',
-                    handle: req.senderHandle || 'student',
-                    avatarId: req.senderAvatar || 'cat',
-                    university: 'KampusKash'
-                  };
-                  return (
-                    <div
-                      key={req.id}
-                      style={{
-                        padding: '0.85rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-card-subtle)',
-                        border: '1px solid var(--border-light)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '0.65rem'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPublicProfileId(sender.id)}
-                          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                        >
-                          {renderProfileAvatar(sender, 42)}
-                        </button>
-                        <div style={{ minWidth: 0 }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPublicProfileId(sender.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              padding: 0,
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              color: 'var(--text-main)',
-                              textAlign: 'left'
-                            }}
-                          >
-                            {sender.displayName}
-                          </button>
-                          <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
-                            @{sender.handle}
-                          </div>
-                          {req.note && (
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                              &ldquo;{req.note}&rdquo;
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          disabled={busyTargetId === req.id}
-                          onClick={() => handleAcceptRequest(req.id, `@${sender.handle}`)}
-                        >
-                          <Check size={14} /> Accept
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          disabled={busyTargetId === req.id}
-                          onClick={() => handleRejectRequest(req.id, `@${sender.handle}`)}
-                        >
-                          <X size={14} /> Reject
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Outgoing Sent Requests Card */}
-          <section className="card" style={{ padding: '1.25rem 1.4rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-              <h2 style={{ fontSize: '1.02rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Clock size={17} color="var(--primary)" />
-                <span>Sent Outgoing Requests ({outgoingFriendRequests.length})</span>
-              </h2>
-            </div>
-
-            {outgoingFriendRequests.length === 0 ? (
-              <div style={{
-                padding: '1.35rem 1rem',
-                textAlign: 'center',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-card-subtle)',
-                border: '1px solid var(--border-light)',
-                fontSize: '0.82rem',
-                color: 'var(--text-muted)'
-              }}>
-                No pending outgoing friend requests.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {outgoingFriendRequests.map((req) => {
-                  const receiver = req.receiverProfile || {
-                    id: req.receiverId,
-                    displayName: req.receiverName || 'Student',
-                    handle: req.receiverHandle || 'student',
-                    avatarId: req.receiverAvatar || 'cat',
-                    university: 'KampusKash'
-                  };
-                  return (
-                    <div
-                      key={req.id}
-                      style={{
-                        padding: '0.85rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-card-subtle)',
-                        border: '1px solid var(--border-light)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '0.65rem'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPublicProfileId(receiver.id)}
-                          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                        >
-                          {renderProfileAvatar(receiver, 42)}
-                        </button>
-                        <div style={{ minWidth: 0 }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPublicProfileId(receiver.id)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              padding: 0,
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              color: 'var(--text-main)',
-                              textAlign: 'left'
-                            }}
-                          >
-                            {receiver.displayName}
-                          </button>
-                          <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
-                            @{receiver.handle}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                          Pending
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          disabled={busyTargetId === req.id}
-                          onClick={() => handleCancelRequest(req.id, `@${receiver.handle}`)}
-                        >
-                          <X size={13} /> Cancel Request
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-
-      {/* 4. My Friends List Section */}
-      {(activeSection === 'all' || activeSection === 'friends') && (
-        <section className="card" style={{ padding: '1.25rem 1.5rem' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '0.75rem',
-            marginBottom: '1rem'
-          }}>
+      {/* =====================================================================
+         SECTION C: MY FRIENDS
+         ===================================================================== */}
+      {activeSection === 'friends' && (
+        <section className="kk-connect-section">
+          <div className="kk-connect-section-header">
             <div>
-              <h2 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Users size={18} color="var(--primary)" />
+              <h2 className="kk-connect-section-title">
+                <Users size={18} color="var(--accent-primary)" />
                 <span>My Friends ({friendsList.length})</span>
               </h2>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                Mutual friends on KampusKash Connect — view profiles, split bills, or send demo transfers
+              <p className="kk-connect-section-sub">
+                Your connected campus network — message in real time, view profiles, or split group expenses
               </p>
             </div>
 
-            {friendsList.length > 0 && (
-              <input
-                type="search"
-                className="form-control"
-                style={{ maxWidth: '240px' }}
-                placeholder="Filter friends..."
-                value={friendsSearch}
-                onChange={(e) => {
-                  setFriendsSearch(e.target.value);
-                  setFriendsPage(1);
-                }}
-                aria-label="Filter friends list"
-              />
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', minWidth: '210px' }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    left: '11px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)'
+                  }}
+                />
+                <input
+                  type="search"
+                  className="kk-connect-search-input"
+                  style={{ padding: '8px 12px 8px 32px', fontSize: '0.8rem' }}
+                  placeholder="Search my friends..."
+                  value={friendsSearch}
+                  onChange={(e) => {
+                    setFriendsSearch(e.target.value);
+                    setFriendsPage(1);
+                  }}
+                  aria-label="Search friends list"
+                />
+              </div>
+
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <ArrowUpDown size={14} color="var(--text-secondary)" />
+                <select
+                  className="kk-connect-search-input"
+                  style={{ width: 'auto', padding: '8px 12px', fontSize: '0.78rem', fontWeight: 700 }}
+                  value={friendsSortBy}
+                  onChange={(e) => setFriendsSortBy(e.target.value)}
+                  aria-label="Sort friends by"
+                >
+                  <option value="online">Sort: Online First</option>
+                  <option value="name">Sort: Name (A–Z)</option>
+                  <option value="university">Sort: Same University</option>
+                  <option value="mutuals">Sort: Most Mutual Friends</option>
+                  <option value="recent">Sort: Recently Connected</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {filteredFriends.length === 0 ? (
-            <div style={{
-              padding: '1.75rem 1rem',
-              textAlign: 'center',
-              background: 'var(--bg-card-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-light)',
-              color: 'var(--text-muted)',
-              fontSize: '0.85rem'
-            }}>
-              {friendsList.length === 0
-                ? 'You have no connected friends yet. Search above or check Suggested Campus Friends to send a request!'
-                : 'No friends match your filter.'}
+          {filteredAndSortedFriends.length === 0 ? (
+            <div className="kk-empty-state">
+              <div className="kk-empty-icon">
+                <Users size={22} />
+              </div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                {friendsList.length === 0
+                  ? 'Your friends list is empty'
+                  : `No friends match "${friendsSearch}"`}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '380px' }}>
+                {friendsList.length === 0
+                  ? 'Discover classmates and campus peers to start chatting and splitting bills on KampusKash Connect.'
+                  : 'Try clearing your search filter to see all connected friends.'}
+              </div>
+              <button
+                type="button"
+                className="kk-btn kk-btn-primary"
+                onClick={() => {
+                  if (friendsList.length === 0) setActiveSection('discover');
+                  else setFriendsSearch('');
+                }}
+              >
+                {friendsList.length === 0 ? (
+                  <>
+                    <UserPlus size={14} />
+                    <span>Discover Students</span>
+                  </>
+                ) : (
+                  <span>Reset Filter</span>
+                )}
+              </button>
             </div>
           ) : (
             <>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
-                gap: '0.85rem'
-              }}>
+              <div className="kk-connect-grid">
                 {visibleFriends.map((friend) => {
-                  const mutuals = getMutualFriends ? getMutualFriends(friend.id) : [];
+                  const isMenuOpen = openMoreMenuFriendId === friend.id;
                   return (
-                    <div
-                      key={friend.id}
-                      style={{
-                        padding: '0.95rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-card-subtle)',
-                        border: '1px solid var(--border-light)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPublicProfileId(friend.id)}
-                          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                        >
-                          {renderProfileAvatar(friend, 48)}
-                        </button>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <article key={friend.id} className="kk-student-card">
+                      <div>
+                        <div className="kk-student-card-top">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPublicProfileId(friend.id)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            aria-label={`View ${friend.displayName}'s profile`}
+                          >
+                            {renderProfileAvatar(friend, 52, true, friend.isOnline)}
+                          </button>
+
+                          <div className="kk-student-card-info">
                             <button
                               type="button"
+                              className="kk-student-name-btn"
                               onClick={() => setSelectedPublicProfileId(friend.id)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                padding: 0,
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                fontSize: '0.92rem',
-                                color: 'var(--text-main)',
-                                textAlign: 'left'
-                              }}
                             >
-                              {friend.displayName}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {friend.displayName}
+                              </span>
                             </button>
-                          </div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700 }}>
-                            @{friend.handle}
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                            {friend.university}
-                          </div>
-                          {friend.course && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {friend.course}
+                            <span className="kk-student-handle">@{friend.handle}</span>
+
+                            <div className="kk-student-uni">
+                              <MapPin size={12} style={{ flexShrink: 0, color: 'var(--accent-primary)' }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {friend.university || 'Malaysia Campus'}
+                              </span>
                             </div>
+
+                            {friend.course && (
+                              <div className="kk-student-uni" style={{ marginTop: '2px' }}>
+                                <GraduationCap size={12} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {friend.course}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="kk-student-tags">
+                          <span className={`kk-student-tag ${friend.isOnline ? 'online' : ''}`}>
+                            {friend.isOnline ? '● Online now' : 'Offline'}
+                          </span>
+                          {friend.mutualFriendsCount > 0 && (
+                            <span className="kk-student-tag mutual">
+                              <Users size={11} />
+                              {friend.mutualFriendsCount} mutual friend{friend.mutualFriendsCount === 1 ? '' : 's'}
+                            </span>
                           )}
-                          {mutuals.length > 0 && (
-                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                              {mutuals.length} mutual friend{mutuals.length === 1 ? '' : 's'}
-                            </div>
+                          {friend.sameCampus && (
+                            <span className="kk-student-tag same-campus">Same Campus</span>
                           )}
                         </div>
                       </div>
 
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '0.4rem',
-                        paddingTop: '0.5rem',
-                        borderTop: '1px solid var(--border-light)'
-                      }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <div className="kk-student-card-footer">
+                        <div className="kk-student-actions">
                           <button
                             type="button"
-                            className="btn btn-primary btn-sm"
+                            className="kk-btn kk-btn-primary"
                             onClick={() => openChatWithFriend && openChatWithFriend(friend.id)}
-                            title="Open Real-Time Chat"
                           >
-                            <MessageSquare size={13} /> Message
+                            <MessageSquare size={14} />
+                            <span>Message</span>
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
+                            className="kk-btn kk-btn-ghost"
                             onClick={() => setSelectedPublicProfileId(friend.id)}
                           >
-                            Profile
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => startSendMoneyToUser(friend, { mode: 'send' })}
-                            title="Send Demo Money"
-                          >
-                            <Send size={13} /> Send
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => startSendMoneyToUser(friend, { mode: 'split' })}
-                            title="Split a Bill 50/50"
-                          >
-                            <Split size={13} /> Split
+                            <span>View Profile</span>
                           </button>
                         </div>
 
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          style={{ color: 'var(--expense)' }}
-                          disabled={busyTargetId === friend.id}
-                          onClick={() => handleRemoveFriend(friend)}
-                          title="Remove Friend"
+                        {/* More Options Menu (⋯) */}
+                        <div
+                          className="kk-more-menu-wrap"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <UserMinus size={13} /> Remove
-                        </button>
+                          <button
+                            type="button"
+                            className="kk-btn kk-btn-ghost kk-btn-icon"
+                            onClick={() =>
+                              setOpenMoreMenuFriendId(isMenuOpen ? null : friend.id)
+                            }
+                            aria-label={`More options for ${friend.displayName}`}
+                            aria-expanded={isMenuOpen}
+                            title="More options"
+                          >
+                            <MoreHorizontal size={16} />
+                          </button>
+
+                          {isMenuOpen && (
+                            <div className="kk-more-dropdown" role="menu">
+                              <button
+                                type="button"
+                                className="kk-more-item"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenMoreMenuFriendId(null);
+                                  startSendMoneyToUser(friend, { mode: 'send' });
+                                }}
+                              >
+                                <Send size={14} color="var(--accent-primary)" />
+                                <span>Send Demo RM</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="kk-more-item"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenMoreMenuFriendId(null);
+                                  startSendMoneyToUser(friend, { mode: 'split' });
+                                }}
+                              >
+                                <Split size={14} color="var(--accent-secondary)" />
+                                <span>Split a Bill</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="kk-more-item danger"
+                                role="menuitem"
+                                onClick={() => promptRemoveFriend(friend)}
+                              >
+                                <UserMinus size={14} />
+                                <span>Remove Friend</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="kk-more-item danger"
+                                role="menuitem"
+                                onClick={() => promptBlockUser(friend)}
+                              >
+                                <Ban size={14} />
+                                <span>Block @{friend.handle}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
 
-              {visibleFriends.length < filteredFriends.length && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+              {visibleFriends.length < filteredAndSortedFriends.length && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '18px' }}>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    className="kk-btn kk-btn-ghost"
                     onClick={() => setFriendsPage((p) => p + 1)}
                   >
-                    Load More Friends ({visibleFriends.length} of {filteredFriends.length})
+                    <span>
+                      Load More Friends ({visibleFriends.length} of {filteredAndSortedFriends.length})
+                    </span>
+                    <ChevronRight size={14} />
                   </button>
                 </div>
               )}
@@ -1327,40 +1746,340 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </section>
       )}
 
-      {/* 5. Privacy & Safety Settings Panel */}
-      {activeSection === 'privacy' && (
-        <section className="card" style={{ padding: '1.25rem 1.5rem' }}>
-          <h2 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
-            <Lock size={18} color="var(--primary)" />
-            <span>Privacy &amp; Safety Controls</span>
-          </h2>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            Control who can view your full profile, send you friend requests, or discover you in search.
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            <div style={{
-              padding: '0.85rem 1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-card-subtle)',
-              border: '1px solid var(--border-light)',
+      {/* =====================================================================
+         SECTION D: FRIEND REQUESTS (INCOMING & OUTGOING)
+         ===================================================================== */}
+      {activeSection === 'requests' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: '0.75rem'
-            }}>
+              gap: '10px'
+            }}
+          >
+            <div className="kk-connect-filter-chips">
+              <button
+                type="button"
+                className={`kk-connect-chip ${requestsFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setRequestsFilter('all')}
+              >
+                All Requests ({totalRequestsCount})
+              </button>
+              <button
+                type="button"
+                className={`kk-connect-chip ${requestsFilter === 'incoming' ? 'active' : ''}`}
+                onClick={() => setRequestsFilter('incoming')}
+              >
+                Incoming ({incomingFriendRequests.length})
+              </button>
+              <button
+                type="button"
+                className={`kk-connect-chip ${requestsFilter === 'outgoing' ? 'active' : ''}`}
+                onClick={() => setRequestsFilter('outgoing')}
+              >
+                Outgoing Sent ({outgoingFriendRequests.length})
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="kk-btn kk-btn-ghost"
+              onClick={() => setActiveSection('discover')}
+            >
+              <UserPlus size={14} />
+              <span>Find More Students</span>
+            </button>
+          </div>
+
+          {/* Incoming Friend Requests */}
+          {(requestsFilter === 'all' || requestsFilter === 'incoming') && (
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <Inbox size={18} color="var(--accent-primary)" />
+                    <span>Incoming Requests ({incomingFriendRequests.length})</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Accepting a request creates a mutual friendship and unlocks real-time messaging
+                  </p>
+                </div>
+              </div>
+
+              {incomingFriendRequests.length === 0 ? (
+                <div className="kk-empty-state">
+                  <div className="kk-empty-icon">
+                    <Inbox size={22} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '0.94rem', color: 'var(--text-primary)' }}>
+                    No incoming friend requests
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '360px' }}>
+                    You’re all caught up! Share your @{publicProfile?.handle || 'username'} with campus friends or discover peers in the directory.
+                  </div>
+                </div>
+              ) : (
+                <div className="kk-connect-grid">
+                  {incomingFriendRequests.map((req) => {
+                    const sender = req.senderProfile || {
+                      id: req.senderId,
+                      displayName: req.senderName || 'Student',
+                      handle: req.senderHandle || 'student',
+                      avatarId: req.senderAvatar || 'cat',
+                      university: req.senderUniversity || 'Malaysia Campus'
+                    };
+                    const mutuals = getMutualFriends ? getMutualFriends(sender.id) : [];
+                    const isBusy = busyTargetId === req.id || busyTargetId === sender.id;
+
+                    return (
+                      <article key={req.id} className="kk-student-card incoming-highlight">
+                        <div>
+                          <div className="kk-student-card-top">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPublicProfileId(sender.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {renderProfileAvatar(sender, 50)}
+                            </button>
+                            <div className="kk-student-card-info">
+                              <button
+                                type="button"
+                                className="kk-student-name-btn"
+                                onClick={() => setSelectedPublicProfileId(sender.id)}
+                              >
+                                {sender.displayName}
+                              </button>
+                              <span className="kk-student-handle">@{sender.handle}</span>
+                              {sender.university && (
+                                <div className="kk-student-uni">
+                                  <MapPin size={12} color="var(--accent-primary)" />
+                                  <span>{sender.university}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {req.note && (
+                            <p className="kk-student-bio" style={{ fontStyle: 'italic' }}>
+                              &ldquo;{req.note}&rdquo;
+                            </p>
+                          )}
+
+                          <div className="kk-student-tags">
+                            <span className="kk-student-tag">
+                              <Clock size={11} />
+                              {formatRelativeTime(req.createdAt)}
+                            </span>
+                            {mutuals.length > 0 && (
+                              <span className="kk-student-tag mutual">
+                                <Users size={11} />
+                                {mutuals.length} mutual friend{mutuals.length === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="kk-student-card-footer">
+                          <div className="kk-student-actions">
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-accept"
+                              disabled={isBusy}
+                              onClick={() => handleAcceptRequest(req.id, `@${sender.handle}`)}
+                            >
+                              <Check size={14} />
+                              <span>Accept</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-ghost"
+                              disabled={isBusy}
+                              onClick={() => handleRejectRequest(req.id, `@${sender.handle}`)}
+                            >
+                              <X size={14} />
+                              <span>Decline</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-ghost"
+                              onClick={() => setSelectedPublicProfileId(sender.id)}
+                            >
+                              <span>Profile</span>
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Outgoing Friend Requests */}
+          {(requestsFilter === 'all' || requestsFilter === 'outgoing') && (
+            <section className="kk-connect-section">
+              <div className="kk-connect-section-header">
+                <div>
+                  <h2 className="kk-connect-section-title">
+                    <SendHorizontal size={18} color="var(--accent-primary)" />
+                    <span>Outgoing Requests ({outgoingFriendRequests.length})</span>
+                  </h2>
+                  <p className="kk-connect-section-sub">
+                    Friend requests you’ve sent that are awaiting approval
+                  </p>
+                </div>
+              </div>
+
+              {outgoingFriendRequests.length === 0 ? (
+                <div className="kk-empty-state">
+                  <div className="kk-empty-icon">
+                    <Clock size={22} />
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '0.94rem', color: 'var(--text-primary)' }}>
+                    No pending outgoing requests
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '360px' }}>
+                    Requests you send to other KampusKash students will show up here until accepted.
+                  </div>
+                </div>
+              ) : (
+                <div className="kk-connect-grid">
+                  {outgoingFriendRequests.map((req) => {
+                    const receiver = req.receiverProfile || {
+                      id: req.receiverId,
+                      displayName: req.receiverName || 'Student',
+                      handle: req.receiverHandle || 'student',
+                      avatarId: req.receiverAvatar || 'cat',
+                      university: req.receiverUniversity || 'Malaysia Campus'
+                    };
+                    const isBusy = busyTargetId === req.id || busyTargetId === receiver.id;
+
+                    return (
+                      <article key={req.id} className="kk-student-card">
+                        <div>
+                          <div className="kk-student-card-top">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPublicProfileId(receiver.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {renderProfileAvatar(receiver, 50)}
+                            </button>
+                            <div className="kk-student-card-info">
+                              <button
+                                type="button"
+                                className="kk-student-name-btn"
+                                onClick={() => setSelectedPublicProfileId(receiver.id)}
+                              >
+                                {receiver.displayName}
+                              </button>
+                              <span className="kk-student-handle">@{receiver.handle}</span>
+                              {receiver.university && (
+                                <div className="kk-student-uni">
+                                  <MapPin size={12} color="var(--accent-primary)" />
+                                  <span>{receiver.university}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="kk-student-tags">
+                            <span className="kk-student-tag">
+                              <Clock size={11} />
+                              Sent {formatRelativeTime(req.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="kk-student-card-footer">
+                          <div className="kk-student-actions">
+                            <span className="kk-btn kk-btn-sent">
+                              <Clock size={13} />
+                              <span>Request Sent</span>
+                            </span>
+                            <button
+                              type="button"
+                              className="kk-btn kk-btn-danger-ghost"
+                              disabled={isBusy}
+                              onClick={() => handleCancelRequest(req.id, `@${receiver.handle}`)}
+                            >
+                              <X size={13} />
+                              <span>Cancel Request</span>
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+         PHASE 4: GROUPS, SAVINGS CHALLENGES & STUDENT COMMUNITIES
+         ===================================================================== */}
+      {(activeSection === 'groups' ||
+        activeSection === 'challenges' ||
+        activeSection === 'communities') && (
+        <Phase4GroupsChallengesCommunitiesPanel
+          activeTab={activeSection}
+          onOpenConversationInMessenger={(conversationId) => {
+            if (setActiveConversationId) setActiveConversationId(conversationId);
+            navigateToMessages();
+          }}
+        />
+      )}
+
+      {/* =====================================================================
+         PRIVACY & SAFETY SETTINGS PANEL
+         ===================================================================== */}
+      {activeSection === 'privacy' && (
+        <section className="kk-connect-section">
+          <div className="kk-connect-section-header">
+            <div>
+              <h2 className="kk-connect-section-title">
+                <Lock size={18} color="var(--accent-primary)" />
+                <span>Privacy &amp; Safety Controls</span>
+              </h2>
+              <p className="kk-connect-section-sub">
+                Control who can view your full profile, send you friend requests, see your online status, or find you in search
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
               <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
                   Social Profile Visibility
                 </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                  Choose whether all authenticated students or only your confirmed friends can view your full bio, programme, and friends list.
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Choose whether all authenticated students or only your confirmed friends can view your full bio, course, and friends list.
                 </div>
               </div>
               <select
-                className="form-control"
-                style={{ width: 'auto', minWidth: '185px' }}
+                className="kk-connect-search-input"
+                style={{ width: 'auto', minWidth: '185px', padding: '8px 12px' }}
                 value={publicProfile?.privacySettings?.profileVisibility || 'public'}
                 onChange={(e) => handlePrivacyToggle('profileVisibility', e.target.value)}
                 aria-label="Profile visibility setting"
@@ -1370,21 +2089,23 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
               </select>
             </div>
 
-            <div style={{
-              padding: '0.85rem 1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-card-subtle)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem'
-            }}>
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}
+            >
               <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
                   Allow Incoming Friend Requests
                 </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                   When disabled, other users cannot send you new friend requests.
                 </div>
               </div>
@@ -1396,21 +2117,23 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
               />
             </div>
 
-            <div style={{
-              padding: '0.85rem 1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-card-subtle)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem'
-            }}>
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}
+            >
               <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
                   Allow Profile Discovery in Search
                 </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                   When disabled, your profile is hidden from general user discovery and friend suggestions for non-friends.
                 </div>
               </div>
@@ -1421,16 +2144,54 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                 aria-label="Allow profile discovery in search"
               />
             </div>
+
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                  Show Online Status Indicator
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Let your friends see when you are active on KampusKash Connect and Messenger.
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={publicProfile?.privacySettings?.showOnlineStatus !== false}
+                onChange={(e) => handlePrivacyToggle('showOnlineStatus', e.target.checked)}
+                aria-label="Show online status indicator"
+              />
+            </div>
           </div>
 
           {/* Blocked Users Management */}
-          <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-              <Ban size={16} color="var(--expense)" />
+          <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+            <h3
+              style={{
+                fontSize: '0.94rem',
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                margin: '0 0 6px'
+              }}
+            >
+              <Ban size={16} color="var(--danger)" />
               <span>Blocked Users ({blockedProfiles.length})</span>
             </h3>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-              Blocked users cannot send you friend requests, view your profile details, or interact with you.
+            <p style={{ fontSize: '0.77rem', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              Blocked users cannot send you friend requests, message you, or view your profile details.
             </p>
 
             {blockedProfiles.length === 0 ? (
@@ -1438,7 +2199,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                 You haven&apos;t blocked any users.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {blockedProfiles.map((bp) => (
                   <div
                     key={bp.id}
@@ -1446,21 +2207,30 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-card-subtle)',
-                      border: '1px solid var(--border-light)'
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)'
                     }}
                   >
                     <div>
-                      <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>{bp.displayName}</strong>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
+                      <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                        {bp.displayName}
+                      </strong>
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--accent-primary)',
+                          marginLeft: '8px',
+                          fontWeight: 700
+                        }}
+                      >
                         @{bp.handle}
                       </span>
                     </div>
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm"
+                      className="kk-btn kk-btn-ghost"
                       onClick={() => handleUnblockUser(bp.id, bp.handle)}
                     >
                       Unblock
@@ -1473,48 +2243,25 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         </section>
       )}
 
-      <style>{`
-        .connect-tabs-bar {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          flex-wrap: wrap;
-          padding: 0.25rem 0;
-          margin-bottom: 0.75rem;
+      {/* Destructive Action Confirmation Modal (Remove Friend / Block User) */}
+      <ConfirmModal
+        isOpen={Boolean(confirmDialog)}
+        title={
+          confirmDialog?.type === 'block'
+            ? `Block @${confirmDialog?.targetProfile?.handle || 'user'}?`
+            : `Remove @${confirmDialog?.targetProfile?.handle || 'friend'}?`
         }
-
-        .connect-tab-btn {
-          border-radius: 999px !important;
-          font-weight: 600 !important;
-          letter-spacing: 0.01em;
-          padding: 0.45rem 0.95rem !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 0.45rem !important;
-          transition: all 0.16s ease !important;
-          cursor: pointer;
+        message={
+          confirmDialog?.type === 'block'
+            ? `Blocking ${confirmDialog?.targetProfile?.displayName || 'this user'} will remove any existing friendship, cancel pending requests, and prevent them from messaging or finding you.`
+            : `Are you sure you want to remove ${confirmDialog?.targetProfile?.displayName || 'this student'} (@${confirmDialog?.targetProfile?.handle || 'student'}) from your KampusKash friends list?`
         }
-
-        .connect-tab-btn:hover {
-          transform: translateY(-1px);
-        }
-
-        .connect-action-btn {
-          border-radius: 999px !important;
-          font-weight: 600 !important;
-          padding: 0.45rem 0.9rem !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 0.45rem !important;
-          cursor: pointer;
-          transition: all 0.16s ease !important;
-        }
-
-        .connect-action-btn:hover {
-          transform: translateY(-1px);
-        }
-      `}</style>
+        confirmText={confirmDialog?.type === 'block' ? 'Block User' : 'Remove Friend'}
+        cancelText="Cancel"
+        isDestructive
+        onConfirm={handleConfirmDialogAction}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </div>
   );
 }
-
