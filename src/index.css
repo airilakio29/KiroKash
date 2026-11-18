@@ -1573,6 +1573,11 @@ body {
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
 }
 
 .cafe-card:hover {
@@ -1594,6 +1599,7 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.4rem;
+  min-width: 0;
 }
 
 .cafe-name {
@@ -1602,6 +1608,8 @@ body {
   font-weight: 700;
   color: var(--text-main);
   line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .cafe-area-tag {
@@ -1680,6 +1688,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .amenity-chip {
@@ -1696,16 +1705,19 @@ body {
 /* Budget Hint Chips (Requirement 7.1) */
 .cafe-budget-hint-row {
   margin-bottom: 0.75rem;
+  min-width: 0;
 }
 
 .budget-hint-chip {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0.35rem 0.65rem;
   border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
 }
 
 .budget-hint-chip.fits {
@@ -1753,6 +1765,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -1801,26 +1814,32 @@ body {
 .vouchers-filter-tabs {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   background: var(--bg-card-subtle);
   padding: 0.3rem;
   border-radius: 24px;
   border: 1px solid var(--border-light);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .voucher-tab-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.85rem;
+  padding: 0.35rem 0.75rem;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   border-radius: 18px;
   cursor: pointer;
   transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex: 1 1 auto;
 }
 
 .voucher-tab-btn:hover {
@@ -1835,8 +1854,10 @@ body {
 
 .vouchers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .voucher-card {
@@ -1848,6 +1869,10 @@ body {
   flex-direction: column;
   transition: all var(--transition-fast);
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .voucher-card:hover {
@@ -1956,6 +1981,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px dashed var(--border-light);
@@ -2088,8 +2114,14 @@ body {
 
 @media (max-width: 1024px) {
   .explore-split-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.25rem;
+  }
+
+  .explore-map-column,
+  .explore-list-column {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .explore-map-container,

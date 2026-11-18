@@ -81,12 +81,12 @@ export default function ExploreFilters({
         </div>
 
         {/* Location Switcher */}
-        <div className="explore-location-switcher" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          <div className="filter-location-select-wrap" style={{ position: 'relative' }}>
+        <div className="explore-location-switcher" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flex: '1 1 200px', minWidth: 0, maxWidth: '100%' }}>
+          <div className="filter-location-select-wrap" style={{ position: 'relative', flex: '1 1 150px', minWidth: 0 }}>
             <MapPin size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-light)', pointerEvents: 'none' }} />
             <select
               className="form-control"
-              style={{ paddingLeft: '2rem', minWidth: '190px', height: '42px', fontSize: '0.85rem' }}
+              style={{ paddingLeft: '2rem', width: '100%', minWidth: 0, height: '42px', fontSize: '0.85rem', textOverflow: 'ellipsis' }}
               value={currentLocation?.id || 'custom'}
               onChange={(e) => {
                 const found = LOCATION_PRESETS.find((p) => p.id === e.target.value);
