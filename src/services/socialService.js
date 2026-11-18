@@ -11,7 +11,8 @@ import {
     addDoc,
     query,
     where,
-    onSnapshot
+    onSnapshot,
+    runTransaction
 } from '../firebase.js';
 import {
     sanitizeText,
@@ -31,6 +32,7 @@ import {
 const STORAGE_KEYS = {
     PROFILES: 'kk_social_public_profiles_v1',
     HANDLES: 'kk_social_user_handles_v1',
+    QR_CODES: 'kk_social_user_qr_codes_v1',
     FOLLOWS: 'kk_social_follows_v1',
     FRIENDSHIPS: 'kk_social_friendships_v1',
     FRIEND_REQUESTS: 'kk_social_friend_requests_v1',
@@ -76,6 +78,7 @@ export const DEFAULT_PRIVACY_SETTINGS = {
 const memoryStore = {
     [STORAGE_KEYS.PROFILES]: null,
     [STORAGE_KEYS.HANDLES]: null,
+    [STORAGE_KEYS.QR_CODES]: null,
     [STORAGE_KEYS.FOLLOWS]: null,
     [STORAGE_KEYS.FRIENDSHIPS]: null,
     [STORAGE_KEYS.FRIEND_REQUESTS]: null,
@@ -155,6 +158,7 @@ export function stripFinancialFieldsFromProfile(profile) {
         displayName: safeDisplayName,
         handle: normalizedHandle,
         handleLower: normalizedHandle.toLowerCase(),
+        qrCodeId: isValidPersonalQrCodeId(clean.qrCodeId) ? clean.qrCodeId : undefined,
         bio: sanitizeText(clean.bio || '', 160),
         university: sanitizeText(clean.university || 'Malaysia Campus', 80),
         course: sanitizeText(clean.course || clean.programme || '', 80),
@@ -172,11 +176,71 @@ export function stripFinancialFieldsFromProfile(profile) {
     };
 }
 
+/**
+ * Validates that a Personal QR Code Identifier matches the opaque kkid_ format
+ * and does not contain sensitive tokens or raw Firebase UIDs.
+ */
+export function isValidPersonalQrCodeId(qrCodeId) {
+    if (!qrCodeId || typeof qrCodeId !== 'string') return false;
+    return /^kkid_[a-z0-9]{12,32}$/.test(qrCodeId.trim());
+}
+
+/**
+ * Generates a deterministic, opaque QR identifier for built-in pitch demo profiles
+ * using a salted multi-round hash so demo users have stable non-UID QR identifiers.
+ */
+function generateDeterministicDemoQrCodeId(seedId) {
+    const salt = `kk_opaque_qr_v1::${seedId}::campus_social`;
+    let h1 = 0x811c9dc5;
+    let h2 = 0x01000193;
+    let h3 = 0x9e3779b9;
+    for (let i = 0; i < salt.length; i++) {
+        const ch = salt.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 0x01000193) >>> 0;
+        h2 = Math.imul(h2 ^ (ch + i), 0x85ebca6b) >>> 0;
+        h3 = Math.imul(h3 ^ (ch * 7), 0xc2b2ae35) >>> 0;
+    }
+    const hex = (
+        h1.toString(16).padStart(8, '0') +
+        h2.toString(16).padStart(8, '0') +
+        h3.toString(16).padStart(8, '0')
+    ).slice(0, 20);
+    return `kkid_${hex}`;
+}
+
+/**
+ * Generates a cryptographically random, opaque QR identifier (kkid_<20-chars>)
+ * guaranteed not to collide with any existing identifier in `qrMap`.
+ */
+export function generateOpaqueQrCodeId(qrMap = {}) {
+    const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+    for (let attempt = 0; attempt < 25; attempt++) {
+        let token = '';
+        if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+            const bytes = new Uint8Array(20);
+            globalThis.crypto.getRandomValues(bytes);
+            for (let i = 0; i < bytes.length; i++) {
+                token += alphabet[bytes[i] % alphabet.length];
+            }
+        } else {
+            for (let i = 0; i < 20; i++) {
+                token += alphabet[Math.floor(Math.random() * alphabet.length)];
+            }
+        }
+        const candidate = `kkid_${token}`;
+        if (!qrMap[candidate]) {
+            return candidate;
+        }
+    }
+    return `kkid_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`.slice(0, 25);
+}
+
 function getInitialProfilesMap() {
     const map = {};
     for (const demoUser of PITCH_DEMO_USERS) {
         map[demoUser.id] = stripFinancialFieldsFromProfile({
             ...demoUser,
+            qrCodeId: demoUser.qrCodeId || generateDeterministicDemoQrCodeId(demoUser.id),
             postCount: 3,
             followerCount: 2,
             followingCount: 2,
@@ -184,6 +248,66 @@ function getInitialProfilesMap() {
         });
     }
     return map;
+}
+
+function getQrCodesMap() {
+    const profiles = readStore(STORAGE_KEYS.PROFILES, getInitialProfilesMap);
+    const storedQr = readStore(STORAGE_KEYS.QR_CODES, {});
+    const merged = { ...storedQr };
+    for (const profile of Object.values(profiles)) {
+        if (profile?.id && isValidPersonalQrCodeId(profile.qrCodeId)) {
+            merged[profile.qrCodeId] = profile.id;
+        }
+    }
+    return merged;
+}
+
+function saveQrCodesMap(qrMap) {
+    writeStore(STORAGE_KEYS.QR_CODES, qrMap);
+}
+
+function resolveOrAssignQrCodeIdForUser(userId, preferredQrCodeId = null, profilesMap = {}, isPitchDemo = false) {
+    const qrMap = getQrCodesMap();
+    const existingProfileQr = profilesMap[userId]?.qrCodeId;
+
+    // 1. If profile already has a valid qrCodeId owned by this user, keep it permanently
+    if (
+        isValidPersonalQrCodeId(existingProfileQr) &&
+        (!qrMap[existingProfileQr] || qrMap[existingProfileQr] === userId)
+    ) {
+        qrMap[existingProfileQr] = userId;
+        saveQrCodesMap(qrMap);
+        return existingProfileQr;
+    }
+
+    // 2. Check if qrMap already has an entry mapping to this userId
+    for (const [code, ownerId] of Object.entries(qrMap)) {
+        if (ownerId === userId && isValidPersonalQrCodeId(code)) {
+            return code;
+        }
+    }
+
+    // 3. If a preferred qrCodeId was passed (e.g. from Firestore sync) and is unowned or owned by userId, use it
+    if (
+        isValidPersonalQrCodeId(preferredQrCodeId) &&
+        (!qrMap[preferredQrCodeId] || qrMap[preferredQrCodeId] === userId)
+    ) {
+        qrMap[preferredQrCodeId] = userId;
+        saveQrCodesMap(qrMap);
+        return preferredQrCodeId;
+    }
+
+    // 4. Generate a new unique opaque qrCodeId ONLY when the user does not already have one
+    const generated = isPitchDemo
+        ? generateDeterministicDemoQrCodeId(userId)
+        : generateOpaqueQrCodeId(qrMap);
+    const finalQrId =
+        !qrMap[generated] || qrMap[generated] === userId
+            ? generated
+            : generateOpaqueQrCodeId(qrMap);
+    qrMap[finalQrId] = userId;
+    saveQrCodesMap(qrMap);
+    return finalQrId;
 }
 
 function getHandlesMap() {
@@ -207,7 +331,13 @@ export function getAllPublicProfilesMap() {
     let mutated = false;
     for (const demoUser of PITCH_DEMO_USERS) {
         if (!map[demoUser.id]) {
-            map[demoUser.id] = stripFinancialFieldsFromProfile(demoUser);
+            map[demoUser.id] = stripFinancialFieldsFromProfile({
+                ...demoUser,
+                qrCodeId: demoUser.qrCodeId || generateDeterministicDemoQrCodeId(demoUser.id)
+            });
+            mutated = true;
+        } else if (!isValidPersonalQrCodeId(map[demoUser.id].qrCodeId)) {
+            map[demoUser.id].qrCodeId = generateDeterministicDemoQrCodeId(demoUser.id);
             mutated = true;
         }
     }
@@ -316,12 +446,20 @@ export function ensurePublicProfileForUser(user, extra = {}) {
         (user.email ? user.email.split('@')[0] : 'student');
 
     const uniqueHandle = resolveUniqueInitialHandle(rawHandle, user.id, profiles);
+    const isPitch = Boolean(user.isPitchDemo || existing.isPitchDemo);
+    const qrCodeId = resolveOrAssignQrCodeIdForUser(
+        user.id,
+        existing.qrCodeId || extra.qrCodeId || user.qrCodeId,
+        profiles,
+        isPitch
+    );
 
     const merged = stripFinancialFieldsFromProfile({
         ...existing,
         id: user.id,
         displayName: safeName,
         handle: uniqueHandle,
+        qrCodeId,
         bio: extra.bio !== undefined ? extra.bio : (user.bio !== undefined ? user.bio : (existing.bio || 'Saving smart on campus with KampusKash.')),
         university: extra.university || user.university || existing.university || 'Universiti Malaya (UM)',
         course: extra.course !== undefined ? extra.course : (user.course || existing.course || ''),
@@ -330,7 +468,7 @@ export function ensurePublicProfileForUser(user, extra = {}) {
         photoURL: extra.photoURL !== undefined ? extra.photoURL : (user.photoURL || existing.photoURL || null),
         achievements: extra.achievements || user.achievements || existing.achievements || ['early_adopter'],
         privacySettings: normalizePrivacySettings(extra.privacySettings || user.privacySettings || existing.privacySettings),
-        isPitchDemo: Boolean(user.isPitchDemo || existing.isPitchDemo)
+        isPitchDemo: isPitch
     });
 
     profiles[user.id] = merged;
@@ -348,6 +486,14 @@ export function ensurePublicProfileForUser(user, extra = {}) {
             userId: user.id,
             updatedAt: merged.updatedAt
         }, { merge: true }).catch(() => {});
+        if (merged.qrCodeId) {
+            setDoc(doc(db, 'userQrCodes', merged.qrCodeId), {
+                qrCodeId: merged.qrCodeId,
+                userId: user.id,
+                handle: merged.handle.toLowerCase(),
+                updatedAt: merged.updatedAt
+            }, { merge: true }).catch(() => {});
+        }
     }
     return profiles[user.id];
 }
@@ -409,9 +555,25 @@ export async function updatePublicSocialProfile(userId, updates = {}) {
         ? normalizePrivacySettings({ ...current.privacySettings, ...updates.privacySettings })
         : normalizePrivacySettings(current.privacySettings);
 
+    if (
+        updates.qrCodeId !== undefined &&
+        isValidPersonalQrCodeId(current.qrCodeId) &&
+        String(updates.qrCodeId).trim().toLowerCase() !== current.qrCodeId.toLowerCase()
+    ) {
+        throw new Error('Personal QR identifier cannot be modified once assigned.');
+    }
+
+    const qrCodeId = resolveOrAssignQrCodeIdForUser(
+        userId,
+        current.qrCodeId,
+        profiles,
+        Boolean(current.isPitchDemo)
+    );
+
     const updated = stripFinancialFieldsFromProfile({
         ...current,
         ...updates,
+        qrCodeId,
         privacySettings: mergedPrivacy,
         id: userId,
         updatedAt: new Date().toISOString()
@@ -507,6 +669,7 @@ export function getPublicProfileForViewer(userIdOrHandle, viewerId = null) {
         if (visibility === 'friends' && !isFriend) {
             return {
                 id: profile.id,
+                qrCodeId: profile.qrCodeId,
                 displayName: profile.displayName,
                 handle: profile.handle,
                 handleLower: profile.handleLower,
@@ -528,6 +691,333 @@ export function getPublicProfileForViewer(userIdOrHandle, viewerId = null) {
     }
 
     return profile;
+}
+
+const DEFAULT_QR_DEEP_LINK_ORIGIN = 'https://kampuskash.vercel.app';
+
+/**
+ * Ensures the user has a persistent, unique, opaque Personal QR identifier (`kkid_...`)
+ * and returns it. Never changes an existing valid `qrCodeId` for the user.
+ */
+export function ensureUserQrCode(userOrId) {
+    if (!userOrId) return '';
+    const userId = typeof userOrId === 'object' ? userOrId.id : String(userOrId);
+    if (!userId) return '';
+
+    const profiles = getAllPublicProfilesMap();
+    const existingProfile = profiles[userId];
+    if (existingProfile && isValidPersonalQrCodeId(existingProfile.qrCodeId)) {
+        return existingProfile.qrCodeId;
+    }
+
+    const ensured = ensurePublicProfileForUser(
+        typeof userOrId === 'object'
+            ? userOrId
+            : { id: userId, displayName: existingProfile?.displayName || 'Student' }
+    );
+    return ensured?.qrCodeId || '';
+}
+
+/**
+ * Encodes a user's unique Personal QR code deep link URL:
+ * `https://kampuskash.vercel.app/scan-user?id=kkid_...`
+ * Never encodes UIDs, emails, balances, passwords, or auth tokens.
+ */
+export function encodePersonalQrCode(userOrId, { baseUrl = DEFAULT_QR_DEEP_LINK_ORIGIN } = {}) {
+    const qrCodeId = isValidPersonalQrCodeId(userOrId)
+        ? String(userOrId).trim().toLowerCase()
+        : ensureUserQrCode(userOrId);
+    if (!isValidPersonalQrCodeId(qrCodeId)) return '';
+    const cleanOrigin = String(baseUrl || DEFAULT_QR_DEEP_LINK_ORIGIN).replace(/\/+$/, '');
+    return `${cleanOrigin}/scan-user?id=${encodeURIComponent(qrCodeId)}`;
+}
+
+/**
+ * Extracts and validates a KampusKash Personal QR identifier (`kkid_...`) from a deep link,
+ * query string, `KKUSER:` payload, or raw `kkid_` token.
+ */
+export function extractQrIdentifierFromPayload(rawInput) {
+    const text = String(rawInput || '').trim();
+    if (!text) {
+        return { valid: false, qrCodeId: '', isPaymentQr: false, reason: 'Empty QR code payload.' };
+    }
+
+    if (text.startsWith('KKPAY:')) {
+        return {
+            valid: false,
+            qrCodeId: '',
+            isPaymentQr: true,
+            reason: 'This is a KampusKash Demo Payment QR code.'
+        };
+    }
+
+    if (isValidPersonalQrCodeId(text)) {
+        return { valid: true, qrCodeId: text.toLowerCase(), isPaymentQr: false };
+    }
+
+    if (/^KKUSER:/i.test(text)) {
+        const token = text.replace(/^KKUSER:/i, '').trim().toLowerCase();
+        if (isValidPersonalQrCodeId(token)) {
+            return { valid: true, qrCodeId: token, isPaymentQr: false };
+        }
+        return { valid: false, qrCodeId: '', isPaymentQr: false, reason: 'Invalid KampusKash user QR identifier.' };
+    }
+
+    try {
+        const url = text.startsWith('http://') || text.startsWith('https://')
+            ? new URL(text)
+            : text.startsWith('/') || text.startsWith('?') || text.includes('scan-user')
+            ? new URL(text.startsWith('/') ? text : `/${text}`, DEFAULT_QR_DEEP_LINK_ORIGIN)
+            : null;
+
+        if (url) {
+            const idParam = (url.searchParams.get('id') || url.searchParams.get('qr') || '').trim().toLowerCase();
+            if (isValidPersonalQrCodeId(idParam)) {
+                return { valid: true, qrCodeId: idParam, isPaymentQr: false };
+            }
+            return {
+                valid: false,
+                qrCodeId: '',
+                isPaymentQr: false,
+                reason: 'Unrecognised or malformed KampusKash QR code link.'
+            };
+        }
+    } catch {
+        // Fall through to regex extraction
+    }
+
+    const match = text.match(/\b(kkid_[a-z0-9]{12,32})\b/i);
+    if (match && isValidPersonalQrCodeId(match[1])) {
+        return { valid: true, qrCodeId: match[1].toLowerCase(), isPaymentQr: false };
+    }
+
+    return {
+        valid: false,
+        qrCodeId: '',
+        isPaymentQr: false,
+        reason: 'Invalid or unrecognised QR code. Scan a valid KampusKash Personal QR code.'
+    };
+}
+
+/**
+ * Resolves a public profile synchronously by its unique `qrCodeId`.
+ */
+export function getProfileByQrCodeId(qrCodeId) {
+    const cleanQrId = String(qrCodeId || '').trim().toLowerCase();
+    if (!isValidPersonalQrCodeId(cleanQrId)) return null;
+
+    const profiles = getAllPublicProfilesMap();
+    recomputeAllSocialCounts(profiles);
+
+    const qrMap = getQrCodesMap();
+    const mappedUserId = qrMap[cleanQrId];
+    if (mappedUserId && profiles[mappedUserId]) {
+        return stripFinancialFieldsFromProfile(profiles[mappedUserId]);
+    }
+
+    const found = Object.values(profiles).find(
+        (p) => String(p.qrCodeId || '').toLowerCase() === cleanQrId
+    );
+    if (found) {
+        qrMap[cleanQrId] = found.id;
+        saveQrCodesMap(qrMap);
+        return stripFinancialFieldsFromProfile(found);
+    }
+    return null;
+}
+
+/**
+ * Resolves a public profile from Firestore by its unique `qrCodeId` when not cached locally.
+ */
+export async function fetchProfileByQrCodeIdFromFirestore(qrCodeId) {
+    const cleanQrId = String(qrCodeId || '').trim().toLowerCase();
+    if (!isValidPersonalQrCodeId(cleanQrId)) return null;
+
+    const local = getProfileByQrCodeId(cleanQrId);
+    if (local) return local;
+    if (!db) return null;
+
+    try {
+        const qrDocSnap = await getDoc(doc(db, 'userQrCodes', cleanQrId));
+        if (qrDocSnap.exists()) {
+            const targetUserId = qrDocSnap.data()?.userId;
+            if (targetUserId) {
+                const profile = await fetchPublicProfileFromFirestore(targetUserId);
+                if (profile) {
+                    const qrMap = getQrCodesMap();
+                    qrMap[cleanQrId] = profile.id;
+                    saveQrCodesMap(qrMap);
+                    return profile;
+                }
+            }
+        }
+
+        const q = query(collection(db, 'publicProfiles'), where('qrCodeId', '==', cleanQrId));
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+            const rawData = querySnap.docs[0].data();
+            const uid = rawData.id || querySnap.docs[0].id;
+            const clean = stripFinancialFieldsFromProfile({ ...rawData, id: uid });
+            const profiles = getAllPublicProfilesMap();
+            profiles[uid] = clean;
+            writeStore(STORAGE_KEYS.PROFILES, profiles);
+            const qrMap = getQrCodesMap();
+            qrMap[cleanQrId] = uid;
+            saveQrCodesMap(qrMap);
+            return clean;
+        }
+    } catch {
+        // Offline or rules fallback
+    }
+    return null;
+}
+
+function buildScannedUserResolution(extracted, rawProfile, viewerId = null) {
+    if (!extracted.valid) {
+        return {
+            ok: false,
+            code: 'invalid_qr',
+            qrCodeId: '',
+            isPaymentQr: Boolean(extracted.isPaymentQr),
+            message: extracted.reason || 'Invalid or unrecognised QR code.',
+            profile: null,
+            relationship: null,
+            mutualFriends: []
+        };
+    }
+
+    if (!rawProfile || rawProfile.isDeleted || rawProfile.status === 'deleted') {
+        return {
+            ok: false,
+            code: 'account_unavailable',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: 'This KampusKash user account could not be found or is no longer available.',
+            profile: null,
+            relationship: null,
+            mutualFriends: []
+        };
+    }
+
+    const viewerProfile = getPublicProfileForViewer(rawProfile.id, viewerId);
+    if (!viewerProfile || viewerProfile.isBlockedView) {
+        return {
+            ok: false,
+            code: 'account_unavailable',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: viewerProfile?.blockedByViewer
+                ? 'You have blocked this account. Unblock them in Privacy & Safety to view their profile.'
+                : 'This KampusKash account is unavailable.',
+            profile: viewerProfile || null,
+            relationship: viewerId ? getFriendshipStatus(viewerId, rawProfile.id) : null,
+            mutualFriends: []
+        };
+    }
+
+    const relationship = viewerId
+        ? getFriendshipStatus(viewerId, rawProfile.id)
+        : {
+              status: 'none',
+              requestId: null,
+              direction: null,
+              friendshipId: null,
+              isBlocked: false,
+              canSendRequest: true
+          };
+
+    const mutualFriends =
+        viewerId && viewerId !== rawProfile.id ? getMutualFriends(viewerId, rawProfile.id) : [];
+
+    if (viewerId && viewerId === rawProfile.id) {
+        return {
+            ok: true,
+            code: 'self_scan',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: 'This is your own KampusKash Personal QR code. Share it with friends so they can scan and connect with you!',
+            profile: viewerProfile,
+            relationship,
+            mutualFriends: []
+        };
+    }
+
+    if (relationship.status === 'friends') {
+        return {
+            ok: true,
+            code: 'already_friends',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: `You and ${viewerProfile.displayName} (@${viewerProfile.handle}) are already friends on KampusKash.`,
+            profile: viewerProfile,
+            relationship,
+            mutualFriends
+        };
+    }
+
+    if (relationship.status === 'outgoing_pending') {
+        return {
+            ok: true,
+            code: 'request_already_sent',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: `You have already sent a friend request to ${viewerProfile.displayName} (@${viewerProfile.handle}).`,
+            profile: viewerProfile,
+            relationship,
+            mutualFriends
+        };
+    }
+
+    if (relationship.status === 'incoming_pending') {
+        return {
+            ok: true,
+            code: 'incoming_request_exists',
+            qrCodeId: extracted.qrCodeId,
+            isPaymentQr: false,
+            message: `${viewerProfile.displayName} (@${viewerProfile.handle}) has already sent you a friend request! You can accept or decline it below.`,
+            profile: viewerProfile,
+            relationship,
+            mutualFriends
+        };
+    }
+
+    return {
+        ok: true,
+        code: 'can_connect',
+        qrCodeId: extracted.qrCodeId,
+        isPaymentQr: false,
+        message: `Found ${viewerProfile.displayName} (@${viewerProfile.handle}) on KampusKash.`,
+        profile: viewerProfile,
+        relationship,
+        mutualFriends
+    };
+}
+
+/**
+ * Synchronously resolves a scanned QR code payload against local public profiles and relationship state.
+ */
+export function resolveScannedUserByQrSync(rawInput, viewerId = null) {
+    const extracted = extractQrIdentifierFromPayload(rawInput);
+    if (!extracted.valid) {
+        return buildScannedUserResolution(extracted, null, viewerId);
+    }
+    const rawProfile = getProfileByQrCodeId(extracted.qrCodeId);
+    return buildScannedUserResolution(extracted, rawProfile, viewerId);
+}
+
+/**
+ * Asynchronously resolves a scanned QR code payload, checking Firestore if not yet cached locally.
+ */
+export async function resolveScannedUserByQr(rawInput, viewerId = null) {
+    const extracted = extractQrIdentifierFromPayload(rawInput);
+    if (!extracted.valid) {
+        return buildScannedUserResolution(extracted, null, viewerId);
+    }
+    let rawProfile = getProfileByQrCodeId(extracted.qrCodeId);
+    if (!rawProfile && db) {
+        rawProfile = await fetchProfileByQrCodeIdFromFirestore(extracted.qrCodeId);
+    }
+    return buildScannedUserResolution(extracted, rawProfile, viewerId);
 }
 
 /**
@@ -1064,7 +1554,12 @@ export function getFriendshipStatus(viewerId, targetUserId) {
 }
 
 export async function sendFriendRequest(senderUser, receiverId, { note = '' } = {}) {
-    const senderId = typeof senderUser === 'object' ? senderUser?.id : senderUser;
+    const requestedSenderId = typeof senderUser === 'object' ? senderUser?.id : senderUser;
+    const activeAuthUid = auth?.currentUser?.uid || null;
+    if (activeAuthUid && requestedSenderId && requestedSenderId !== activeAuthUid) {
+        throw new Error('Authenticated user mismatch: cannot spoof another user as friend request sender.');
+    }
+    const senderId = activeAuthUid || requestedSenderId;
     if (!senderId || !receiverId) {
         throw new Error('Both sender and recipient user IDs are required.');
     }
@@ -1167,7 +1662,12 @@ export async function sendFriendRequest(senderUser, receiverId, { note = '' } = 
 }
 
 export async function acceptFriendRequest(actorUser, requestIdOrSenderId) {
-    const actorId = typeof actorUser === 'object' ? actorUser?.id : actorUser;
+    const requestedActorId = typeof actorUser === 'object' ? actorUser?.id : actorUser;
+    const activeAuthUid = auth?.currentUser?.uid || null;
+    if (activeAuthUid && requestedActorId && requestedActorId !== activeAuthUid) {
+        throw new Error('Authenticated user mismatch: cannot accept a friend request on behalf of another user.');
+    }
+    const actorId = activeAuthUid || requestedActorId;
     if (!actorId || !requestIdOrSenderId) {
         throw new Error('Recipient user and friend request identifier are required.');
     }
@@ -1271,15 +1771,32 @@ export async function acceptFriendRequest(actorUser, requestIdOrSenderId) {
     });
 
     if (db) {
-        const ops = [
-            setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {}),
-            setDoc(doc(db, 'friendships', friendshipId), friendship, { merge: true }).catch(() => {}),
-            ...reverseRequestsToSync.map((rev) =>
-                setDoc(doc(db, 'friendRequests', rev.id), rev, { merge: true }).catch(() => {})
-            )
-        ];
-        if (isCloudAuthenticatedFor(actorId)) {
-            await Promise.all(ops);
+        if (isCloudAuthenticatedFor(actorId) && typeof runTransaction === 'function') {
+            try {
+                await runTransaction(db, async (tx) => {
+                    const reqRef = doc(db, 'friendRequests', req.id);
+                    const friendshipRef = doc(db, 'friendships', friendshipId);
+                    tx.set(reqRef, req, { merge: true });
+                    tx.set(friendshipRef, friendship, { merge: true });
+                    for (const rev of reverseRequestsToSync) {
+                        tx.set(doc(db, 'friendRequests', rev.id), rev, { merge: true });
+                    }
+                });
+            } catch {
+                await Promise.all([
+                    setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {}),
+                    setDoc(doc(db, 'friendships', friendshipId), friendship, { merge: true }).catch(() => {}),
+                    ...reverseRequestsToSync.map((rev) =>
+                        setDoc(doc(db, 'friendRequests', rev.id), rev, { merge: true }).catch(() => {})
+                    )
+                ]);
+            }
+        } else {
+            setDoc(doc(db, 'friendRequests', req.id), req, { merge: true }).catch(() => {});
+            setDoc(doc(db, 'friendships', friendshipId), friendship, { merge: true }).catch(() => {});
+            reverseRequestsToSync.forEach((rev) => {
+                setDoc(doc(db, 'friendRequests', rev.id), rev, { merge: true }).catch(() => {});
+            });
         }
     }
 
