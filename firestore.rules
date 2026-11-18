@@ -73,6 +73,7 @@ service cloud.firestore {
     // =========================================================================
     match /friendRequests/{requestId} {
       allow read: if isSignedIn() && (
+        resource == null ||
         resource.data.senderId == request.auth.uid ||
         resource.data.receiverId == request.auth.uid
       );
@@ -83,10 +84,17 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
 
       allow update: if isSignedIn()
-        && resource.data.status == 'pending'
+        && request.resource.data.senderId == resource.data.senderId
+        && request.resource.data.receiverId == resource.data.receiverId
         && (
-          (resource.data.receiverId == request.auth.uid && request.resource.data.status in ['accepted', 'rejected']) ||
-          (resource.data.senderId == request.auth.uid && request.resource.data.status in ['cancelled', 'removed'])
+          // Recipient accepts or declines a pending request
+          (resource.data.status == 'pending' && resource.data.receiverId == request.auth.uid && request.resource.data.status in ['accepted', 'rejected']) ||
+          // Sender cancels an outgoing pending request
+          (resource.data.status == 'pending' && resource.data.senderId == request.auth.uid && request.resource.data.status in ['cancelled', 'removed']) ||
+          // Either party marks an accepted or pending request as removed/cancelled when unfriending or blocking
+          (resource.data.status in ['pending', 'accepted'] && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid) && request.resource.data.status in ['removed', 'cancelled']) ||
+          // Sender re-sends a request after a previous cancellation, decline, or friend removal
+          (resource.data.status in ['cancelled', 'rejected', 'removed'] && resource.data.senderId == request.auth.uid && request.resource.data.status == 'pending')
         );
 
       allow delete: if isSignedIn() && (
@@ -182,7 +190,11 @@ service cloud.firestore {
     // 6. User Blocks
     // =========================================================================
     match /blocks/{blockId} {
-      allow read: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.blockerId == request.auth.uid ||
+        resource.data.blockedId == request.auth.uid
+      );
       allow create: if isSignedIn()
         && request.resource.data.blockerId == request.auth.uid
         && request.resource.data.blockerId != request.resource.data.blockedId;
