@@ -34,6 +34,7 @@ import {
 } from '../../config/appConstants';
 import { KAMPUSKASH_ACCOUNT_ID } from '../../services/accountService';
 import UserAvatar from '../UserAvatar';
+import ScannedUserProfileCard from '../social/ScannedUserProfileCard';
 
 /**
  * Generates a deterministic 21x21 QR-like matrix from a payload string,
@@ -115,6 +116,11 @@ export default function ScanPaySheet() {
     performTransfer,
     performRequestMoney,
     searchPublicProfiles,
+    ensureUserQrCode,
+    encodePersonalQrCode,
+    resolveScannedUserByQr,
+    resolveScannedUserByQrSync,
+    setSelectedPublicProfileId,
     encodeWalletQrPayload,
     parseWalletQrPayload
   } = useSocialWallet() || {};
@@ -129,6 +135,7 @@ export default function ScanPaySheet() {
   const [torchNotice, setTorchNotice] = useState('');
   const [pasteCodeInput, setPasteCodeInput] = useState('');
   const [scanError, setScanError] = useState('');
+  const [scannedUserResolution, setScannedUserResolution] = useState(null);
 
   // My QR state
   const [qrRequestAmount, setQrRequestAmount] = useState('');
@@ -200,29 +207,56 @@ export default function ScanPaySheet() {
 
   // Handle decoded QR string
   const handleDecodedQrCode = useCallback(
-    (rawCode) => {
-      if (!parseWalletQrPayload) return;
-      const parsed = parseWalletQrPayload(rawCode);
-      if (!parsed.valid) {
-        setScanError(parsed.error || 'Invalid KampusKash QR code.');
+    async (rawCode) => {
+      const trimmed = String(rawCode || '').trim();
+      if (!trimmed) {
+        setScanError('Please scan or enter a KampusKash QR code.');
         return;
       }
-      if (parsed.recipient?.id === user?.id) {
-        setScanError('You cannot scan your own QR code to pay yourself.');
+
+      if (trimmed.startsWith('KKPAY:')) {
+        if (!parseWalletQrPayload) return;
+        const parsed = parseWalletQrPayload(trimmed);
+        if (!parsed.valid) {
+          setScanError(parsed.error || 'Invalid KampusKash payment QR code.');
+          return;
+        }
+        if (parsed.recipient?.id === user?.id) {
+          setScanError('You cannot scan your own payment QR code to pay yourself.');
+          return;
+        }
+        stopCamera();
+        setScanError('');
+        setScannedUserResolution(null);
+        setSelectedRecipient(parsed.recipient);
+        setTransferMode('send');
+        if (parsed.amount && parsed.amount > 0) {
+          setAmountInput(String(parsed.amount));
+        }
+        if (parsed.note) {
+          setNoteInput(parsed.note);
+        }
         return;
       }
+
       stopCamera();
       setScanError('');
-      setSelectedRecipient(parsed.recipient);
-      setTransferMode('send');
-      if (parsed.amount && parsed.amount > 0) {
-        setAmountInput(String(parsed.amount));
-      }
-      if (parsed.note) {
-        setNoteInput(parsed.note);
+      try {
+        const resolution = resolveScannedUserByQr
+          ? await resolveScannedUserByQr(trimmed)
+          : resolveScannedUserByQrSync
+          ? resolveScannedUserByQrSync(trimmed)
+          : null;
+        if (resolution) {
+          setScannedUserResolution(resolution);
+        } else {
+          setScanError('Invalid or unrecognised QR code.');
+        }
+      } catch (err) {
+        setScanError(err?.message || 'Unable to resolve scanned QR code.');
       }
     },
-    [parseWalletQrPayload, user?.id, stopCamera]
+    [parseWalletQrPayload, resolveScannedUserByQr, resolveScannedUserByQrSync, user?.id, stopCamera]
   );
 
   // Start camera when Scan tab is active
@@ -360,17 +394,36 @@ export default function ScanPaySheet() {
   };
 
   // My QR Payload & Matrix
+  const myPersonalQrId = useMemo(() => {
+    if (publicProfile?.qrCodeId) return publicProfile.qrCodeId;
+    if (user && ensureUserQrCode) return ensureUserQrCode(user);
+    return '';
+  }, [publicProfile?.qrCodeId, user, ensureUserQrCode]);
+
+  const myPersonalQrUrl = useMemo(() => {
+    if (encodePersonalQrCode && (publicProfile || user)) {
+      return encodePersonalQrCode(publicProfile || user);
+    }
+    if (myPersonalQrId) {
+      return `https://kampuskash.vercel.app/scan-user?id=${myPersonalQrId}`;
+    }
+    return '';
+  }, [encodePersonalQrCode, publicProfile, user, myPersonalQrId]);
+
   const myQrPayload = useMemo(() => {
-    if (!encodeWalletQrPayload || !user) return '';
-    return encodeWalletQrPayload(
-      {
-        id: user.id,
-        handle: publicProfile?.handle || user.handle || 'student',
-        name: publicProfile?.displayName || user.username || 'Student'
-      },
-      qrRequestAmount
-    );
-  }, [encodeWalletQrPayload, user, publicProfile, qrRequestAmount]);
+    if (!user) return '';
+    if (qrRequestAmount && Number(qrRequestAmount) > 0 && encodeWalletQrPayload) {
+      return encodeWalletQrPayload(
+        {
+          id: user.id,
+          handle: publicProfile?.handle || user.handle || 'student',
+          name: publicProfile?.displayName || user.username || 'Student'
+        },
+        qrRequestAmount
+      );
+    }
+    return myPersonalQrUrl;
+  }, [encodeWalletQrPayload, user, publicProfile, qrRequestAmount, myPersonalQrUrl]);
 
   const myQrMatrix = useMemo(() => buildQrMatrix(myQrPayload), [myQrPayload]);
 
@@ -855,6 +908,14 @@ export default function ScanPaySheet() {
              ============================================================ */}
           {activeTab === 'myqr' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  My Personal QR
+                </div>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                  Let other KampusKash users scan your QR to find your profile and connect with you.
+                </p>
+              </div>
               <div
                 style={{
                   width: '100%',
@@ -939,6 +1000,18 @@ export default function ScanPaySheet() {
                     Requested Amount: RM {Number(qrRequestAmount).toFixed(2)}
                   </div>
                 )}
+
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: '#DDD6FE',
+                    textAlign: 'center',
+                    lineHeight: 1.4
+                  }}
+                >
+                  Your unique KampusKash identity. Share it with friends to connect.
+                </div>
 
                 <div
                   style={{
@@ -1409,6 +1482,24 @@ export default function ScanPaySheet() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* SCAN TAB CAMERA VIEW (when no recipient is chosen yet) */}
               {activeTab === 'scan' && !selectedRecipient && (
+                scannedUserResolution ? (
+                  <ScannedUserProfileCard
+                    resolution={scannedUserResolution}
+                    onScanAnother={() => {
+                      setScannedUserResolution(null);
+                      setPasteCodeInput('');
+                      setScanError('');
+                    }}
+                    onViewFullProfile={(targetUserId) => {
+                      if (setSelectedPublicProfileId) {
+                        setSelectedPublicProfileId(targetUserId);
+                      }
+                      if (closeScanPaySheet) {
+                        closeScanPaySheet();
+                      }
+                    }}
+                  />
+                ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   <div
                     style={{
@@ -1585,7 +1676,7 @@ export default function ScanPaySheet() {
                   {/* Quick Demo QR Scan Pills */}
                   <div>
                     <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                      Quick Demo QR Scan (Tap to simulate scanning a student QR):
+                      Quick Demo Personal QR Scan (Tap to simulate scanning a student QR):
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                       {searchResults.slice(0, 4).map((prof) => (
@@ -1594,7 +1685,9 @@ export default function ScanPaySheet() {
                           type="button"
                           onClick={() =>
                             handleDecodedQrCode(
-                              `KKPAY:${prof.id}:${prof.handle}:${encodeURIComponent(prof.displayName)}`
+                              encodePersonalQrCode
+                                ? encodePersonalQrCode(prof)
+                                : `https://kampuskash.vercel.app/scan-user?id=${prof.qrCodeId || `kkid_${prof.id}`}`
                             )
                           }
                           style={{
@@ -1618,6 +1711,7 @@ export default function ScanPaySheet() {
                     </div>
                   </div>
                 </div>
+                )
               )}
 
               {/* TRANSFER TAB RECIPIENT PICKER (when no recipient is chosen yet) */}
