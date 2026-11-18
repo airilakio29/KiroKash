@@ -250,7 +250,7 @@ export default function ScanPaySheet() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
+        await videoRef.current.play().catch(() => { });
       }
       setCameraStatus('active');
 
@@ -444,9 +444,8 @@ export default function ScanPaySheet() {
 
   // Share My QR
   const handleShareQr = async () => {
-    const shareText = `Pay me on KampusKash (Demo): @${publicProfile?.handle || 'student'}${
-      qrRequestAmount && Number(qrRequestAmount) > 0 ? ` — RM${Number(qrRequestAmount).toFixed(2)}` : ''
-    }\nCode: ${myQrPayload}`;
+    const shareText = `Pay me on KampusKash (Demo): @${publicProfile?.handle || 'student'}${qrRequestAmount && Number(qrRequestAmount) > 0 ? ` — RM${Number(qrRequestAmount).toFixed(2)}` : ''
+      }\nCode: ${myQrPayload}`;
 
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
@@ -460,7 +459,7 @@ export default function ScanPaySheet() {
       }
     }
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(myQrPayload).catch(() => {});
+      await navigator.clipboard.writeText(myQrPayload).catch(() => { });
       setQrCopied(true);
       setQrShareNotice('QR payment code copied to clipboard!');
       setTimeout(() => {
@@ -645,7 +644,7 @@ export default function ScanPaySheet() {
       }
     }
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(text).catch(() => {});
+      await navigator.clipboard.writeText(text).catch(() => { });
       setReceiptCopied(true);
       setTimeout(() => setReceiptCopied(false), 2500);
     }
@@ -888,17 +887,24 @@ export default function ScanPaySheet() {
                 {/* Crisp SVG QR Matrix */}
                 <div
                   style={{
-                    padding: '1rem',
+                    width: 'min(220px, 100%)',
+                    maxWidth: '220px',
+                    aspectRatio: '1 / 1',
+                    padding: '0.85rem',
                     background: '#FFFFFF',
                     borderRadius: '14px',
                     border: '3px solid var(--primary)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                 >
                   <svg
-                    width="210"
-                    height="210"
+                    style={{ width: '100%', height: '100%', display: 'block' }}
                     viewBox={`0 0 ${myQrMatrix.length} ${myQrMatrix.length}`}
+                    preserveAspectRatio="xMidYMid meet"
                     aria-label="Personal KampusKash QR Code"
                   >
                     {myQrMatrix.map((row, rIdx) =>

@@ -14,6 +14,7 @@ import {
 import { KAMPUSKASH_ACCOUNT_ID, KAMPUSKASH_ACCOUNT_TYPE } from '../services/accountService';
 import UserAvatar from '../components/UserAvatar';
 import DemoP2PWalletPanel from '../components/wallet/DemoP2PWalletPanel';
+import PayPageHeader from '../components/wallet/PayPageHeader';
 import {
   QrCode,
   Send,
@@ -180,7 +181,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       }
       try {
         localStorage.setItem('kirokash_pay_favourites', JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -349,9 +350,9 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
               if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
                 handleDecodedQrCode(barcodes[0].rawValue);
               }
-            } catch {}
+            } catch { }
           }, 400);
-        } catch {}
+        } catch { }
       }
     } catch (err) {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -412,7 +413,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
             handleDecodedQrCode(barcodes[0].rawValue);
             return;
           }
-        } catch {}
+        } catch { }
       }
       // Fallback: check if text file with code
       if (typeof dataUrl === 'string' && dataUrl.includes('KKPAY:')) {
@@ -460,7 +461,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           text: `Scan or paste code to send demo credit: ${myQrPayload}`,
           url: `${window.location.origin}/pay/transfer?to=${encodeURIComponent(user?.handle || '')}${myQrAmount ? `&amount=${myQrAmount}` : ''}`
         });
-      } catch {}
+      } catch { }
     } else {
       handleCopyMyQr();
     }
@@ -684,7 +685,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           if (note) setTransferNote(note);
         }
       }
-    } catch {}
+    } catch { }
   }, [prefilledWalletAction, setPrefilledWalletAction, handleDecodedQrCode, searchPublicProfiles]);
 
   // ==========================================
@@ -780,7 +781,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           const userList = list.filter((e) => e.senderId === wallet.userId || e.receiverId === wallet.userId);
           items = userList;
         }
-      } catch {}
+      } catch { }
     }
     return items;
   }, [wallet?.userId, wallet?.balance, flowStep]);
@@ -1036,7 +1037,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                         setReceiptCopied(true);
                         showSuccess('Receipt copied to clipboard!');
                         setTimeout(() => setReceiptCopied(false), 2000);
-                      } catch {}
+                      } catch { }
                     }}
                   >
                     <Share2 size={15} />
@@ -1180,17 +1181,10 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {activeSubroute === 'scan' && (
         <div className="pay-subview card">
-          <div className="pay-subview-header">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigateSubroute ? onNavigateSubroute(null) : null}
-            >
-              <ArrowLeft size={16} /> Back to Pay
-            </button>
-            <h2 className="pay-subview-title">Scan QR Code</h2>
-            <div style={{ width: '80px' }} />
-          </div>
+          <PayPageHeader
+            title="Scan QR Code"
+            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+          />
 
           <div className="pay-scanner-container">
             <div className="pay-camera-viewfinder">
@@ -1294,25 +1288,13 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {activeSubroute === 'my-qr' && (
         <div className="pay-subview card">
-          <div className="pay-subview-header">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigateSubroute ? onNavigateSubroute(null) : null}
-            >
-              <ArrowLeft size={16} /> Back to Pay
-            </button>
-            <h2 className="pay-subview-title">My Personal QR</h2>
-            <button
-              type="button"
-              className={`btn btn-secondary btn-sm ${brightnessBoost ? 'active' : ''}`}
-              onClick={() => setBrightnessBoost((prev) => !prev)}
-              title="Boost screen contrast and brightness for scanning"
-            >
-              <Sun size={15} />
-              <span>{brightnessBoost ? 'High Contrast ON' : 'Brightness Boost'}</span>
-            </button>
-          </div>
+          <PayPageHeader
+            title="My Personal QR"
+            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+            showBrightnessToggle
+            brightnessBoost={brightnessBoost}
+            onToggleBrightness={() => setBrightnessBoost((prev) => !prev)}
+          />
 
           <div className="pay-myqr-container">
             <div className="pay-myqr-card">
@@ -1320,9 +1302,9 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                 <UserAvatar
                   avatar={publicProfile?.avatarId || user?.avatar || 'cat'}
                   name={publicProfile?.displayName || user?.username}
-                  size={52}
+                  size={48}
                 />
-                <div>
+                <div className="pay-myqr-identity">
                   <h3 className="pay-myqr-name">{publicProfile?.displayName || user?.username}</h3>
                   <div className="pay-myqr-handle">@{publicProfile?.handle || user?.handle}</div>
                   <div className="pay-myqr-campus">{publicProfile?.university || user?.university || 'Campus Student'}</div>
@@ -1334,6 +1316,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                 <svg
                   viewBox={`0 0 ${myQrMatrix.length} ${myQrMatrix.length}`}
                   className="pay-qr-svg-matrix"
+                  preserveAspectRatio="xMidYMid meet"
                 >
                   {myQrMatrix.map((row, r) =>
                     row.map((cell, c) =>
@@ -1359,7 +1342,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
               )}
 
               <p className="pay-myqr-safe-notice">
-                <Lock size={12} /> Encodes only your student ID &amp; username. No sensitive balances are shared.
+                <Lock size={12} style={{ flexShrink: 0 }} />
+                <span>Encodes only your student ID &amp; username. No sensitive balances are shared.</span>
               </p>
             </div>
 
@@ -1404,17 +1388,10 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {activeSubroute === 'transfer' && (
         <div className="pay-subview card">
-          <div className="pay-subview-header">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigateSubroute ? onNavigateSubroute(null) : null}
-            >
-              <ArrowLeft size={16} /> Back to Pay
-            </button>
-            <h2 className="pay-subview-title">Transfer Money</h2>
-            <div style={{ width: '80px' }} />
-          </div>
+          <PayPageHeader
+            title="Transfer Money"
+            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+          />
 
           <div className="pay-transfer-container">
             {!selectedRecipient ? (
@@ -1630,17 +1607,10 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {activeSubroute === 'request' && (
         <div className="pay-subview card">
-          <div className="pay-subview-header">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigateSubroute ? onNavigateSubroute(null) : null}
-            >
-              <ArrowLeft size={16} /> Back to Pay
-            </button>
-            <h2 className="pay-subview-title">Request &amp; Split Bill</h2>
-            <div style={{ width: '80px' }} />
-          </div>
+          <PayPageHeader
+            title="Request & Split Bill"
+            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+          />
 
           <div className="pay-request-container">
             {/* Mode Segmented Control */}
@@ -1780,8 +1750,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                 {isSendingRequest
                   ? 'Sending...'
                   : requestMode === 'split'
-                  ? 'Send 50/50 Split Request'
-                  : 'Send Payment Request'}
+                    ? 'Send 50/50 Split Request'
+                    : 'Send Payment Request'}
               </button>
             </form>
           </div>
@@ -1793,17 +1763,10 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {activeSubroute === 'history' && (
         <div className="pay-subview card">
-          <div className="pay-subview-header">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigateSubroute ? onNavigateSubroute(null) : null}
-            >
-              <ArrowLeft size={16} /> Back to Pay
-            </button>
-            <h2 className="pay-subview-title">Transaction History</h2>
-            <div style={{ width: '80px' }} />
-          </div>
+          <PayPageHeader
+            title="Transaction History"
+            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+          />
 
           <div className="pay-history-container">
             {/* Search & Filter Bar */}
@@ -1862,8 +1825,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                           {isTopup
                             ? item.senderName || 'Added Demo Money'
                             : isSent
-                            ? `To: ${item.receiverName || item.receiverHandle}`
-                            : `From: ${item.senderName || item.senderHandle}`}
+                              ? `To: ${item.receiverName || item.receiverHandle}`
+                              : `From: ${item.senderName || item.senderHandle}`}
                         </div>
                         <div className="pay-history-meta">
                           {new Date(item.createdAt).toLocaleDateString('en-MY', {
@@ -2233,8 +2196,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                           {isTopup
                             ? item.senderName || 'Added Demo Money'
                             : isSent
-                            ? `To: ${item.receiverName || item.receiverHandle}`
-                            : `From: ${item.senderName || item.senderHandle}`}
+                              ? `To: ${item.receiverName || item.receiverHandle}`
+                              : `From: ${item.senderName || item.senderHandle}`}
                         </div>
                         <div className="pay-history-meta">
                           {new Date(item.createdAt).toLocaleDateString('en-MY', {
@@ -2557,37 +2520,107 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           padding: 1.5rem;
           border-radius: var(--radius-lg);
           animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .pay-subview-header {
           display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.7rem;
+          margin-bottom: 1.35rem;
+          padding-bottom: 0.85rem;
+          border-bottom: 1px solid var(--border-light);
+          width: 100%;
+          min-width: 0;
+        }
+
+        .pay-header-top-row {
+          display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 1.5rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid var(--border-light);
+          gap: 0.5rem;
+          width: 100%;
+          min-width: 0;
+        }
+
+        .pay-back-btn,
+        .pay-brightness-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.38rem;
+          height: 36px;
+          padding: 0 0.82rem;
+          border-radius: 999px;
+          background: var(--bg-card-subtle);
+          border: 1px solid var(--border-light);
+          color: var(--text-main);
+          font-family: var(--font-sans);
+          font-size: 0.8rem;
+          font-weight: 700;
+          line-height: 1;
+          white-space: nowrap;
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.15s ease;
+        }
+
+        .pay-back-btn:hover,
+        .pay-brightness-btn:hover {
+          background: color-mix(in srgb, var(--primary) 12%, var(--bg-card-subtle));
+          border-color: var(--primary);
+        }
+
+        .pay-brightness-btn.active {
+          background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+          border-color: rgba(245, 158, 11, 0.7);
+          color: #FFFFFF;
+          box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .pay-back-icon,
+        .pay-brightness-icon {
+          flex-shrink: 0;
+        }
+
+        .pay-header-title-row {
+          width: 100%;
+          min-width: 0;
+          text-align: left;
         }
 
         .pay-subview-title {
-          font-size: 1.35rem;
+          font-family: 'Plus Jakarta Sans', var(--font-sans);
+          font-size: clamp(1.18rem, 3.8vw, 1.4rem);
           font-weight: 800;
+          line-height: 1.25;
           margin: 0;
           color: var(--text-main);
+          text-align: left;
+          overflow-wrap: anywhere;
         }
 
         /* Scanner */
         .pay-scanner-container {
+          width: 100%;
           max-width: 480px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1.25rem;
+          gap: 1.15rem;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .pay-camera-viewfinder {
           width: 100%;
-          height: 300px;
+          height: min(300px, 72vw);
+          min-height: 220px;
           background: #000;
           border-radius: var(--radius-lg);
           overflow: hidden;
@@ -2605,8 +2638,9 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
 
         .pay-scan-frame-guide {
           position: absolute;
-          width: 200px;
-          height: 200px;
+          width: min(200px, 65%);
+          aspect-ratio: 1 / 1;
+          height: auto;
           border: 1.5px dashed rgba(255, 255, 255, 0.4);
           border-radius: 12px;
           pointer-events: none;
@@ -2685,6 +2719,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           gap: 0.75rem;
           flex-wrap: wrap;
           justify-content: center;
+          width: 100%;
         }
 
         .pay-paste-code-card {
@@ -2693,6 +2728,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           background: var(--bg-card-subtle);
           border-radius: var(--radius-md);
           border: 1px solid var(--border-light);
+          box-sizing: border-box;
         }
 
         .pay-pitch-shortcuts-panel {
@@ -2704,72 +2740,100 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           display: flex;
           align-items: center;
           justify-content: space-between;
+          flex-wrap: wrap;
           font-size: 0.78rem;
           gap: 0.5rem;
+          box-sizing: border-box;
         }
 
         /* My QR */
         .pay-myqr-container {
+          width: 100%;
           max-width: 440px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: 1.25rem;
+          gap: 1.15rem;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .pay-myqr-card {
-          padding: 1.75rem 1.25rem;
+          width: 100%;
+          max-width: 100%;
+          padding: 1.35rem 1.15rem;
           background: #FFFFFF;
           color: #0F172A;
           border-radius: var(--radius-lg);
           box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
           text-align: center;
+          box-sizing: border-box;
+          overflow: hidden;
         }
 
         .pay-myqr-card-header {
           display: flex;
           align-items: center;
-          gap: 0.85rem;
+          gap: 0.8rem;
           text-align: left;
-          margin-bottom: 1.25rem;
+          margin-bottom: 1.15rem;
           padding-bottom: 0.75rem;
           border-bottom: 1px solid #E2E8F0;
+          min-width: 0;
+          width: 100%;
+        }
+
+        .pay-myqr-identity {
+          flex: 1;
+          min-width: 0;
         }
 
         .pay-myqr-name {
           margin: 0;
-          font-size: 1.15rem;
+          font-size: 1.08rem;
           font-weight: 800;
           color: #0F172A;
+          line-height: 1.25;
+          overflow-wrap: anywhere;
         }
 
         .pay-myqr-handle {
           font-size: 0.82rem;
           color: #64748B;
           font-weight: 600;
+          margin-top: 1px;
+          overflow-wrap: anywhere;
         }
 
         .pay-myqr-campus {
-          font-size: 0.72rem;
-          color: #94A3B8;
+          font-size: 0.74rem;
+          color: #64748B;
+          margin-top: 2px;
+          line-height: 1.3;
+          overflow-wrap: anywhere;
         }
 
         .pay-qr-display-frame {
-          width: 220px;
-          height: 220px;
+          width: min(220px, 100%);
+          max-width: 220px;
+          aspect-ratio: 1 / 1;
+          height: auto;
           margin: 0 auto;
-          padding: 10px;
+          padding: 14px;
           background: #FFFFFF;
-          border: 1px solid #CBD5E1;
-          border-radius: 12px;
+          border: 1.5px solid #CBD5E1;
+          border-radius: 14px;
           display: flex;
           align-items: center;
           justify-content: center;
+          box-sizing: border-box;
+          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
         }
 
         .pay-qr-svg-matrix {
           width: 100%;
           height: 100%;
+          display: block;
         }
 
         .pay-myqr-baked-amount {
@@ -2783,30 +2847,39 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           align-items: center;
           justify-content: center;
           gap: 0.4rem;
-          margin-top: 1rem;
-          font-size: 0.72rem;
-          color: #64748B;
+          margin: 0.95rem 0 0;
+          font-size: 0.73rem;
+          line-height: 1.4;
+          color: #475569;
+          text-align: center;
+          flex-wrap: wrap;
         }
 
         .pay-myqr-controls-card {
-          padding: 1.25rem;
+          width: 100%;
+          padding: 1.15rem;
           background: var(--bg-card-subtle);
           border-radius: var(--radius-md);
           border: 1px solid var(--border-light);
+          box-sizing: border-box;
         }
 
         .pay-myqr-actions-row {
           display: grid;
-          grid-template-columns: 1fr 1fr 1.2fr;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 0.5rem;
+          width: 100%;
         }
 
         /* Transfer & Request */
         .pay-transfer-container,
         .pay-request-container,
         .pay-history-container {
+          width: 100%;
           max-width: 580px;
           margin: 0 auto;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .pay-chosen-recipient-card {
@@ -2818,32 +2891,39 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           border-radius: var(--radius-md);
           border: 1px solid var(--border-light);
           margin-bottom: 1.25rem;
+          flex-wrap: wrap;
+          min-width: 0;
         }
 
         .pay-segmented-mode-bar {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.5rem;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.4rem;
           margin-bottom: 1.25rem;
           background: var(--bg-card-subtle);
-          padding: 0.35rem;
+          padding: 0.32rem;
           border-radius: var(--radius-md);
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .pay-mode-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.45rem;
-          padding: 0.6rem;
+          gap: 0.4rem;
+          padding: 0.58rem 0.5rem;
           border: none;
           background: transparent;
           color: var(--text-muted);
           font-weight: 600;
-          font-size: 0.82rem;
+          font-size: 0.8rem;
           border-radius: var(--radius-sm);
           cursor: pointer;
           transition: all 0.15s ease;
+          min-width: 0;
+          text-align: center;
+          line-height: 1.25;
         }
 
         .pay-mode-btn.active {
@@ -3104,9 +3184,33 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           filter: contrast(1.15) brightness(1.08);
         }
 
+        @media (max-width: 900px) {
+          .pay-view-container {
+            padding-bottom: calc(var(--mobile-nav-clearance, 88px) + 3.5rem + env(safe-area-inset-bottom, 0px));
+          }
+        }
+
         @media (max-width: 480px) {
+          .pay-subview {
+            padding: 1rem 0.9rem 1.25rem;
+          }
+          .pay-subview-header {
+            gap: 0.6rem;
+            margin-bottom: 1.1rem;
+            padding-bottom: 0.7rem;
+          }
+          .pay-back-btn,
+          .pay-brightness-btn {
+            height: 34px;
+            padding: 0 0.7rem;
+            font-size: 0.76rem;
+          }
           .pay-balance-hero-card {
             padding: 1.15rem;
+          }
+          .pay-hero-top-row {
+            flex-wrap: wrap;
+            gap: 0.5rem;
           }
           .pay-hero-balance-amount {
             font-size: 1.75rem;
@@ -3134,8 +3238,33 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
           .pay-tile-info p {
             font-size: 0.68rem;
           }
+          .pay-myqr-card {
+            padding: 1.1rem 0.95rem;
+          }
+          .pay-qr-display-frame {
+            width: min(196px, 100%);
+            max-width: 196px;
+            padding: 12px;
+          }
+          .pay-myqr-controls-card {
+            padding: 0.95rem;
+          }
           .pay-myqr-actions-row {
             grid-template-columns: 1fr;
+          }
+          .pay-segmented-mode-bar {
+            grid-template-columns: 1fr;
+          }
+          .pay-pending-req-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.65rem;
+          }
+          .pay-pending-req-row > div:last-child {
+            width: 100%;
+          }
+          .pay-pending-req-row > div:last-child .btn {
+            flex: 1;
           }
         }
       `}</style>
