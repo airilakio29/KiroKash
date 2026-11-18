@@ -26,6 +26,7 @@ import {
     removeFriend as serviceRemoveFriend,
     subscribeToUserFriendRequests,
     subscribeToUserFriendships,
+    subscribeToPublicProfiles,
     getFollowingIds,
     getFollowerIds,
     getFollowersProfiles,
@@ -161,6 +162,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
 
     const [pitchModeLoaded, setPitchModeLoaded] = useState(() => isPitchModeLoaded());
     const [pitchSpotsVersion, setPitchSpotsVersion] = useState(0);
+    const [socialGraphVersion, setSocialGraphVersion] = useState(0);
 
     // Global modal states: Public Profile, Receipt Modal, and the full-screen Scan / Pay Sheet
     const [selectedPublicProfileId, setSelectedPublicProfileId] = useState(null);
@@ -277,6 +279,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         setDemoP2PSplitBills(getUserDemoSplitBills(uid));
 
         setPitchModeLoaded(isPitchModeLoaded());
+        setSocialGraphVersion((v) => v + 1);
     }, [user]);
 
     useEffect(() => {
@@ -329,7 +332,21 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
     useEffect(() => {
         if (!userId || user?.isPitchDemo) return;
 
-        syncPublicProfilesFromFirestore().catch(() => {});
+        syncPublicProfilesFromFirestore()
+            .then(() => {
+                setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+                setSocialGraphVersion((v) => v + 1);
+            })
+            .catch(() => {});
+
+        const unsubProfiles = subscribeToPublicProfiles(() => {
+            setPublicProfile(getPublicProfile(userId));
+            setFriendsList(getFriendsList(userId));
+            setIncomingFriendRequests(getIncomingFriendRequests(userId));
+            setOutgoingFriendRequests(getOutgoingFriendRequests(userId));
+            setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+            setSocialGraphVersion((v) => v + 1);
+        });
 
         const unsubWallet = subscribeToUserWallet(userId, (liveWallet) => {
             if (liveWallet) {
@@ -357,6 +374,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
             if (Array.isArray(incoming)) setIncomingFriendRequests(incoming);
             if (Array.isArray(outgoing)) setOutgoingFriendRequests(outgoing);
             setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+            setSocialGraphVersion((v) => v + 1);
         });
 
         const unsubFriendships = subscribeToUserFriendships(userId, (liveFriends) => {
@@ -364,10 +382,12 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
                 setFriendsList(liveFriends);
                 setPublicProfile(getPublicProfile(userId));
                 setFriendSuggestions(getFriendSuggestions(userId, { limit: 12 }));
+                setSocialGraphVersion((v) => v + 1);
             }
         });
 
         return () => {
+            if (unsubProfiles) unsubProfiles();
             if (unsubWallet) unsubWallet();
             if (unsubNotifs) unsubNotifs();
             if (unsubRequests) unsubRequests();
@@ -916,6 +936,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         demoP2PSplitBills,
         pitchModeLoaded,
         pitchSpotsVersion,
+        socialGraphVersion,
         pitchDemoUsers: PITCH_DEMO_USERS,
         // Modal & Sheet triggers
         selectedPublicProfileId,
@@ -1005,6 +1026,7 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         demoP2PSplitBills,
         pitchModeLoaded,
         pitchSpotsVersion,
+        socialGraphVersion,
         selectedPublicProfileId,
         activeReceiptModal,
         prefilledWalletAction,
