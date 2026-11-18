@@ -15,6 +15,7 @@ import { KAMPUSKASH_ACCOUNT_ID, KAMPUSKASH_ACCOUNT_TYPE } from '../services/acco
 import UserAvatar from '../components/UserAvatar';
 import DemoP2PWalletPanel from '../components/wallet/DemoP2PWalletPanel';
 import PayPageHeader from '../components/wallet/PayPageHeader';
+import ScannedUserProfileCard from '../components/social/ScannedUserProfileCard';
 import {
   QrCode,
   Send,
@@ -124,6 +125,11 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
     performAddMoneyFromAccount,
     performTopUp,
     searchPublicProfiles,
+    ensureUserQrCode,
+    encodePersonalQrCode,
+    resolveScannedUserByQr,
+    resolveScannedUserByQrSync,
+    setSelectedPublicProfileId,
     encodeWalletQrPayload,
     parseWalletQrPayload,
     openWalletReceiptById,
@@ -267,6 +273,8 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
   const [torchOn, setTorchOn] = useState(false);
   const [scanError, setScanError] = useState('');
   const [pasteCodeInput, setPasteCodeInput] = useState('');
+  const [scannedUserResolution, setScannedUserResolution] = useState(null);
+  const [isResolvingQr, setIsResolvingQr] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const scanIntervalRef = useRef(null);
@@ -286,31 +294,74 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
   }, []);
 
   const handleDecodedQrCode = useCallback(
-    (rawCode) => {
-      if (!parseWalletQrPayload) return;
-      const parsed = parseWalletQrPayload(rawCode);
-      if (!parsed.valid) {
-        setScanError(parsed.error || 'Invalid KampusKash QR code.');
+    async (rawCode) => {
+      const trimmed = String(rawCode || '').trim();
+      if (!trimmed) {
+        setScanError('Please scan or enter a KampusKash QR code.');
         return;
       }
-      if (parsed.recipient?.id === user?.id) {
-        setScanError('You cannot scan your own QR code to pay yourself.');
+
+      // 1. Check if this is a Demo Payment QR (KKPAY:...)
+      if (trimmed.startsWith('KKPAY:')) {
+        if (!parseWalletQrPayload) return;
+        const parsed = parseWalletQrPayload(trimmed);
+        if (!parsed.valid) {
+          setScanError(parsed.error || 'Invalid KampusKash payment QR code.');
+          return;
+        }
+        if (parsed.recipient?.id === user?.id) {
+          setScanError('You cannot scan your own payment QR code to pay yourself.');
+          return;
+        }
+        stopCamera();
+        setScanError('');
+        setScannedUserResolution(null);
+        setSelectedRecipient(parsed.recipient);
+        if (parsed.amount && parsed.amount > 0) {
+          setTransferAmount(String(parsed.amount));
+        }
+        if (parsed.note) {
+          setTransferNote(parsed.note);
+        }
+        setFlowStep('review');
         return;
       }
+
+      // 2. Resolve as a KampusKash Personal Identity QR code (deep link or kkid_...)
       stopCamera();
       setScanError('');
-      setSelectedRecipient(parsed.recipient);
-      if (parsed.amount && parsed.amount > 0) {
-        setTransferAmount(String(parsed.amount));
+      setIsResolvingQr(true);
+      try {
+        const resolution = resolveScannedUserByQr
+          ? await resolveScannedUserByQr(trimmed)
+          : resolveScannedUserByQrSync
+          ? resolveScannedUserByQrSync(trimmed)
+          : null;
+        if (resolution) {
+          setScannedUserResolution(resolution);
+        } else {
+          setScanError('Invalid or unrecognised QR code.');
+        }
+      } catch (err) {
+        setScanError(err?.message || 'Unable to resolve scanned QR code.');
+      } finally {
+        setIsResolvingQr(false);
       }
-      if (parsed.note) {
-        setTransferNote(parsed.note);
-      }
-      // Open review directly
-      setFlowStep('review');
     },
-    [parseWalletQrPayload, user?.id, stopCamera]
+    [parseWalletQrPayload, resolveScannedUserByQr, resolveScannedUserByQrSync, user?.id, stopCamera]
   );
+
+  // Automatically resolve deep link `/scan-user?id=kkid_...` if present in URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const qrIdParam = params.get('id') || params.get('qr');
+      if (qrIdParam && activeSubroute === 'scan' && !scannedUserResolution) {
+        handleDecodedQrCode(qrIdParam);
+      }
+    } catch { }
+  }, [activeSubroute, scannedUserResolution, handleDecodedQrCode]);
 
   const startCamera = useCallback(async () => {
     setScanError('');
@@ -366,7 +417,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
   }, [handleDecodedQrCode]);
 
   useEffect(() => {
-    if (activeSubroute === 'scan' && flowStep === 'none') {
+    if (activeSubroute === 'scan' && flowStep === 'none' && !scannedUserResolution) {
       startCamera();
     } else {
       stopCamera();
@@ -374,7 +425,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
     return () => {
       stopCamera();
     };
-  }, [activeSubroute, flowStep, startCamera, stopCamera]);
+  }, [activeSubroute, flowStep, scannedUserResolution, startCamera, stopCamera]);
 
   const toggleTorch = async () => {
     if (!streamRef.current) return;
@@ -416,10 +467,13 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
         } catch { }
       }
       // Fallback: check if text file with code
-      if (typeof dataUrl === 'string' && dataUrl.includes('KKPAY:')) {
+      if (
+        typeof dataUrl === 'string' &&
+        (dataUrl.includes('KKPAY:') || dataUrl.includes('kkid_') || dataUrl.includes('scan-user'))
+      ) {
         handleDecodedQrCode(dataUrl);
       } else {
-        setScanError('Could not detect a valid KampusKash QR code in this image. Try pasting the pay code below.');
+        setScanError('Could not detect a valid KampusKash QR code in this image. Try pasting the QR link or ID below.');
       }
     };
     reader.readAsDataURL(file);
@@ -432,13 +486,30 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
   const [brightnessBoost, setBrightnessBoost] = useState(false);
   const [myQrCopied, setMyQrCopied] = useState(false);
 
+  const myPersonalQrId = useMemo(() => {
+    if (publicProfile?.qrCodeId) return publicProfile.qrCodeId;
+    if (user && ensureUserQrCode) return ensureUserQrCode(user);
+    return '';
+  }, [publicProfile?.qrCodeId, user, ensureUserQrCode]);
+
+  const myPersonalQrUrl = useMemo(() => {
+    if (encodePersonalQrCode && (publicProfile || user)) {
+      return encodePersonalQrCode(publicProfile || user);
+    }
+    if (myPersonalQrId) {
+      return `https://kampuskash.vercel.app/scan-user?id=${myPersonalQrId}`;
+    }
+    return 'https://kampuskash.vercel.app/scan-user?id=kkid_demo_student';
+  }, [encodePersonalQrCode, publicProfile, user, myPersonalQrId]);
+
   const myQrPayload = useMemo(() => {
-    if (!user) return 'KKPAY:demo:student';
+    if (!user) return myPersonalQrUrl;
     const num = Number(myQrAmount);
-    return encodeWalletQrPayload
-      ? encodeWalletQrPayload(user, Number.isFinite(num) && num > 0 ? num : null)
-      : `KKPAY:${user.id}:${user.username || 'student'}`;
-  }, [user, myQrAmount, encodeWalletQrPayload]);
+    if (Number.isFinite(num) && num > 0 && encodeWalletQrPayload) {
+      return encodeWalletQrPayload(user, num);
+    }
+    return myPersonalQrUrl;
+  }, [user, myQrAmount, encodeWalletQrPayload, myPersonalQrUrl]);
 
   const myQrMatrix = useMemo(() => buildQrMatrix(myQrPayload), [myQrPayload]);
 
@@ -446,7 +517,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
     try {
       navigator.clipboard.writeText(myQrPayload);
       setMyQrCopied(true);
-      showSuccess('Personal pay code copied to clipboard!');
+      showSuccess('Personal QR link copied to clipboard!');
       setTimeout(() => setMyQrCopied(false), 2000);
     } catch {
       showError('Unable to copy to clipboard.');
@@ -457,9 +528,9 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Pay @${user?.handle || 'student'} on KampusKash`,
-          text: `Scan or paste code to send demo credit: ${myQrPayload}`,
-          url: `${window.location.origin}/pay/transfer?to=${encodeURIComponent(user?.handle || '')}${myQrAmount ? `&amount=${myQrAmount}` : ''}`
+          title: `Connect with @${publicProfile?.handle || user?.handle || 'student'} on KampusKash`,
+          text: `Scan my KampusKash Personal QR to view my profile and connect: ${myQrPayload}`,
+          url: myPersonalQrUrl
         });
       } catch { }
     } else {
@@ -1183,101 +1254,161 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
         <div className="pay-subview card">
           <PayPageHeader
             title="Scan QR Code"
-            onBack={() => (onNavigateSubroute ? onNavigateSubroute(null) : null)}
+            onBack={() => {
+              setScannedUserResolution(null);
+              if (onNavigateSubroute) onNavigateSubroute(null);
+            }}
           />
 
+          <p
+            style={{
+              margin: '0 0 1rem',
+              fontSize: '0.84rem',
+              color: 'var(--text-muted)',
+              lineHeight: 1.5
+            }}
+          >
+            Scan a KampusKash Personal QR code to view a student&apos;s profile and send a friend request, or scan a Demo Payment QR.
+          </p>
+
           <div className="pay-scanner-container">
-            <div className="pay-camera-viewfinder">
-              <video ref={videoRef} className="pay-camera-video" />
-              <div className="pay-scan-frame-guide">
-                <div className="pay-scan-corner top-left" />
-                <div className="pay-scan-corner top-right" />
-                <div className="pay-scan-corner bottom-left" />
-                <div className="pay-scan-corner bottom-right" />
-                <div className="pay-scan-laser-line" />
-              </div>
-
-              {cameraStatus === 'active' && (
-                <button
-                  type="button"
-                  className={`pay-torch-toggle-btn ${torchOn ? 'active' : ''}`}
-                  onClick={toggleTorch}
-                  title="Toggle flashlight"
-                >
-                  <Flashlight size={18} />
-                </button>
-              )}
-            </div>
-
-            {cameraStatus === 'starting' && (
-              <p className="pay-scanner-notice">Opening camera...</p>
+            {isResolvingQr && (
+              <p className="pay-scanner-notice">Looking up KampusKash user profile...</p>
             )}
 
-            {cameraError && (
-              <div className="pay-camera-fallback-card">
-                <Camera size={24} color="var(--primary)" />
-                <p>{cameraError}</p>
-              </div>
-            )}
-
-            {scanError && (
-              <div className="pay-error-banner">{scanError}</div>
-            )}
-
-            {/* Fallbacks: Upload QR Image or Paste Code */}
-            <div className="pay-scanner-fallbacks-row">
-              <input
-                type="file"
-                ref={qrFileInputRef}
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={handleUploadQrImage}
+            {scannedUserResolution ? (
+              <ScannedUserProfileCard
+                resolution={scannedUserResolution}
+                onScanAnother={() => {
+                  setScannedUserResolution(null);
+                  setPasteCodeInput('');
+                  setScanError('');
+                }}
+                onViewFullProfile={(targetUserId) => {
+                  if (setSelectedPublicProfileId) {
+                    setSelectedPublicProfileId(targetUserId);
+                  }
+                }}
+                onMessageFriend={(targetUserId) => {
+                  if (openChatWithFriend) {
+                    openChatWithFriend(targetUserId);
+                  }
+                  if (onNavigateTab) {
+                    onNavigateTab('messages');
+                  }
+                }}
               />
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => qrFileInputRef.current?.click()}
-              >
-                <Upload size={14} /> Upload QR Image
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="pay-camera-viewfinder">
+                  <video ref={videoRef} className="pay-camera-video" />
+                  <div className="pay-scan-frame-guide">
+                    <div className="pay-scan-corner top-left" />
+                    <div className="pay-scan-corner top-right" />
+                    <div className="pay-scan-corner bottom-left" />
+                    <div className="pay-scan-corner bottom-right" />
+                    <div className="pay-scan-laser-line" />
+                  </div>
 
-            <div className="pay-paste-code-card">
-              <label className="form-label" style={{ fontSize: '0.78rem' }}>Or Paste KampusKash Pay Code:</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  placeholder="e.g. KKPAY:user_id:sarah_um"
-                  className="form-control"
-                  value={pasteCodeInput}
-                  onChange={(e) => setPasteCodeInput(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => handleDecodedQrCode(pasteCodeInput)}
-                >
-                  Pay
-                </button>
-              </div>
-            </div>
+                  {cameraStatus === 'active' && (
+                    <button
+                      type="button"
+                      className={`pay-torch-toggle-btn ${torchOn ? 'active' : ''}`}
+                      onClick={toggleTorch}
+                      title="Toggle flashlight"
+                    >
+                      <Flashlight size={18} />
+                    </button>
+                  )}
+                </div>
 
-            {/* Pitch Mode Instant Scan Shortcut for Live Demo Video */}
-            {pitchModeLoaded && (
-              <div className="pay-pitch-shortcuts-panel">
-                <span>⚡ Pitch Mode Quick Scans:</span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    const target = user?.id === 'demo_user_aiman' ? 'demo_user_sarah' : 'demo_user_aiman';
-                    const targetHandle = user?.id === 'demo_user_aiman' ? 'sarah_um' : 'aiman_utp';
-                    handleDecodedQrCode(`KKPAY:${target}:${targetHandle}:15.00:Lunch%20Share`);
-                  }}
-                >
-                  Scan @{user?.id === 'demo_user_aiman' ? 'sarah_um' : 'aiman_utp'} QR (RM15.00)
-                </button>
-              </div>
+                {cameraStatus === 'starting' && (
+                  <p className="pay-scanner-notice">Opening camera...</p>
+                )}
+
+                {cameraError && (
+                  <div className="pay-camera-fallback-card">
+                    <Camera size={24} color="var(--primary)" />
+                    <p>{cameraError}</p>
+                  </div>
+                )}
+
+                {scanError && (
+                  <div className="pay-error-banner">{scanError}</div>
+                )}
+
+                {/* Fallbacks: Upload QR Image or Paste Code */}
+                <div className="pay-scanner-fallbacks-row">
+                  <input
+                    type="file"
+                    ref={qrFileInputRef}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleUploadQrImage}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => qrFileInputRef.current?.click()}
+                  >
+                    <Upload size={14} /> Upload QR Image
+                  </button>
+                </div>
+
+                <div className="pay-paste-code-card">
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Or Paste KampusKash Personal QR Link / ID (or Pay Code):
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. https://kampuskash.vercel.app/scan-user?id=kkid_..."
+                      className="form-control"
+                      style={{ flex: '1 1 200px', minWidth: 0 }}
+                      value={pasteCodeInput}
+                      onChange={(e) => setPasteCodeInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => handleDecodedQrCode(pasteCodeInput)}
+                    >
+                      Scan QR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Campus Student Personal QR Demo Scans */}
+                <div className="pay-pitch-shortcuts-panel" style={{ flexWrap: 'wrap' }}>
+                  <span>🔍 Demo Personal QR Scans:</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      const targetId = user?.id === 'demo_user_aiman' ? 'demo_user_sarah' : 'demo_user_aiman';
+                      const url = encodePersonalQrCode
+                        ? encodePersonalQrCode(targetId)
+                        : `https://kampuskash.vercel.app/scan-user?id=kkid_${targetId}`;
+                      handleDecodedQrCode(url);
+                    }}
+                  >
+                    Scan @{user?.id === 'demo_user_aiman' ? 'sarah_um' : 'aiman_utp'} Personal QR
+                  </button>
+                  {pitchModeLoaded && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        const target = user?.id === 'demo_user_aiman' ? 'demo_user_sarah' : 'demo_user_aiman';
+                        const targetHandle = user?.id === 'demo_user_aiman' ? 'sarah_um' : 'aiman_utp';
+                        handleDecodedQrCode(`KKPAY:${target}:${targetHandle}:15.00:Lunch%20Share`);
+                      }}
+                    >
+                      Scan @{user?.id === 'demo_user_aiman' ? 'sarah_um' : 'aiman_utp'} Pay QR (RM15.00)
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1295,6 +1426,19 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
             brightnessBoost={brightnessBoost}
             onToggleBrightness={() => setBrightnessBoost((prev) => !prev)}
           />
+
+          <p
+            className="pay-myqr-supporting-text"
+            style={{
+              margin: '0 0 1rem',
+              fontSize: '0.86rem',
+              color: 'var(--text-muted)',
+              lineHeight: 1.5,
+              textAlign: 'center'
+            }}
+          >
+            Let other KampusKash users scan your QR to find your profile and connect with you.
+          </p>
 
           <div className="pay-myqr-container">
             <div className="pay-myqr-card">
@@ -1335,6 +1479,35 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                 </svg>
               </div>
 
+              <p
+                className="pay-myqr-identity-caption"
+                style={{
+                  margin: '0.65rem 0 0.35rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  color: '#E9D5FF',
+                  textAlign: 'center',
+                  lineHeight: 1.45
+                }}
+              >
+                Your unique KampusKash identity. Share it with friends to connect.
+              </p>
+
+              {myPersonalQrId && (
+                <div
+                  style={{
+                    fontSize: '0.72rem',
+                    color: '#A78BFA',
+                    fontFamily: 'monospace',
+                    textAlign: 'center',
+                    marginBottom: '0.35rem',
+                    overflowWrap: 'anywhere'
+                  }}
+                >
+                  ID: {myPersonalQrId}
+                </div>
+              )}
+
               {myQrAmount && Number(myQrAmount) > 0 && (
                 <div className="pay-myqr-baked-amount">
                   Requesting <strong>RM {Number(myQrAmount).toFixed(2)}</strong>
@@ -1343,7 +1516,7 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
 
               <p className="pay-myqr-safe-notice">
                 <Lock size={12} style={{ flexShrink: 0 }} />
-                <span>Encodes only your student ID &amp; username. No sensitive balances are shared.</span>
+                <span>Encodes only your opaque KampusKash QR ID. No sensitive balances or emails are shared.</span>
               </p>
             </div>
 
