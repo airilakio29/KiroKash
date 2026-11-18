@@ -50,7 +50,13 @@ import {
     markAllNotificationsRead,
     seedPitchSocialData,
     resetPitchSocialData,
-    isPitchModeLoaded
+    isPitchModeLoaded,
+    ensureUserQrCode,
+    encodePersonalQrCode,
+    extractQrIdentifierFromPayload,
+    resolveScannedUserByQrSync,
+    resolveScannedUserByQr,
+    isValidPersonalQrCodeId
 } from '../services/socialService';
 import {
     ensureUserWallet,
@@ -996,6 +1002,12 @@ export function SocialWalletProvider({ children, onNavigateTab }) {
         getFriendsList,
         getFriendSuggestions,
         searchPublicProfiles,
+        ensureUserQrCode,
+        encodePersonalQrCode,
+        extractQrIdentifierFromPayload,
+        resolveScannedUserByQrSync: (rawInput) => resolveScannedUserByQrSync(rawInput, userId),
+        resolveScannedUserByQr: (rawInput) => resolveScannedUserByQr(rawInput, userId),
+        isValidPersonalQrCodeId,
         encodeWalletQrPayload,
         parseWalletQrPayload
     }), [
