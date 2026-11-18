@@ -55,6 +55,14 @@ function getInitialRouteInfo() {
   try {
     const pathname = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    if (
+      pathname.includes('/scan-user') ||
+      hash.includes('scan-user') ||
+      /[?&]id=kkid_[a-z0-9]{12,32}/.test(search)
+    ) {
+      return { tab: 'pay', subroute: 'scan' };
+    }
     if (pathname.includes('/ai-chat') || hash === '#ai-chat' || pathname.includes('/chat')) {
       return { tab: 'ai-chat', subroute: null };
     }
