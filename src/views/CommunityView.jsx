@@ -515,16 +515,13 @@ export default function CommunityView({ onNavigateToExplore, initialSearchQuery 
         </div>
       )}
 
-      {/* Compact Top Header (Exact 6c4f2e9 structure with new name "Spot Jimat") */}
+      {/* Compact Single-Row Top Header */}
       <div className="community-header-compact">
         <div className="header-compact-left">
           <div className="community-title-row">
             <h1 className="community-page-title">{SPOT_FEED_NAME}</h1>
             <span className="community-count-pill">{filteredThreads.length} spot</span>
           </div>
-          <p className="community-subtitle-compact">
-            Port makan sedap, thrift, aktiviti, ruang belajar &amp; promosi pelajar seluruh kampus
-          </p>
         </div>
 
         <div className="header-compact-actions">
@@ -535,8 +532,8 @@ export default function CommunityView({ onNavigateToExplore, initialSearchQuery 
               onClick={onNavigateToExplore}
               title="Lihat Peta Kafe di Sekitar"
             >
-              <Compass size={15} />
-              <span>Peta Explore</span>
+              <Compass size={14} />
+              <span>Peta</span>
             </button>
           )}
 
@@ -548,8 +545,8 @@ export default function CommunityView({ onNavigateToExplore, initialSearchQuery 
               setIsCreateModalOpen(true);
             }}
           >
-            <Plus size={15} />
-            <span>Kongsi Tempat</span>
+            <Plus size={14} />
+            <span>Kongsi</span>
           </button>
         </div>
       </div>
