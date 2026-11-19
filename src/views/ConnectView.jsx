@@ -27,7 +27,8 @@ import {
   ArrowUpDown,
   Inbox,
   SendHorizontal,
-  Compass
+  Compass,
+  Eye
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
@@ -419,10 +420,15 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
     if (rel.status === 'friends') {
       return (
         <div className="kk-student-actions">
-          <span className="kk-btn kk-btn-friends" aria-label="Friends status">
+          <button
+            type="button"
+            className="kk-btn kk-btn-friends"
+            onClick={() => setSelectedPublicProfileId(person.id)}
+            aria-label="Friends status - view profile"
+          >
             <UserCheck size={14} />
             <span>Friends</span>
-          </span>
+          </button>
           <button
             type="button"
             className="kk-btn kk-btn-primary"
@@ -430,13 +436,6 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
           >
             <MessageSquare size={14} />
             <span>Message</span>
-          </button>
-          <button
-            type="button"
-            className="kk-btn kk-btn-ghost"
-            onClick={() => setSelectedPublicProfileId(person.id)}
-          >
-            <span>Profile</span>
           </button>
         </div>
       );
@@ -516,22 +515,15 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
           className="kk-btn kk-btn-ghost"
           onClick={() => setSelectedPublicProfileId(person.id)}
         >
-          <span>View Profile</span>
+          <span>Profile</span>
         </button>
       </div>
     );
   };
 
   const renderStudentDiscoverCard = (person) => {
-    const mutuals = getMutualFriends ? getMutualFriends(person.id) : [];
     const presence = getUserPresenceForViewer(person.id, user?.id);
     const isOnline = presence.state === 'online';
-    const sameCampus =
-      Boolean(
-        publicProfile?.university &&
-          person.university &&
-          publicProfile.university.toLowerCase() === person.university.toLowerCase()
-      );
     const rel = getFriendshipStatus ? getFriendshipStatus(person.id) : { status: 'none' };
 
     return (
@@ -539,28 +531,30 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
         key={person.id}
         className={`kk-student-card ${rel.status === 'incoming_pending' ? 'incoming-highlight' : ''}`}
       >
-        <div>
+        <div className="kk-student-card-body">
           <div className="kk-student-card-top">
             <button
               type="button"
               onClick={() => setSelectedPublicProfileId(person.id)}
-              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}
               aria-label={`Open ${person.displayName}'s profile`}
             >
-              {renderProfileAvatar(person, 50, true, isOnline)}
+              {renderProfileAvatar(person, 46, true, isOnline)}
             </button>
 
             <div className="kk-student-card-info">
-              <button
-                type="button"
-                className="kk-student-name-btn"
-                onClick={() => setSelectedPublicProfileId(person.id)}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {person.displayName}
-                </span>
-              </button>
-              <span className="kk-student-handle">@{person.handle}</span>
+              <div className="kk-student-identity-line">
+                <button
+                  type="button"
+                  className="kk-student-name-btn"
+                  onClick={() => setSelectedPublicProfileId(person.id)}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {person.displayName}
+                  </span>
+                </button>
+                <span className="kk-student-handle">@{person.handle}</span>
+              </div>
 
               {person.university && (
                 <div className="kk-student-uni">
@@ -570,37 +564,10 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                   </span>
                 </div>
               )}
-
-              {person.course && (
-                <div className="kk-student-uni" style={{ marginTop: '2px' }}>
-                  <GraduationCap size={12} style={{ flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {person.course}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
           {person.bio && <p className="kk-student-bio">{person.bio}</p>}
-
-          <div className="kk-student-tags">
-            {isOnline && (
-              <span className="kk-student-tag online">● Online</span>
-            )}
-            {mutuals.length > 0 && (
-              <span className="kk-student-tag mutual">
-                <Users size={11} />
-                {mutuals.length} mutual friend{mutuals.length === 1 ? '' : 's'}
-              </span>
-            )}
-            {sameCampus && (
-              <span className="kk-student-tag same-campus">Same Campus</span>
-            )}
-            <span className="kk-student-tag">
-              {person.friendsCount || 0} friend{(person.friendsCount || 0) === 1 ? '' : 's'}
-            </span>
-          </div>
         </div>
 
         <div className="kk-student-card-footer">
@@ -614,32 +581,14 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
 
   return (
     <div className="kk-connect-page connect-view-container">
-      {/* 1. Connect Hero Header & Current Student Identity */}
+      {/* 1. Compact Connect Profile Card */}
       <section className="kk-connect-hero" aria-label="KampusKash Connect Profile Header">
         <div className="kk-connect-hero-banner">
           <div className="kk-connect-hero-top">
             <div className="kk-connect-profile-main">
-              {renderProfileAvatar(publicProfile || user, 68, true, true)}
+              {renderProfileAvatar(publicProfile || user, 56, true, true)}
 
               <div className="kk-connect-hero-meta">
-                <div className="kk-connect-badge-row">
-                  <span className="kk-connect-pill">
-                    <Sparkles size={11} />
-                    <span>KampusKash {CONNECT_SECTION_NAME}</span>
-                  </span>
-                  {publicProfile?.privacySettings?.profileVisibility === 'friends' ? (
-                    <span className="kk-connect-pill friends-only">
-                      <Lock size={11} />
-                      <span>Friends-Only Profile</span>
-                    </span>
-                  ) : (
-                    <span className="kk-connect-pill privacy">
-                      <Globe size={11} />
-                      <span>Public Student Profile</span>
-                    </span>
-                  )}
-                </div>
-
                 <div className="kk-connect-name-row">
                   <h1 className="kk-connect-display-name">
                     {publicProfile?.displayName || user?.username || 'Student'}
@@ -650,61 +599,21 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                 </div>
 
                 <div className="kk-connect-meta-row">
-                  <span className="kk-connect-meta-item">
-                    <MapPin size={13} color="var(--accent-primary)" />
+                  <span className="kk-connect-meta-item kk-connect-uni-truncate">
+                    <MapPin size={12} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                     <span>{publicProfile?.university || user?.university || 'Malaysia Campus'}</span>
                   </span>
-                  {publicProfile?.course && (
-                    <span className="kk-connect-meta-item">
-                      <GraduationCap size={13} />
-                      <span>{publicProfile.course}</span>
-                    </span>
-                  )}
-                  <span className="kk-connect-meta-item">
-                    <Calendar size={13} />
-                    <span>{joinedLabel}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSection('friends')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      color: 'var(--text-primary)',
-                      fontWeight: 800,
-                      fontSize: '0.78rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <Users size={13} color="var(--accent-primary)" />
-                    <span>
-                      {friendsList.length} Friend{friendsList.length === 1 ? '' : 's'}
-                    </span>
-                  </button>
                 </div>
 
                 {publicProfile?.bio && (
-                  <p className="kk-connect-bio">&ldquo;{publicProfile.bio}&rdquo;</p>
-                )}
-
-                {myAchievements.length > 0 && (
-                  <div className="kk-student-tags" style={{ marginTop: '9px' }}>
-                    {myAchievements.map((ach) => (
-                      <span key={ach.id} className="kk-student-tag mutual">
-                        <Award size={11} />
-                        <span>{ach.label}</span>
-                      </span>
-                    ))}
-                  </div>
+                  <p className="kk-connect-bio" title={publicProfile.bio}>
+                    {publicProfile.bio}
+                  </p>
                 )}
               </div>
             </div>
 
-            {/* Quick Header Actions */}
+            {/* Clean Single-Row Primary Actions */}
             <div className="kk-connect-hero-actions">
               {onOpenProfileModal && (
                 <button
@@ -713,17 +622,7 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                   onClick={onOpenProfileModal}
                 >
                   <Edit3 size={14} />
-                  <span>Edit Profile &amp; @Username</span>
-                </button>
-              )}
-              {user?.id && (
-                <button
-                  type="button"
-                  className="kk-btn kk-btn-ghost"
-                  onClick={() => setSelectedPublicProfileId(user.id)}
-                >
-                  <Globe size={14} />
-                  <span>View My Public Profile</span>
+                  <span>Edit Profile</span>
                 </button>
               )}
               <button
@@ -737,36 +636,32 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
                   <span className="kk-connect-tab-badge alert">{totalUnreadMessages}</span>
                 )}
               </button>
+              {user?.id && (
+                <button
+                  type="button"
+                  className="kk-btn kk-btn-ghost kk-btn-icon"
+                  onClick={() => setSelectedPublicProfileId(user.id)}
+                  title="View My Public Profile"
+                  aria-label="View My Public Profile"
+                >
+                  <Eye size={15} />
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Strict Financial Privacy Strip */}
+        {/* Compact Single-Line Financial Privacy Strip */}
         <div className="kk-connect-privacy-strip">
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
-            <ShieldCheck size={15} color="var(--success)" style={{ flexShrink: 0 }} />
-            <span>
-              <strong>Financial Privacy Guaranteed:</strong> {CONNECT_SECTION_SUBTITLE}. Your real bank balances, budgets, and transactions are never visible to other students.
-            </span>
+          <span className="kk-connect-privacy-text">
+            🔒 Private: Balances &amp; transactions are hidden.
           </span>
           <button
             type="button"
+            className="kk-connect-privacy-link"
             onClick={() => setActiveSection(activeSection === 'privacy' ? 'overview' : 'privacy')}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: 'var(--accent-primary)',
-              fontWeight: 700,
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
           >
-            <Lock size={12} />
-            <span>Privacy Settings</span>
+            Privacy
           </button>
         </div>
       </section>
@@ -1374,19 +1269,14 @@ export default function ConnectView({ onOpenProfileModal, onNavigateTab }) {
           {/* Discover Campus Directory Preview on Overview */}
           {searchQuery.trim() === '' && universityFilter === '' && (
             <section className="kk-connect-section">
-              <div className="kk-connect-section-header">
-                <div>
-                  <h2 className="kk-connect-section-title">
-                    <Compass size={18} color="var(--accent-primary)" />
-                    <span>Discover Campus Students</span>
-                  </h2>
-                  <p className="kk-connect-section-sub">
-                    Connect with verified students across Malaysian universities
-                  </p>
-                </div>
+              <div className="kk-connect-section-header kk-connect-section-header-inline">
+                <h2 className="kk-connect-section-title">
+                  <Compass size={17} color="var(--accent-primary)" />
+                  <span>Discover Campus Students</span>
+                </h2>
                 <button
                   type="button"
-                  className="kk-btn kk-btn-ghost"
+                  className="kk-connect-view-all-link"
                   onClick={() => setActiveSection('discover')}
                 >
                   <span>View All ({discoveryData.totalCount})</span>
