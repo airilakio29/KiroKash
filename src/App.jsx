@@ -477,11 +477,13 @@ function AppLayout({
         onClose={() => setActiveReceiptModal(null)}
       />
 
-      {/* Floating KampusKash AI Assistant Button & Popup Panel (Bottom-Right) */}
-      <FloatingChatButton
-        isOpen={isAiChatOpen}
-        onToggle={setIsAiChatOpen}
-      />
+      {/* Floating KampusKash AI Assistant Button & Popup Panel (hidden when already on AI Assistant page) */}
+      {activeTab !== 'ai-chat' && (
+        <FloatingChatButton
+          isOpen={isAiChatOpen}
+          onToggle={setIsAiChatOpen}
+        />
+      )}
 
       {/* Floating Mobile Navigation Button (Bottom-Left) */}
       <FloatingNavButton
