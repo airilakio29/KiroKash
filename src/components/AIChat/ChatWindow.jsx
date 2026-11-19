@@ -56,7 +56,9 @@ export default function ChatWindow({
   };
 
   useEffect(() => {
-    scrollToBottom(true);
+    if (messages.length > 1 || isLoading) {
+      scrollToBottom(true);
+    }
   }, [messages, isLoading]);
 
   // Support Escape key to close the chatbot
@@ -604,26 +606,27 @@ export default function ChatWindow({
         </div>
       </div>
 
-      {/* Safety & Action Security Banner */}
+      {/* Slim Single-Line Security Notice */}
       <div
+        className="ai-slim-notice-bar"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0.4rem 1.25rem',
-          background: 'rgba(255, 255, 255, 0.03)',
+          padding: '0.28rem 1rem',
+          background: 'rgba(255, 255, 255, 0.025)',
           borderBottom: '1px solid var(--border-light)',
-          fontSize: '0.72rem',
-          color: 'var(--text-light)',
-          flexShrink: 0
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <ShieldCheck size={13} color="var(--income)" />
-          Grounded in your actual records • Actions require explicit confirmation
-        </span>
-        <span style={{ opacity: 0.8 }} className="hidden-on-mobile">
-          Protected Actions
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <ShieldCheck size={12} color="var(--income)" style={{ flexShrink: 0 }} />
+          <span>Uses your records • Confirms before acting</span>
         </span>
       </div>
 
@@ -691,24 +694,25 @@ export default function ChatWindow({
           </div>
         )}
 
-        {showSuggestedQuestions && (
-          <SuggestedQuestions
-            onSelectQuestion={handleSendMessage}
-            disabled={isLoading}
-          />
-        )}
-
         <div ref={messagesEndRef} style={{ height: '1px' }} />
       </div>
+
+      {/* Compact Quick-Prompt Row directly above Chat Input */}
+      {showSuggestedQuestions && (
+        <SuggestedQuestions
+          onSelectQuestion={handleSendMessage}
+          disabled={isLoading}
+        />
+      )}
 
       {/* Input Area */}
       <div
         style={{
           padding: isModal
-            ? '0.75rem 1rem max(0.85rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
-            : '0.75rem 1rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
+            ? '0.65rem 0.9rem max(0.85rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
+            : '0.65rem 0.9rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
           background: 'var(--bg-card)',
-          borderTop: '1px solid var(--border-light)',
+          borderTop: showSuggestedQuestions ? 'none' : '1px solid var(--border-light)',
           flexShrink: 0
         }}
       >

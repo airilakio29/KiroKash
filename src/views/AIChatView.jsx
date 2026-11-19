@@ -9,9 +9,10 @@ export default function AIChatView() {
 
   return (
     <div
+      className="ai-chat-page-shell"
       style={{
-        height: 'calc(100dvh - 180px)',
-        minHeight: '500px',
+        height: 'calc(100dvh - 180px - env(safe-area-inset-bottom, 0px))',
+        minHeight: '440px',
         display: 'flex',
         flexDirection: 'column',
         borderRadius: 'var(--radius-lg, 16px)',
