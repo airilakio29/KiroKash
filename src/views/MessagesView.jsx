@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 import { DEMO_P2P_BANNER_TEXT } from '../services/demoWalletService';
 import UserAvatar from '../components/UserAvatar';
 import { getAvatarSvg } from '../components/Avatars';
@@ -178,9 +179,9 @@ export default function MessagesView() {
 
     const userId = user?.id;
 
-    // Responsive mobile detection + visualViewport keyboard adjustment
+    // Responsive mobile detection + VisualViewport keyboard tracking (iOS/Android)
     const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 860 : false));
-    const [viewportOffsetBottom, setViewportOffsetBottom] = useState(0);
+    const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
 
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
@@ -188,24 +189,8 @@ export default function MessagesView() {
             setIsMobileView(window.innerWidth < 860);
         };
         window.addEventListener('resize', onResize);
-
-        const vv = window.visualViewport;
-        const onViewportResize = () => {
-            if (!vv) return;
-            const keyboardHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-            setViewportOffsetBottom(keyboardHeight);
-        };
-        if (vv) {
-            vv.addEventListener('resize', onViewportResize);
-            vv.addEventListener('scroll', onViewportResize);
-        }
-
         return () => {
             window.removeEventListener('resize', onResize);
-            if (vv) {
-                vv.removeEventListener('resize', onViewportResize);
-                vv.removeEventListener('scroll', onViewportResize);
-            }
         };
     }, []);
 
@@ -509,12 +494,12 @@ export default function MessagesView() {
         return () => clearInterval(timer);
     }, [userId, activeConversationId, messagePageState]);
 
-    // Scroll to bottom when new message arrives
+    // Scroll to bottom when new message arrives or mobile keyboard resizes the visualViewport
     useEffect(() => {
         if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
             messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
-    }, [messagePageState.messages.length, activeConversationId]);
+    }, [messagePageState.messages.length, activeConversationId, vvHeight]);
 
     const handleSelectConversation = (convId) => {
         setPageLimit(MESSAGES_PAGE_SIZE);
@@ -992,16 +977,13 @@ export default function MessagesView() {
                     isMobileLockedChat
                         ? {
                               position: 'fixed',
-                              top: 0,
+                              top: isMobileViewport ? `${vvOffsetTop}px` : 0,
                               left: 0,
                               right: 0,
-                              bottom: viewportOffsetBottom > 0 ? viewportOffsetBottom : 0,
                               zIndex: 1050,
                               width: '100%',
-                              height:
-                                  viewportOffsetBottom > 0
-                                      ? `calc(100dvh - ${viewportOffsetBottom}px)`
-                                      : '100dvh',
+                              height: isMobileViewport && vvHeight > 0 ? `${vvHeight}px` : '100dvh',
+                              maxHeight: isMobileViewport && vvHeight > 0 ? `${vvHeight}px` : '100dvh',
                               display: 'flex',
                               flexDirection: 'column',
                               overflow: 'hidden',
@@ -1012,9 +994,7 @@ export default function MessagesView() {
                           }
                         : {
                               display: 'flex',
-                              height: isMobileView
-                                  ? 'calc(100dvh - 210px)'
-                                  : 'calc(100dvh - 210px)',
+                              height: 'calc(100dvh - 210px)',
                               minHeight: isMobileView ? 420 : 560,
                               maxHeight: 820,
                               borderRadius: 20,
