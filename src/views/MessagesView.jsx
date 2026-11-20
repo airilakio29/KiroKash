@@ -848,6 +848,17 @@ export default function MessagesView() {
 
     const showConversationListPane = !isMobileView || !selectedConversation;
     const showChatPane = !isMobileView || Boolean(selectedConversation);
+    const isMobileLockedChat = isMobileView && Boolean(selectedConversation);
+
+    // Lock body scroll when inside mobile full-screen WhatsApp-style chat
+    useEffect(() => {
+        if (!isMobileLockedChat || typeof document === 'undefined') return undefined;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [isMobileLockedChat]);
 
     const partnerPresence = selectedConversation
         ? getUserPresenceForViewer(selectedConversation.otherParticipantId, userId)
@@ -975,21 +986,44 @@ export default function MessagesView() {
                 </div>
             )}
 
-            {/* Main Messenger Split Container */}
+            {/* Main Messenger Split Container (WhatsApp-style locked full-screen when chat is open on mobile) */}
             <div
-                style={{
-                    display: 'flex',
-                    height: isMobileView
-                        ? `calc(100dvh - ${148 + viewportOffsetBottom}px)`
-                        : 'calc(100vh - 210px)',
-                    minHeight: isMobileView ? 420 : 560,
-                    maxHeight: 820,
-                    borderRadius: 20,
-                    overflow: 'hidden',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-primary)',
-                    boxShadow: 'var(--shadow-card)'
-                }}
+                style={
+                    isMobileLockedChat
+                        ? {
+                              position: 'fixed',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: viewportOffsetBottom > 0 ? viewportOffsetBottom : 0,
+                              zIndex: 1050,
+                              width: '100%',
+                              height:
+                                  viewportOffsetBottom > 0
+                                      ? `calc(100dvh - ${viewportOffsetBottom}px)`
+                                      : '100dvh',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              overflow: 'hidden',
+                              background: 'var(--bg-primary)',
+                              borderRadius: 0,
+                              border: 'none',
+                              boxShadow: 'none'
+                          }
+                        : {
+                              display: 'flex',
+                              height: isMobileView
+                                  ? 'calc(100dvh - 210px)'
+                                  : 'calc(100dvh - 210px)',
+                              minHeight: isMobileView ? 420 : 560,
+                              maxHeight: 820,
+                              borderRadius: 20,
+                              overflow: 'hidden',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-primary)',
+                              boxShadow: 'var(--shadow-card)'
+                          }
+                }
             >
                 {/* LEFT PANE: CONVERSATION LIST */}
                 {showConversationListPane && (
@@ -1226,10 +1260,13 @@ export default function MessagesView() {
                     <div
                         style={{
                             flex: 1,
+                            minHeight: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             background: 'var(--bg-primary)',
-                            minWidth: 0
+                            minWidth: 0,
+                            width: '100%',
+                            overflow: 'hidden'
                         }}
                     >
                         {!selectedConversation ? (
@@ -1291,11 +1328,15 @@ export default function MessagesView() {
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
-                                        gap: 12,
-                                        padding: '12px 16px',
+                                        gap: 10,
+                                        padding: isMobileLockedChat
+                                            ? 'max(10px, env(safe-area-inset-top, 0px)) 12px 10px'
+                                            : '12px 16px',
                                         background: 'var(--bg-card)',
                                         borderBottom: '1px solid var(--border-primary)',
-                                        flexShrink: 0
+                                        flexShrink: 0,
+                                        width: '100%',
+                                        boxSizing: 'border-box'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -1497,11 +1538,17 @@ export default function MessagesView() {
                                 <div
                                     style={{
                                         flex: 1,
+                                        minHeight: 0,
                                         overflowY: 'auto',
-                                        padding: '16px',
+                                        overflowX: 'hidden',
+                                        overscrollBehavior: 'contain',
+                                        WebkitOverflowScrolling: 'touch',
+                                        padding: isMobileLockedChat ? '14px 12px' : '16px',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        gap: 10
+                                        gap: 10,
+                                        width: '100%',
+                                        boxSizing: 'border-box'
                                     }}
                                 >
                                     {/* Pagination: Load Older Messages */}
@@ -2237,7 +2284,12 @@ export default function MessagesView() {
                                         style={{
                                             background: 'var(--bg-card)',
                                             borderTop: '1px solid var(--border-primary)',
-                                            flexShrink: 0
+                                            flexShrink: 0,
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                            paddingBottom: isMobileLockedChat
+                                                ? 'max(6px, env(safe-area-inset-bottom, 0px))'
+                                                : 0
                                         }}
                                     >
                                         {/* Phase 3: Chat Wallet Action Controls Bar (Send Money, Request Money, Split Bill, Share Location, Send Image) */}
