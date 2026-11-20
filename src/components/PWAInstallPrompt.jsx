@@ -41,13 +41,21 @@ export default function PWAInstallPrompt() {
 
     if (isInstalledNow) return;
 
-    // Check if dismissed in this session
-    const isDismissed = sessionStorage.getItem('kampuskash_pwa_dismissed') === 'true';
+    // Check if dismissed or already shown once (persisted in localStorage, wrapped in try/catch)
+    let isDismissed = false;
+    try {
+      isDismissed =
+        localStorage.getItem('kampuskash_pwa_dismissed') === 'true' ||
+        localStorage.getItem('kampuskash_pwa_prompt_shown') === 'true';
+    } catch {}
 
-    // Show floating promotion after 3 seconds if not installed & not dismissed
+    // Show floating promotion once only after 3 seconds if not installed & not dismissed
     const timer = setTimeout(() => {
       if (!isPWAInstalled() && !isDismissed) {
         setShowBanner(true);
+        try {
+          localStorage.setItem('kampuskash_pwa_prompt_shown', 'true');
+        } catch {}
       }
     }, 2800);
 
@@ -87,7 +95,8 @@ export default function PWAInstallPrompt() {
   const handleDismissBanner = () => {
     setShowBanner(false);
     try {
-      sessionStorage.setItem('kampuskash_pwa_dismissed', 'true');
+      localStorage.setItem('kampuskash_pwa_dismissed', 'true');
+      localStorage.setItem('kampuskash_pwa_prompt_shown', 'true');
     } catch {}
   };
 
@@ -557,8 +566,8 @@ export default function PWAInstallPrompt() {
           border: none;
           color: #8E82A1;
           padding: 0.35rem;
-          min-width: 34px;
-          min-height: 34px;
+          min-width: 44px;
+          min-height: 44px;
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -567,9 +576,10 @@ export default function PWAInstallPrompt() {
           flex-shrink: 0;
         }
         @media (max-width: 900px) {
-          /* Sit cleanly above the bottom navigation bar + raised Scan QR + AI FAB */
+          /* Anchor at top on mobile so it NEVER overlaps the bottom navigation bar or FABs */
           .pwa-install-banner-container {
-            bottom: calc(var(--mobile-nav-height, 66px) + 4.35rem + env(safe-area-inset-bottom, 0px));
+            top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+            bottom: auto;
             width: calc(100% - 1.25rem);
           }
         }
