@@ -30,6 +30,7 @@ import SuggestedQuestions from './SuggestedQuestions';
 import TypingIndicator from './TypingIndicator';
 import ConversationDrawer from './ConversationDrawer';
 import ActionHistoryDrawer from './ActionHistoryDrawer';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
 
 export default function ChatWindow({
   onClose,
@@ -38,6 +39,7 @@ export default function ChatWindow({
   const { user } = useAuth();
   const financeData = useFinance();
   const userId = user?.id;
+  const { isMobileViewport, isKeyboardOpen } = useVisualViewport();
 
   const [conversationId, setConversationId] = useState(() => `conv-${Date.now()}`);
   const [messages, setMessages] = useState([AI_WELCOME_MESSAGE]);
@@ -47,6 +49,7 @@ export default function ChatWindow({
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [error, setError] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -396,7 +399,8 @@ export default function ChatWindow({
   };
 
 
-  const showSuggestedQuestions = messages.length <= 1;
+  const hideMobileClutter = isMobileViewport && (isInputFocused || isKeyboardOpen);
+  const showSuggestedQuestions = messages.length <= 1 && !hideMobileClutter;
 
   return (
     <div
@@ -412,8 +416,7 @@ export default function ChatWindow({
         borderRadius: isModal ? '20px' : '0',
         border: isModal ? '1px solid var(--border-light)' : 'none',
         boxShadow: isModal ? '0 24px 64px rgba(0, 0, 0, 0.5)' : 'none',
-        overflow: 'hidden',
-        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+        overflow: 'hidden'
       }}
     >
       {/* Slide-over Conversation Drawer */}
@@ -443,13 +446,14 @@ export default function ChatWindow({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: isModal
-            ? 'max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.5rem)) 1rem 0.85rem'
-            : '0.85rem 1rem',
+            ? 'max(0.65rem, env(safe-area-inset-top, 0px)) 0.9rem 0.65rem'
+            : '0.65rem 0.9rem',
           background: 'var(--bg-card-subtle)',
           borderBottom: '1px solid var(--border-light)',
           flexShrink: 0,
           gap: '0.5rem',
-          minWidth: 0
+          minWidth: 0,
+          touchAction: 'none'
         }}
       >
         {/* Brand & Status */}
@@ -619,7 +623,8 @@ export default function ChatWindow({
         </div>
       </div>
 
-      {/* Slim Single-Line Security Notice */}
+      {/* Slim Single-Line Security Notice (hidden while typing on mobile to maximize message space) */}
+      {!hideMobileClutter && (
       <div
         className="ai-slim-notice-bar"
         style={{
@@ -634,7 +639,8 @@ export default function ChatWindow({
           flexShrink: 0,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          textOverflow: 'ellipsis',
+          touchAction: 'none'
         }}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -642,6 +648,7 @@ export default function ChatWindow({
           <span>Uses your records • Confirms before acting</span>
         </span>
       </div>
+      )}
 
       {/* Message Stream */}
       <div
@@ -652,6 +659,7 @@ export default function ChatWindow({
           overflowX: 'hidden',
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
           padding: '1rem 0.9rem',
           display: 'flex',
           flexDirection: 'column',
@@ -725,18 +733,23 @@ export default function ChatWindow({
       <div
         style={{
           padding: isModal
-            ? '0.65rem 0.9rem max(0.85rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
-            : '0.65rem 0.9rem max(0.85rem, env(safe-area-inset-bottom, 0px))',
+            ? '0.5rem 0.75rem max(0.55rem, env(safe-area-inset-bottom, 0px))'
+            : '0.5rem 0.75rem max(0.55rem, env(safe-area-inset-bottom, 0px))',
           background: 'var(--bg-card)',
           borderTop: showSuggestedQuestions ? 'none' : '1px solid var(--border-light)',
-          flexShrink: 0
+          flexShrink: 0,
+          touchAction: 'none'
         }}
       >
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
           onInputFocus={() => {
-            setTimeout(() => scrollToBottom(true), 180);
+            setIsInputFocused(true);
+            setTimeout(() => scrollToBottom(true), 160);
+          }}
+          onInputBlur={() => {
+            setIsInputFocused(false);
           }}
         />
       </div>
