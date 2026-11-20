@@ -38,15 +38,30 @@ export function validateBudget(budget) {
  * Calculate spending and status for a given budget limit and category transactions.
  */
 export function calculateBudgetStatus(budget, transactions = []) {
-  if (!budget) return { spent: 0, limit: 0, remaining: 0, percentage: 0, isOver: false, isNear: false };
+  if (!budget) {
+    return {
+      spent: 0,
+      limit: 0,
+      remaining: 0,
+      over: 0,
+      overAmount: 0,
+      percentage: 0,
+      barPercentage: 0,
+      isOver: false,
+      isNear: false
+    };
+  }
 
   const limit = Number(budget.monthlyLimit) || 0;
   const spent = transactions
     .filter(t => t.type === 'expense' && t.categoryId === budget.categoryId)
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-  const remaining = Math.max(0, limit - spent);
-  const percentage = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  const remaining = Math.max(limit - spent, 0);
+  const over = Math.max(spent - limit, 0);
+  const rawPercentage = limit > 0 ? (spent / limit) * 100 : 0;
+  const percentage = Number(rawPercentage.toFixed(1));
+  const barPercentage = Math.min(100, percentage);
   const isOver = spent > limit;
   const isNear = spent >= limit * 0.8 && !isOver;
 
@@ -54,8 +69,10 @@ export function calculateBudgetStatus(budget, transactions = []) {
     spent,
     limit,
     remaining,
-    overAmount: isOver ? spent - limit : 0,
-    percentage: Number(percentage.toFixed(1)),
+    over,
+    overAmount: over,
+    percentage,
+    barPercentage,
     isOver,
     isNear
   };
