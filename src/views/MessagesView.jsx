@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
-import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useVisualViewport, useIosBodyScrollLock } from '../hooks/useVisualViewport';
 import { DEMO_P2P_BANNER_TEXT } from '../services/demoWalletService';
 import UserAvatar from '../components/UserAvatar';
 import { getAvatarSvg } from '../components/Avatars';
@@ -181,7 +181,12 @@ export default function MessagesView() {
 
     // Responsive mobile detection + VisualViewport keyboard tracking (iOS/Android)
     const [isMobileView, setIsMobileView] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 860 : false));
-    const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
+    const {
+        height: vvHeight,
+        offsetTop: vvOffsetTop,
+        isMobileViewport,
+        isKeyboardOpen
+    } = useVisualViewport({ preventScrollDrift: Boolean(activeConversationId) });
 
     useEffect(() => {
         if (typeof window === 'undefined') return undefined;
@@ -835,15 +840,8 @@ export default function MessagesView() {
     const showChatPane = !isMobileView || Boolean(selectedConversation);
     const isMobileLockedChat = isMobileView && Boolean(selectedConversation);
 
-    // Lock body scroll when inside mobile full-screen WhatsApp-style chat
-    useEffect(() => {
-        if (!isMobileLockedChat || typeof document === 'undefined') return undefined;
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.body.style.overflow = prevOverflow;
-        };
-    }, [isMobileLockedChat]);
+    // True iOS body scroll lock when inside mobile full-screen WhatsApp-style chat
+    useIosBodyScrollLock(isMobileLockedChat);
 
     const partnerPresence = selectedConversation
         ? getUserPresenceForViewer(selectedConversation.otherParticipantId, userId)
@@ -1316,7 +1314,8 @@ export default function MessagesView() {
                                         borderBottom: '1px solid var(--border-primary)',
                                         flexShrink: 0,
                                         width: '100%',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        touchAction: 'none'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -1523,6 +1522,7 @@ export default function MessagesView() {
                                         overflowX: 'hidden',
                                         overscrollBehavior: 'contain',
                                         WebkitOverflowScrolling: 'touch',
+                                        touchAction: 'pan-y',
                                         padding: isMobileLockedChat ? '14px 12px' : '16px',
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -2267,12 +2267,14 @@ export default function MessagesView() {
                                             flexShrink: 0,
                                             width: '100%',
                                             boxSizing: 'border-box',
+                                            touchAction: 'none',
                                             paddingBottom: isMobileLockedChat
                                                 ? 'max(6px, env(safe-area-inset-bottom, 0px))'
                                                 : 0
                                         }}
                                     >
-                                        {/* Phase 3: Chat Wallet Action Controls Bar (Send Money, Request Money, Split Bill, Share Location, Send Image) */}
+                                        {/* Phase 3: Chat Wallet Action Controls Bar (hidden while keyboard is open on mobile) */}
+                                        {!(isMobileLockedChat && isKeyboardOpen) && (
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -2360,6 +2362,7 @@ export default function MessagesView() {
                                                 Demo Wallet: RM {Number(demoP2PWallet?.balance ?? 100).toFixed(2)}
                                             </span>
                                         </div>
+                                        )}
 
                                         <form
                                             onSubmit={handleSendTextMessage}
@@ -2367,7 +2370,7 @@ export default function MessagesView() {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 8,
-                                                padding: '8px 14px 12px'
+                                                padding: isMobileLockedChat ? '8px 10px' : '8px 14px 12px'
                                             }}
                                         >
                                         <input
@@ -2442,12 +2445,13 @@ export default function MessagesView() {
                                             maxLength={2000}
                                             style={{
                                                 flex: 1,
-                                                padding: '11px 14px',
-                                                borderRadius: 14,
+                                                minHeight: 44,
+                                                padding: '10px 16px',
+                                                borderRadius: 22,
                                                 border: '1px solid var(--border-primary)',
                                                 background: 'var(--bg-input)',
                                                 color: 'var(--text-primary)',
-                                                fontSize: '0.9rem',
+                                                fontSize: '0.95rem',
                                                 outline: 'none',
                                                 minWidth: 0
                                             }}
@@ -2459,9 +2463,9 @@ export default function MessagesView() {
                                             disabled={!composerText.trim()}
                                             aria-label="Send message"
                                             style={{
-                                                width: 42,
-                                                height: 42,
-                                                borderRadius: 13,
+                                                width: 44,
+                                                height: 44,
+                                                borderRadius: '50%',
                                                 border: 'none',
                                                 background: composerText.trim()
                                                     ? 'var(--gradient-primary)'
