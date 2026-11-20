@@ -115,6 +115,7 @@
 
 html {
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   width: 100%;
   background: var(--bg-app-gradient, var(--bg-app));
   background-color: var(--bg-app);
@@ -130,11 +131,22 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   width: 100%;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+}
+
+button,
+.btn,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
 }
 
 /* PWA Standalone Mode adjustments */
@@ -273,6 +285,37 @@ body {
 @media (max-width: 900px) {
   .content-area {
     padding: 1.25rem 1rem calc(var(--mobile-nav-clearance, 88px) + 3.5rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  }
+
+  /* Scan QR locked non-scrollable viewport on mobile */
+  .app-container.scan-qr-locked-mode {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden !important;
+  }
+
+  .app-container.scan-qr-locked-mode .main-wrapper {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  .app-container.scan-qr-locked-mode .content-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    padding: 0.65rem 0.75rem calc(var(--mobile-nav-height, 66px) + 0.75rem + env(safe-area-inset-bottom, 0px)) 0.75rem !important;
+  }
+
+  .app-container.scan-qr-locked-mode .page-transition-wrapper {
+    flex: 1;
+    min-height: 0 !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 }
 
@@ -2669,8 +2712,7 @@ body {
 
 /* Page Transitions */
 .page-transition-wrapper {
-  animation: pageFadeSlideIn var(--anim-duration-page) var(--anim-ease-out) forwards;
-  will-change: opacity, transform;
+  animation: pageFadeSlideIn var(--anim-duration-page) var(--anim-ease-out);
   min-height: 70vh;
   min-height: 70dvh;
 }
@@ -2824,7 +2866,7 @@ body {
 /* Page Transitions System */
 .page-transition-wrapper,
 .view-fade-in {
-  animation: pageFadeSlideIn var(--anim-duration-page, 380ms) var(--anim-ease-out) forwards;
+  animation: pageFadeSlideIn var(--anim-duration-page, 380ms) var(--anim-ease-out);
   width: 100%;
 }
 
