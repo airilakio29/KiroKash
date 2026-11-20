@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, MessageSquare, X } from 'lucide-react';
 import ChatWindow from './ChatWindow';
-import { useVisualViewport } from '../../hooks/useVisualViewport';
+import { useVisualViewport, useIosBodyScrollLock } from '../../hooks/useVisualViewport';
 
 export default function FloatingChatButton({ isOpen, onToggle }) {
   const [hasBeenOpened, setHasBeenOpened] = useState(false);
-  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
+  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport({
+    preventScrollDrift: isOpen
+  });
+
+  // True iOS body scroll lock when floating AI modal is open full-screen on mobile
+  useIosBodyScrollLock(isMobileViewport && isOpen);
 
   useEffect(() => {
     if (isOpen && !hasBeenOpened) {
@@ -76,7 +81,10 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
                 left: 0,
                 right: 0,
                 height: vvHeight > 0 ? `${vvHeight}px` : '100dvh',
-                maxHeight: vvHeight > 0 ? `${vvHeight}px` : '100dvh'
+                maxHeight: vvHeight > 0 ? `${vvHeight}px` : '100dvh',
+                background: 'var(--bg-card)',
+                paddingTop: 0,
+                transition: 'opacity 180ms ease, visibility 180ms ease'
               }
               : undefined
           }

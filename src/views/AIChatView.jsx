@@ -1,23 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MessageSquare, BarChart3, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 import ChatWindow from '../components/AIChat/ChatWindow';
 import FinancialInsightsDashboard from '../components/AIChat/FinancialInsightsDashboard';
 import MonthlyReportView from '../components/AIChat/MonthlyReportView';
-import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useVisualViewport, useIosBodyScrollLock } from '../hooks/useVisualViewport';
 
 export default function AIChatView({ onBack }) {
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'insights' | 'report'
-  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
+  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport({
+    preventScrollDrift: true
+  });
 
-  // Lock background body scroll when AI Assistant is full-screen on mobile
-  useEffect(() => {
-    if (!isMobileViewport || typeof document === 'undefined') return undefined;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isMobileViewport]);
+  // True iOS body scroll lock when AI Assistant is full-screen on mobile
+  useIosBodyScrollLock(isMobileViewport);
 
   const shellStyle = isMobileViewport
     ? {
@@ -37,7 +32,6 @@ export default function AIChatView({ onBack }) {
         border: 'none',
         boxShadow: 'none',
         background: 'var(--bg-card)',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
         boxSizing: 'border-box'
       }
     : {
@@ -66,12 +60,15 @@ export default function AIChatView({ onBack }) {
           justifyContent: 'space-between',
           flexWrap: 'nowrap',
           gap: '0.5rem',
-          padding: '0.6rem 0.9rem',
+          padding: isMobileViewport
+            ? 'max(0.5rem, env(safe-area-inset-top, 0px)) 0.85rem 0.5rem'
+            : '0.6rem 0.9rem',
           background: 'var(--bg-card-subtle)',
           borderBottom: '1px solid var(--border-light)',
           flexShrink: 0,
           overflowX: 'auto',
-          WebkitOverflowScrolling: 'touch'
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'none'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>

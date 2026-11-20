@@ -2618,8 +2618,10 @@ textarea,
     max-width: 100% !important;
     border-radius: 0 !important;
     z-index: 1000 !important;
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: 0 !important;
+    background: var(--bg-card);
     box-sizing: border-box;
+    transition: opacity 180ms ease, visibility 180ms ease !important;
   }
 
   .kampuskash-ai-popup-overlay .kampuskash-ai-window {
