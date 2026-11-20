@@ -141,7 +141,11 @@ function AppLayout({
   loadError
 }) {
   const { user } = useAuth();
-  const { activeReceiptModal, setActiveReceiptModal } = useSocialWallet();
+  const { activeReceiptModal, setActiveReceiptModal, activeConversationId } = useSocialWallet();
+  const isScanQrScreen = activeTab === 'pay' && paySubroute === 'scan';
+  const isMobileFullScreenChat = activeTab === 'messages' && Boolean(activeConversationId);
+  const hideFloatingAiFab = activeTab === 'ai-chat' || isScanQrScreen || isMobileFullScreenChat;
+  const hideMobileBottomNav = activeTab === 'ai-chat' || isMobileFullScreenChat;
 
   // Block route navigation during Step A profile setup
   const handleTabChange = onTabChange || ((newTab, sub = null) => {
@@ -324,7 +328,7 @@ function AppLayout({
           />
         );
       case 'ai-chat':
-        return <AIChatView />;
+        return <AIChatView onBack={() => handleTabChange('dashboard')} />;
       case 'reports':
         return <ReportsView />;
       case 'settings':
@@ -377,7 +381,7 @@ function AppLayout({
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isScanQrScreen ? 'scan-qr-locked-mode' : ''}`}>
       <GlitterBackground />
       <KiroAmbientParticles />
 
@@ -388,6 +392,7 @@ function AppLayout({
         onOpenProfileModal={handleOpenProfileModal}
         isMobileOpen={isMobileOpen}
         setIsMobileOpen={setIsMobileOpen}
+        hideMobileBottomNav={hideMobileBottomNav}
       />
 
       <div className="main-wrapper">
@@ -478,8 +483,8 @@ function AppLayout({
         onClose={() => setActiveReceiptModal(null)}
       />
 
-      {/* Floating KampusKash AI Assistant Button & Popup Panel (hidden when already on AI Assistant page) */}
-      {activeTab !== 'ai-chat' && (
+      {/* Floating KampusKash AI Assistant Button & Popup Panel (hidden on AI Assistant, Scan QR, and open Messages chat) */}
+      {!hideFloatingAiFab && (
         <FloatingChatButton
           isOpen={isAiChatOpen}
           onToggle={setIsAiChatOpen}

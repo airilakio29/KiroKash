@@ -38,7 +38,8 @@ export default function Sidebar({
   onOpenAddTransaction,
   onOpenProfileModal,
   isMobileOpen,
-  setIsMobileOpen
+  setIsMobileOpen,
+  hideMobileBottomNav = false
 }) {
   const { user, logout } = useAuth();
   const { incomingFriendRequests = [], totalUnreadMessages = 0 } = useSocialWallet() || {};
@@ -299,6 +300,7 @@ export default function Sidebar({
       </aside>
 
       {/* Mobile Bottom Navigation with CIMB OCTO-Style Raised Center Scan QR Button */}
+      {!hideMobileBottomNav && (
       <nav className="mobile-bottom-nav" aria-label="Mobile Primary Navigation">
         <button
           type="button"
@@ -397,6 +399,7 @@ export default function Sidebar({
           <span className="mobile-bottom-nav-label">More</span>
         </button>
       </nav>
+      )}
 
       <style>{`
         .sidebar {
