@@ -483,7 +483,7 @@ export default function ChatWindow({
             </div>
 
             <div className="hidden-on-mobile" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Personal Student Financial Assistant • Gemini AI
+              Personal Student Financial Assistant • Groq AI
             </div>
           </div>
         </div>
@@ -634,9 +634,12 @@ export default function ChatWindow({
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '1.25rem',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          padding: '1rem 0.9rem',
           display: 'flex',
           flexDirection: 'column',
           width: '100%',

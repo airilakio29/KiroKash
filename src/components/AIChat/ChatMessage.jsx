@@ -14,7 +14,8 @@ function formatTimestamp(isoString) {
 }
 
 /**
- * Sanitize sensitive tokens, JWTs, Groq/Gemini API keys, reasoning tags, and base64 strings from display
+ * Sanitize sensitive tokens, JWTs, Groq/Gemini API keys, reasoning tags, base64 strings,
+ * and stray LaTeX math syntax from display so responses stay clean and readable on mobile.
  */
 function sanitizeChatText(str) {
   if (!str || typeof str !== 'string') return '';
@@ -28,6 +29,20 @@ function sanitizeChatText(str) {
     .replace(/AIza[0-9A-Za-z-_]{20,50}/g, '[REDACTED_API_KEY]')
     .replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]{40,}/gi, '[IMAGE]')
     .replace(/[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/g, '[REDACTED_TOKEN]')
+    // Clean any accidental LaTeX math formatting into plain readable text
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$1')
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$1')
+    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
+    .replace(/\\text\{([^}]*)\}/g, '$1')
+    .replace(/\\textbf\{([^}]*)\}/g, '**$1**')
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1 / $2')
+    .replace(/\\times/g, 'x')
+    .replace(/\\div/g, '/')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\pm/g, '±')
+    .replace(/\\cdot/g, 'x')
+    .replace(/\\%/g, '%')
+    .replace(/\\,/g, ' ')
     .trim();
 }
 
@@ -229,15 +244,59 @@ function renderMarkdownContent(text) {
       return;
     }
 
-    // Headers
-    if (trimmed.startsWith('### ')) {
+    // Horizontal rule (---, ***, ___)
+    if (/^([-*_])\1{2,}$/.test(trimmed)) {
       flushList(idx);
       elements.push(
-        <h4
-          key={`h4-${idx}`}
+        <hr
+          key={`hr-${idx}`}
           style={{
-            fontSize: '1rem',
-            fontWeight: 700,
+            border: 'none',
+            borderTop: '1px solid var(--border-light)',
+            margin: '0.65rem 0',
+            opacity: 0.7
+          }}
+        />
+      );
+      return;
+    }
+
+    // Markdown table rows (convert cleanly to bullet/label lines so raw "|" never appears)
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      // Skip table separator lines like |---|---|
+      if (/^\|[\s:|-]+\|$/.test(trimmed)) {
+        return;
+      }
+      const cells = trimmed
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (cells.length > 0) {
+        if (listType !== 'ul') flushList(idx);
+        listType = 'ul';
+        const formattedRow =
+          cells.length >= 2
+            ? `**${cells[0]}:** ${cells.slice(1).join(' — ')}`
+            : cells[0];
+        currentList.push(formattedRow);
+      }
+      return;
+    }
+
+    // Headers (#, ##, ###, ####)
+    const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      flushList(idx);
+      const level = headingMatch[1].length;
+      const headingText = headingMatch[2];
+      const fontSize = level <= 2 ? '1.05rem' : level === 3 ? '0.98rem' : '0.93rem';
+      elements.push(
+        <h4
+          key={`h-${level}-${idx}`}
+          style={{
+            fontSize,
+            fontWeight: level <= 2 ? 800 : 700,
             margin: '0.75rem 0 0.35rem',
             color: 'var(--text-main)',
             fontFamily: 'Plus Jakarta Sans, sans-serif',
@@ -248,41 +307,17 @@ function renderMarkdownContent(text) {
             wordBreak: 'break-word'
           }}
         >
-          {renderInlineFormatting(trimmed.replace('### ', ''))}
+          {renderInlineFormatting(headingText)}
         </h4>
       );
       return;
     }
 
-    if (trimmed.startsWith('## ')) {
-      flushList(idx);
-      elements.push(
-        <h3
-          key={`h3-${idx}`}
-          style={{
-            fontSize: '1.1rem',
-            fontWeight: 800,
-            margin: '0.85rem 0 0.4rem',
-            color: 'var(--text-main)',
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-            maxWidth: '100%',
-            minWidth: 0,
-            boxSizing: 'border-box',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word'
-          }}
-        >
-          {renderInlineFormatting(trimmed.replace('## ', ''))}
-        </h3>
-      );
-      return;
-    }
-
-    // Unordered List
-    if (/^[-*]\s+/.test(trimmed)) {
+    // Unordered List (-, *, •)
+    if (/^[-*•]\s+/.test(trimmed)) {
       if (listType !== 'ul') flushList(idx);
       listType = 'ul';
-      currentList.push(trimmed.replace(/^[-*]\s+/, ''));
+      currentList.push(trimmed.replace(/^[-*•]\s+/, ''));
       return;
     }
 
