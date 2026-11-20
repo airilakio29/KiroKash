@@ -259,6 +259,7 @@ function AppLayout({
             onOpenAddSavings={handleOpenAddSavings}
             onOpenAddAccount={handleOpenAddAccount}
             onOpenAIChat={() => setIsAiChatOpen(true)}
+            onNavigateTab={handleTabChange}
           />
         );
       case 'transactions':
@@ -944,6 +945,7 @@ function AppAuthenticator() {
         <DataLoaderReporter onDataReady={() => setIsDataReady(true)} />
         <FullScreenLoader
           isDataReady={isDataReady}
+          isDemo={Boolean(user?.isDemoUser)}
           onComplete={() => {
             setLoaderDone(true);
             try {

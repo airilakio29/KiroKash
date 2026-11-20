@@ -13,12 +13,14 @@ import KampusKashLogo from './KampusKashLogo';
  * - Theme-token driven surface and glow
  * - Accessible "Loading" status label
  */
-export default function FullScreenLoader({ isDataReady = false, onComplete }) {
+export default function FullScreenLoader({ isDataReady = false, isDemo = false, onComplete }) {
   const mountTimeRef = useRef(Date.now());
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isFinalMoment, setIsFinalMoment] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('Initializing your financial space...');
+  const [statusMessage, setStatusMessage] = useState(
+    isDemo ? 'Launching instant demo...' : 'Loading your workspace...'
+  );
 
   // Check user preference for reduced motion
   const isReducedMotion = useRef(
@@ -27,36 +29,31 @@ export default function FullScreenLoader({ isDataReady = false, onComplete }) {
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   ).current;
 
-  const MIN_DURATION = isReducedMotion ? 1500 : 4000;
-  const MAX_DURATION = 8000;
-  const FADE_DURATION = isReducedMotion ? 150 : 380;
+  // Fast instant demo (450ms) and snappy normal load (1.2s) instead of artificial 4s wait
+  const MIN_DURATION = isDemo ? 450 : isReducedMotion ? 500 : 1200;
+  const MAX_DURATION = isDemo ? 2000 : 6000;
+  const FADE_DURATION = isDemo || isReducedMotion ? 160 : 280;
 
   useEffect(() => {
-    // Dynamic staged micro-copy
-    if (isReducedMotion) {
-      setStatusMessage('Loading your workspace...');
+    if (isDemo || isReducedMotion) {
+      setStatusMessage(isDemo ? 'Launching instant demo...' : 'Loading your workspace...');
       return;
     }
 
     const t1 = setTimeout(() => {
-      setStatusMessage('Connecting to student accounts & allowance...');
-    }, 1400);
+      setStatusMessage('Syncing accounts, budgets & goals...');
+    }, 550);
 
     const t2 = setTimeout(() => {
-      setStatusMessage('Setting up budgets, goals & campus insights...');
-    }, 2800);
-
-    const t3 = setTimeout(() => {
-      setStatusMessage('Everything is ready. Welcome back!');
+      setStatusMessage('Ready!');
       setIsFinalMoment(true);
-    }, 3650);
+    }, 1050);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3);
     };
-  }, [isReducedMotion]);
+  }, [isDemo, isReducedMotion]);
 
   useEffect(() => {
     let checkInterval = null;
