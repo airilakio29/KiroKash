@@ -22,7 +22,6 @@ export default function DashboardView({
 }) {
   const {
     totalBalance,
-    totalExpense,
     totalAccountBalance,
     transactions,
     categories,
@@ -32,17 +31,32 @@ export default function DashboardView({
   } = useFinance();
 
   const recentTransactions = transactions.slice(0, 5);
-  const displayBalance = accounts.length > 0 ? totalAccountBalance : totalBalance;
 
-  // Spent this month (falls back to totalExpense if demo dates are from another month)
+  // Account balances already include transactions linked to an account.
+  // Transactions with no (existing) account are not in any balance, so add their net here.
+  // Without this, income/expenses saved as "No Account" never changed Total Balance,
+  // because every user always has the built-in KampusKash account.
+  const unassignedNet = useMemo(() => {
+    const accountIds = new Set(accounts.map((a) => a.accountId));
+    return transactions.reduce((sum, t) => {
+      if (t.accountId && accountIds.has(t.accountId)) return sum;
+      const amount = Number(t.amount || 0);
+      if (t.type === 'income') return sum + amount;
+      if (t.type === 'expense') return sum - amount;
+      return sum;
+    }, 0);
+  }, [transactions, accounts]);
+
+  const displayBalance = accounts.length > 0 ? totalAccountBalance + unassignedNet : totalBalance;
+
+  // Expenses dated in the current calendar month
   const spentThisMonth = useMemo(() => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const thisMonthExpenses = transactions
+    return transactions
       .filter((t) => t.type === 'expense' && String(t.date || '').startsWith(ym))
       .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    return thisMonthExpenses > 0 ? thisMonthExpenses : totalExpense;
-  }, [transactions, totalExpense]);
+  }, [transactions]);
 
   // Budget Health calculation (real % + visually capped bar at 100%)
   const totalBudgetedLimit = budgets.reduce((sum, b) => sum + Number(b.monthlyLimit || 0), 0);
@@ -301,7 +315,7 @@ export default function DashboardView({
         )}
       </div>
 
-      {/* Compact Accounts Strip (no Sample badges) */}
+      {/* Compact Accounts Strip (no placeholder badges) */}
       {accounts.length > 0 && (
         <div className="card" data-tour="accounts" style={{ padding: '1rem 1.15rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.7rem' }}>
