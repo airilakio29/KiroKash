@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Star,
@@ -76,8 +77,13 @@ export default function ThreadDetailModal({
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [modalOpen, onClose]);
 
   if (!modalOpen || !thread) return null;
@@ -177,7 +183,7 @@ export default function ThreadDetailModal({
       ? thread.replies
       : [];
 
-  return (
+  const modalContent = (
     <div className="community-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="community-modal-box detail-modal-box" onClick={(e) => e.stopPropagation()}>
         {/* Header (Exact 6c4f2e9 structure) */}
@@ -461,4 +467,6 @@ export default function ThreadDetailModal({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }
