@@ -3,7 +3,7 @@ import { Send, CornerDownLeft } from 'lucide-react';
 
 const MAX_CHARS = 1000;
 
-export default function ChatInput({ onSendMessage, isLoading = false }) {
+export default function ChatInput({ onSendMessage, isLoading = false, onInputFocus }) {
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
 
@@ -71,6 +71,11 @@ export default function ChatInput({ onSendMessage, isLoading = false }) {
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS + 50))}
           onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (typeof onInputFocus === 'function') {
+              onInputFocus();
+            }
+          }}
           placeholder="Ask KampusKash AI about spending, budgets, or savings..."
           aria-label="Ask KampusKash AI"
           disabled={isLoading}

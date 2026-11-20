@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, MessageSquare, X } from 'lucide-react';
 import ChatWindow from './ChatWindow';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
 
 export default function FloatingChatButton({ isOpen, onToggle }) {
   const [hasBeenOpened, setHasBeenOpened] = useState(false);
+  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
 
   useEffect(() => {
     if (isOpen && !hasBeenOpened) {
@@ -65,7 +67,19 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
       {/* Floating Panel / Drawer Modal with Persistent State */}
       {hasBeenOpened && (
         <div
-          className={`kampuskash-ai-popup-overlay ${isOpen ? 'ai-panel-open' : 'ai-panel-closed'}`}
+          className={`kampuskash-ai-popup-overlay ${isOpen ? 'ai-panel-open' : 'ai-panel-closed'} ${isMobileViewport && vvHeight > 0 ? 'vv-managed' : ''}`}
+          style={
+            isMobileViewport && isOpen
+              ? {
+                position: 'fixed',
+                top: `${vvOffsetTop}px`,
+                left: 0,
+                right: 0,
+                height: vvHeight > 0 ? `${vvHeight}px` : '100dvh',
+                maxHeight: vvHeight > 0 ? `${vvHeight}px` : '100dvh'
+              }
+              : undefined
+          }
           onClick={(e) => e.stopPropagation()}
           aria-hidden={!isOpen}
         >
@@ -171,16 +185,14 @@ export default function FloatingChatButton({ isOpen, onToggle }) {
 
         @media (max-width: 768px) {
           .kampuskash-ai-popup-overlay {
-            bottom: 0 !important;
-            right: 0 !important;
-            left: 0 !important;
-            top: 0 !important;
+            right: 0;
+            left: 0;
+            top: 0;
+            bottom: auto;
             width: 100% !important;
             max-width: 100% !important;
-            height: 100% !important;
-            height: 100dvh !important;
-            max-height: 100vh !important;
-            max-height: 100dvh !important;
+            height: 100dvh;
+            max-height: 100dvh;
             border-radius: 0 !important;
             z-index: 1000 !important;
             box-sizing: border-box;

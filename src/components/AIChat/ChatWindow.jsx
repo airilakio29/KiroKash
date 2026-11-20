@@ -61,6 +61,19 @@ export default function ChatWindow({
     }
   }, [messages, isLoading]);
 
+  // Keep latest message visible above mobile virtual keyboard on visualViewport resize
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return undefined;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      if (window.innerWidth <= 768) {
+        scrollToBottom(true);
+      }
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   // Support Escape key to close the chatbot
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -722,6 +735,9 @@ export default function ChatWindow({
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
+          onInputFocus={() => {
+            setTimeout(() => scrollToBottom(true), 180);
+          }}
         />
       </div>
     </div>

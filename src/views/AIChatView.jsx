@@ -1,16 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, BarChart3, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 import ChatWindow from '../components/AIChat/ChatWindow';
 import FinancialInsightsDashboard from '../components/AIChat/FinancialInsightsDashboard';
 import MonthlyReportView from '../components/AIChat/MonthlyReportView';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 export default function AIChatView({ onBack }) {
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'insights' | 'report'
+  const { height: vvHeight, offsetTop: vvOffsetTop, isMobileViewport } = useVisualViewport();
 
-  return (
-    <div
-      className="ai-chat-page-shell"
-      style={{
+  // Lock background body scroll when AI Assistant is full-screen on mobile
+  useEffect(() => {
+    if (!isMobileViewport || typeof document === 'undefined') return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isMobileViewport]);
+
+  const shellStyle = isMobileViewport
+    ? {
+        position: 'fixed',
+        top: `${vvOffsetTop}px`,
+        left: 0,
+        right: 0,
+        width: '100%',
+        height: vvHeight > 0 ? `${vvHeight}px` : '100dvh',
+        maxHeight: vvHeight > 0 ? `${vvHeight}px` : '100dvh',
+        minHeight: 0,
+        zIndex: 1050,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 0,
+        overflow: 'hidden',
+        border: 'none',
+        boxShadow: 'none',
+        background: 'var(--bg-card)',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        boxSizing: 'border-box'
+      }
+    : {
         height: 'calc(100dvh - 180px - env(safe-area-inset-bottom, 0px))',
         minHeight: '440px',
         display: 'flex',
@@ -20,7 +50,12 @@ export default function AIChatView({ onBack }) {
         border: '1px solid var(--border-light)',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
         background: 'var(--bg-card)'
-      }}
+      };
+
+  return (
+    <div
+      className="ai-chat-page-shell"
+      style={shellStyle}
     >
       {/* Top Segmented Navigation Bar */}
       <div
@@ -153,21 +188,7 @@ export default function AIChatView({ onBack }) {
         .ai-mobile-back-btn {
           display: none;
         }
-        @media (max-width: 900px) {
-          .ai-chat-page-shell {
-            position: fixed !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: 100vh !important;
-            height: 100dvh !important;
-            min-height: 0 !important;
-            max-height: 100dvh !important;
-            z-index: 1050 !important;
-            border-radius: 0 !important;
-            border: none !important;
-            padding-top: env(safe-area-inset-top, 0px) !important;
-            box-shadow: none !important;
-          }
+        @media (max-width: 768px) {
           .ai-mobile-back-btn {
             display: inline-flex !important;
           }
