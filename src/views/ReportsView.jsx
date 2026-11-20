@@ -249,12 +249,14 @@ export default function ReportsView() {
           )}
         </div>
 
-        {/* Monthly Summary Table */}
+        {/* Monthly Summary Table (Desktop) + Compact Cards (Mobile) */}
         <div className="card">
           <div className="card-title">
             <span>Monthly Summary</span>
           </div>
-          <div className="table-container">
+
+          {/* Desktop / Tablet Table */}
+          <div className="table-container reports-summary-desktop">
             <table className="custom-table">
               <thead>
                 <tr>
@@ -269,19 +271,20 @@ export default function ReportsView() {
                   const net = m.income - m.expense;
                   return (
                     <tr key={m.key}>
-                      <td style={{ fontSize: '0.85rem' }}>{m.label}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--income)', fontWeight: 600 }}>
+                      <td style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{m.label}</td>
+                      <td className="tabular-nums" style={{ textAlign: 'right', color: 'var(--income)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         RM {m.income.toFixed(2)}
                       </td>
-                      <td style={{ textAlign: 'right', color: 'var(--expense)', fontWeight: 600 }}>
+                      <td className="tabular-nums" style={{ textAlign: 'right', color: 'var(--expense)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         RM {m.expense.toFixed(2)}
                       </td>
-                      <td style={{
+                      <td className="tabular-nums" style={{
                         textAlign: 'right',
                         fontWeight: 700,
+                        whiteSpace: 'nowrap',
                         color: net >= 0 ? 'var(--income)' : 'var(--expense)'
                       }}>
-                        {net >= 0 ? '+' : ''}RM {net.toFixed(2)}
+                        {net >= 0 ? '+' : '-'}RM {Math.abs(net).toFixed(2)}
                       </td>
                     </tr>
                   );
@@ -289,8 +292,109 @@ export default function ReportsView() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Compact 2-Row Cards (zero horizontal clipping on 320px-430px screens) */}
+          <div className="reports-summary-mobile">
+            {monthlyData.map(m => {
+              const net = m.income - m.expense;
+              return (
+                <div key={m.key} className="reports-month-card">
+                  <div className="reports-month-card-top">
+                    <span className="reports-month-label">{m.label}</span>
+                    <span
+                      className="tabular-nums reports-month-net"
+                      style={{
+                        color: net >= 0 ? 'var(--income)' : 'var(--expense)',
+                        background: net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)'
+                      }}
+                    >
+                      {net >= 0 ? '+' : '-'}RM {Math.abs(net).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="reports-month-card-bottom">
+                    <div className="reports-month-stat">
+                      <span className="reports-stat-kicker">Income</span>
+                      <span className="tabular-nums" style={{ color: 'var(--income)', fontWeight: 700 }}>
+                        RM {m.income.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="reports-month-stat" style={{ textAlign: 'right' }}>
+                      <span className="reports-stat-kicker">Expense</span>
+                      <span className="tabular-nums" style={{ color: 'var(--expense)', fontWeight: 700 }}>
+                        RM {m.expense.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+
+      <style>{`
+        .reports-summary-mobile {
+          display: none;
+        }
+        @media (max-width: 640px) {
+          .reports-summary-desktop {
+            display: none;
+          }
+          .reports-summary-mobile {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+          }
+          .reports-month-card {
+            background: var(--bg-card-subtle);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            padding: 0.72rem 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+          }
+          .reports-month-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+          }
+          .reports-month-label {
+            font-weight: 700;
+            font-size: 0.86rem;
+            color: var(--text-main);
+          }
+          .reports-month-net {
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 0.16rem 0.5rem;
+            border-radius: 999px;
+            white-space: nowrap;
+          }
+          .reports-month-card-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding-top: 0.35rem;
+            border-top: 1px solid var(--border-light);
+            font-size: 0.8rem;
+          }
+          .reports-month-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+          }
+          .reports-stat-kicker {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+          }
+        }
+      `}</style>
     </div>
   );
 }
