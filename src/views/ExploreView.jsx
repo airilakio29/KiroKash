@@ -45,6 +45,7 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets,
   const [savedVoucherIds, setSavedVoucherIds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Selection & Modal States
   const [selectedCafeId, setSelectedCafeId] = useState(null);
@@ -105,7 +106,11 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets,
     return () => {
       isMounted = false;
     };
-  }, [userId, currentLocation]);
+  }, [userId, currentLocation, retryCount]);
+
+  const handleRetryLoad = () => {
+    setRetryCount((c) => c + 1);
+  };
 
   // GPS Device Geolocation
   const handleUseCurrentLocation = () => {
@@ -255,41 +260,51 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets,
         </div>
       )}
 
-      {/* Header Banner with Title, Subtitle, and Live OpenStreetMap badge */}
-      <div className="explore-header-card card" style={{ marginBottom: '1.5rem' }}>
-        <div className="explore-header-flex">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-              <h2 className="explore-main-title">
-                Explore {currentLocation?.area || 'Nearby'}
-              </h2>
-              <span
-                className="explore-sample-badge"
-                style={{
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#34D399',
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
-                }}
-                title="Live places powered by OpenStreetMap & Overpass API"
-              >
-                📍 OpenStreetMap Live
-              </span>
-            </div>
-            <p className="explore-subtitle">
-              Real nearby student cafes, restaurants, bakeries, and campus partner discounts near {currentLocation?.name || 'Ipoh, Perak'}.
-            </p>
-          </div>
-
-          {/* Quick Stats Pill */}
-          <div className="explore-header-badge">
-            <Sparkles size={16} color="var(--gold-sparkle)" />
-            <span>Discover real places & sync directly with your Food budget</span>
-          </div>
+      {/* Compact Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+          <h2 className="explore-main-title" style={{ margin: 0 }}>
+            Explore {currentLocation?.area || 'Nearby'}
+          </h2>
+          <span
+            className="explore-sample-badge"
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: '#34D399',
+              border: '1px solid rgba(16, 185, 129, 0.3)'
+            }}
+            title="Live places powered by OpenStreetMap & Overpass API"
+          >
+            📍 Live Map
+          </span>
         </div>
       </div>
 
-      {/* Top 4 Summary Cards */}
-      <ExploreSummaryCards cafes={cafes} vouchers={vouchers} />
+      {/* Top Summary Cards or Loading Skeleton (never flash 0 Places / 0 Deals while loading) */}
+      {isLoading ? (
+        <div
+          aria-label="Loading explore summary"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '0.75rem',
+            marginBottom: '1rem'
+          }}
+        >
+          {[0, 1, 2, 3].map((idx) => (
+            <div
+              key={idx}
+              className="card"
+              style={{ height: '78px', opacity: 0.65, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.45rem' }}
+            >
+              <div style={{ width: '55%', height: '12px', borderRadius: '6px', background: 'var(--border-light)' }} />
+              <div style={{ width: '40%', height: '20px', borderRadius: '6px', background: 'var(--border-light)' }} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ExploreSummaryCards cafes={cafes} vouchers={vouchers} />
+      )}
 
       {/* Filters & Location Controls */}
       <ExploreFilters
@@ -368,25 +383,55 @@ export default function ExploreView({ onOpenAddTransaction, onNavigateToBudgets,
             {/* List Body with Scroll */}
             <div className="cafe-list-scrollable">
               {isLoading ? (
-                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <div className="skeleton-spinner" style={{ margin: '0 auto 1rem' }}></div>
-                  <div>Retrieving OpenStreetMap businesses...</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem 0' }}>
+                  {[0, 1, 2].map((idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.9rem',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-light)',
+                        background: 'var(--bg-card-subtle)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <div style={{ width: '65%', height: '14px', borderRadius: '6px', background: 'var(--border-light)' }} />
+                      <div style={{ width: '45%', height: '11px', borderRadius: '6px', background: 'var(--border-light)' }} />
+                      <div style={{ width: '80%', height: '11px', borderRadius: '6px', background: 'var(--border-light)' }} />
+                    </div>
+                  ))}
                 </div>
               ) : fetchError ? (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--expense)' }}>
-                  <AlertTriangle size={32} style={{ marginBottom: '0.5rem' }} />
-                  <div>{fetchError}</div>
+                <div className="explore-empty-state" style={{ padding: '2rem 1rem', textAlign: 'center' }}>
+                  <AlertTriangle size={30} color="var(--expense)" style={{ marginBottom: '0.5rem' }} />
+                  <h4 style={{ margin: '0 0 0.35rem' }}>Couldn&apos;t load nearby places</h4>
+                  <p style={{ margin: '0 0 0.85rem', color: 'var(--text-muted)', fontSize: '0.84rem' }}>{fetchError}</p>
+                  <button type="button" className="btn btn-primary btn-sm" style={{ minHeight: '44px' }} onClick={handleRetryLoad}>
+                    <RotateCcw size={14} /> Retry
+                  </button>
                 </div>
               ) : filteredCafes.length === 0 ? (
                 <div className="explore-empty-state">
-                  <Coffee size={40} color="var(--primary-light)" style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
-                  <h4>No Places Found</h4>
+                  <Coffee size={36} color="var(--primary-light)" style={{ opacity: 0.45, marginBottom: '0.5rem' }} />
+                  <h4>No places found</h4>
                   <p>
-                    No venues matched your current search and filter settings. Try relaxing your filters or choosing another location.
+                    {cafes.length === 0
+                      ? 'Could not find places for this area right now.'
+                      : 'No places match your current filters.'}
                   </p>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleResetFilters}>
-                    <RotateCcw size={13} /> Reset Filters
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {cafes.length === 0 ? (
+                      <button type="button" className="btn btn-primary btn-sm" style={{ minHeight: '44px' }} onClick={handleRetryLoad}>
+                        <RotateCcw size={14} /> Retry
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" style={{ minHeight: '44px' }} onClick={handleResetFilters}>
+                        <RotateCcw size={14} /> Reset Filters
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 filteredCafes.map((cafe) => (
