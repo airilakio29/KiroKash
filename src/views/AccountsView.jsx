@@ -14,6 +14,7 @@ import {
   WALLET_DAILY_LIMIT
 } from '../config/appConstants';
 import { getUserWalletHistory } from '../services/walletService';
+import { formatRM } from '../utils/formatCurrency';
 import ConfirmModal from '../components/ConfirmModal';
 import EmptyState from '../components/EmptyState';
 import { AccountsSkeleton } from '../components/Skeleton';
@@ -192,59 +193,55 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount, onNaviga
 
   return (
     <div className="view-fade-in">
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1rem'
-          }}
-        >
-          <div>
-            <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700 }}>
-              My Accounts
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Manage your KampusKash account, bank accounts, e-wallets, and cash reserves.
-            </p>
-          </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: '1rem'
+        }}
+      >
+        <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          Accounts
+        </h2>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <button data-tour="accounts-add-btn" onClick={onOpenAddAccount} className="btn btn-primary">
-              <PlusCircle size={16} /> + Add Account
-            </button>
-          </div>
-        </div>
+        <button
+          data-tour="accounts-add-btn"
+          onClick={onOpenAddAccount}
+          className="btn btn-primary"
+          style={{ minHeight: '44px' }}
+        >
+          <PlusCircle size={16} /> Add Account
+        </button>
       </div>
 
       {/* Total Balance Summary */}
       {accounts.length > 0 && (
-        <div className="card" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+        <div className="card" style={{ marginBottom: '1.25rem', textAlign: 'center', padding: '1.15rem' }}>
           <div
             style={{
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              fontWeight: 600,
               marginBottom: '0.25rem'
             }}
           >
-            Total Account Balance
+            Total Balance
           </div>
           <div
             style={{
               fontFamily: 'Plus Jakarta Sans',
-              fontSize: '2rem',
+              fontSize: '1.9rem',
               fontWeight: 800,
               color: totalAccountBalance >= 0 ? 'var(--text-main)' : 'var(--expense)'
             }}
           >
-            RM {totalAccountBalance.toFixed(2)}
+            {formatRM(totalAccountBalance)}
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Across {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+            {accounts.length} account{accounts.length !== 1 ? 's' : ''}
           </div>
         </div>
       )}
@@ -359,23 +356,21 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount, onNaviga
                             : account.institution || typeInfo?.label || 'Account'}
                         </span>
 
-                        {(isKampusKash || account.isDemo) && (
+                        {isKampusKash && (
                           <span
-                            className={isKampusKash ? 'kampuskash-demo-badge' : 'account-sample-badge'}
+                            className="kampuskash-demo-badge"
                             style={{
                               fontSize: '0.62rem',
                               padding: '0.1rem 0.42rem',
                               borderRadius: '4px',
-                              background: isKampusKash
-                                ? 'color-mix(in srgb, var(--primary) 18%, transparent)'
-                                : 'rgba(245, 158, 11, 0.2)',
-                              color: isKampusKash ? 'var(--primary)' : '#FBBF24',
+                              background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+                              color: 'var(--primary)',
                               fontWeight: 700,
                               letterSpacing: '0.02em',
                               flexShrink: 0
                             }}
                           >
-                            {isKampusKash ? 'Demo' : 'Sample'}
+                            Demo
                           </span>
                         )}
                       </div>
@@ -465,7 +460,7 @@ export default function AccountsView({ onOpenAddAccount, onEditAccount, onNaviga
                       color: account.balance >= 0 ? 'var(--text-main)' : 'var(--expense)'
                     }}
                   >
-                    RM {Number(account.balance).toFixed(2)}
+                    {formatRM(account.balance)}
                   </span>
                 </div>
 

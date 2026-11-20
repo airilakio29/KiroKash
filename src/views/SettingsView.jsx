@@ -74,6 +74,23 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
   const fileInputRef = useRef(null);
   const [msg, setMsg] = useState({ text: '', isError: false });
   const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [showDevTools, setShowDevTools] = useState(() => {
+    try {
+      return Boolean(user?.isAdmin || localStorage.getItem('kampuskash_dev_mode') === 'true');
+    } catch {
+      return Boolean(user?.isAdmin);
+    }
+  });
+
+  const handleToggleDevTools = () => {
+    setShowDevTools((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('kampuskash_dev_mode', next ? 'true' : 'false');
+      } catch {}
+      return next;
+    });
+  };
 
   const [activeThemeConfig, setActiveThemeConfig] = useState(() => loadSavedTheme());
   const [, setUseCustomColors] = useState(() => Boolean(activeThemeConfig.customColors));
@@ -179,14 +196,26 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
 
   return (
     <div className="view-fade-in">
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-          Settings &amp; Customization
-        </h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Logged in as <strong>{displayName}</strong> (@{publicProfile?.handle || user?.handle || 'student'} · {user?.email || 'Local User'}).
-          Customize your public social profile, privacy settings, theme appearance, or Pitch Mode demo tools.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          Settings
+        </h2>
+        <button
+          type="button"
+          onClick={handleToggleDevTools}
+          style={{
+            background: 'none',
+            border: '1px solid var(--border-light)',
+            borderRadius: '999px',
+            padding: '0.35rem 0.75rem',
+            minHeight: '36px',
+            fontSize: '0.74rem',
+            color: 'var(--text-muted)',
+            cursor: 'pointer'
+          }}
+        >
+          {showDevTools ? 'Hide Developer Tools' : 'Developer'}
+        </button>
       </div>
 
       {msg.text && (
@@ -207,8 +236,8 @@ export default function SettingsView({ onOpenAddCategory, onReplayTutorial, onOp
         </div>
       )}
 
-      {/* PART 4: Pitch Mode Section (Development / Pitch Recording Tools) */}
-      {PITCH_MODE_ENABLED && (
+      {/* PART 4: Pitch Mode Section (Hidden from normal users; behind developer toggle or admin flag) */}
+      {PITCH_MODE_ENABLED && showDevTools && (
         <div className="card" style={{ marginBottom: '1.5rem', border: '1.5px solid var(--primary)' }}>
           <div className="card-title" style={{ marginBottom: '0.75rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

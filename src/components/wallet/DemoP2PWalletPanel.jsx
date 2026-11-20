@@ -293,28 +293,23 @@ export default function DemoP2PWalletPanel({ onOpenChatWithFriend }) {
                 overflow: 'hidden'
             }}
         >
-            {/* MANDATORY SIMULATION DISCLAIMER BANNER */}
+            {/* Compact Social P2P Header */}
             <div
                 style={{
                     padding: '10px 18px',
-                    background: 'var(--gradient-primary)',
-                    color: 'var(--text-on-primary)',
+                    borderBottom: '1px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    flexWrap: 'wrap',
                     gap: 8,
-                    fontSize: '0.78rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.04em'
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)'
                 }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <ShieldAlert size={16} />
-                    <span>{DEMO_WALLET_BANNER_TEXT}</span>
-                </div>
-                <span style={{ fontWeight: 600, opacity: 0.92 }}>
-                    Isolated Social P2P Ledger • Real Tracker &amp; Bank Balances Untouched
+                <span>Social P2P</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    Demo money
                 </span>
             </div>
 

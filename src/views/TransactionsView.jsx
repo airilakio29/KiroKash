@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useSocialWallet } from '../context/SocialWalletContext';
 import { filterTransactions } from '../services/transactionService';
+import { formatRM } from '../utils/formatCurrency';
 import ConfirmModal from '../components/ConfirmModal';
 import EmptyState from '../components/EmptyState';
 import { TransactionsSkeleton } from '../components/Skeleton';
@@ -22,6 +23,28 @@ import {
   Wallet
 } from 'lucide-react';
 
+function getDateGroupLabel(dateStr) {
+  if (!dateStr) return 'Other';
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  const yesterdayStr = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, '0')}-${String(yest.getDate()).padStart(2, '0')}`;
+
+  if (dateStr === todayStr) return 'Today';
+  if (dateStr === yesterdayStr) return 'Yesterday';
+
+  const parsed = new Date(`${dateStr}T00:00:00`);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('en-MY', {
+      day: 'numeric',
+      month: 'short',
+      year: parsed.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
+  }
+  return dateStr;
+}
+
 export default function TransactionsView({ onOpenAddTransaction, onEditTransaction }) {
   const { transactions, categories, accounts, deleteTransaction, exportToPDF, isLoading } = useFinance();
   const { user } = useAuth();
@@ -37,25 +60,45 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
   const [showFilters, setShowFilters] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // Build a category name map for search
   const categoryNameMap = useMemo(() => {
     const map = {};
-    categories.forEach(c => { map[c.id] = c.name; });
+    categories.forEach((c) => {
+      map[c.id] = c.name;
+    });
     return map;
   }, [categories]);
 
-  // Filtering with service layer
-  const filtered = useMemo(() => filterTransactions(transactions, {
-    search: searchTerm,
-    type: selectedType,
-    categoryId: selectedCategory,
-    accountId: selectedAccount,
-    dateFrom,
-    dateTo,
-    _categoryNameMap: categoryNameMap
-  }), [transactions, searchTerm, selectedType, selectedCategory, selectedAccount, dateFrom, dateTo, categoryNameMap]);
+  const filtered = useMemo(
+    () =>
+      filterTransactions(transactions, {
+        search: searchTerm,
+        type: selectedType,
+        categoryId: selectedCategory,
+        accountId: selectedAccount,
+        dateFrom,
+        dateTo,
+        _categoryNameMap: categoryNameMap
+      }),
+    [transactions, searchTerm, selectedType, selectedCategory, selectedAccount, dateFrom, dateTo, categoryNameMap]
+  );
 
-  const hasActiveFilters = selectedCategory || selectedType !== 'all' || selectedAccount || dateFrom || dateTo;
+  // Group filtered transactions by date ("Today", "Yesterday", formatted date)
+  const groupedTransactions = useMemo(() => {
+    const groups = [];
+    const map = new Map();
+    for (const tx of filtered) {
+      const key = tx.date || 'Other';
+      if (!map.has(key)) {
+        const group = { dateKey: key, label: getDateGroupLabel(key), items: [] };
+        map.set(key, group);
+        groups.push(group);
+      }
+      map.get(key).items.push(tx);
+    }
+    return groups;
+  }, [filtered]);
+
+  const hasActiveFilters = Boolean(selectedCategory || selectedType !== 'all' || selectedAccount || dateFrom || dateTo);
 
   const clearFilters = () => {
     setSelectedCategory('');
@@ -79,446 +122,330 @@ export default function TransactionsView({ onOpenAddTransaction, onEditTransacti
 
   return (
     <div className="view-fade-in">
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        {/* Header Action Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div>
-            <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700 }}>
-              Transaction Records
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Showing {filtered.length} of {transactions.length} entries
-            </p>
-          </div>
+      {/* Compact Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          Transactions
+        </h2>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button onClick={() => exportToPDF(user)} className="btn btn-secondary" aria-label="Export PDF">
-              <FileText size={16} /> Export PDF
-            </button>
-            <button data-tour="transactions-add-btn" onClick={onOpenAddTransaction} className="btn btn-primary">
-              <PlusCircle size={16} /> + Add Transaction
-            </button>
-          </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => exportToPDF(user)}
+            className="btn btn-secondary btn-sm"
+            style={{ minHeight: '44px' }}
+            aria-label="Export PDF"
+          >
+            <FileText size={15} /> PDF
+          </button>
+          <button
+            type="button"
+            data-tour="transactions-add-btn"
+            onClick={onOpenAddTransaction}
+            className="btn btn-primary btn-sm"
+            style={{ minHeight: '44px' }}
+          >
+            <PlusCircle size={15} /> Add
+          </button>
         </div>
+      </div>
 
-        {/* Search & Filter Bar */}
-        <div style={{
-          display: 'flex',
-          gap: '0.75rem',
-          marginBottom: showFilters ? '0.85rem' : '0',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}>
-          {/* Search Box */}
-          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 'min(100%, 150px)' }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+      {/* Search & Filter Controls */}
+      <div className="card" style={{ padding: '0.85rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
+            <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
-              placeholder="Search title, note, or category..."
+              placeholder="Search transactions..."
               className="form-control"
-              style={{ paddingLeft: '2.5rem', height: '40px' }}
+              style={{ paddingLeft: '2.25rem', minHeight: '44px' }}
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={() => setSearchTerm('')}
-                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                aria-label="Clear search"
+                style={{
+                  position: 'absolute',
+                  right: '0.5rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '6px'
+                }}
               >
                 <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Type Filter Buttons */}
-          <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-            {['all', 'expense', 'income'].map(t => (
-              <button
-                key={t}
-                onClick={() => setSelectedType(t)}
-                className="btn btn-sm"
-                style={{
-                  borderRadius: 0,
-                  background: selectedType === t ? 'var(--primary)' : 'var(--bg-card-subtle)',
-                  color: selectedType === t ? '#FFF' : 'var(--text-muted)',
-                  border: 'none',
-                  textTransform: 'capitalize',
-                  padding: '0.45rem 0.85rem'
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {/* Toggle More Filters */}
           <button
-            onClick={() => setShowFilters(prev => !prev)}
-            className={`btn btn-sm ${hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', height: '40px' }}
+            type="button"
+            onClick={() => setShowFilters((prev) => !prev)}
+            className={`btn btn-sm ${hasActiveFilters || showFilters ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <Filter size={15} />
-            <span>Filters{hasActiveFilters ? ' •' : ''}</span>
+            <Filter size={14} />
+            <span>Filter{hasActiveFilters ? ' •' : ''}</span>
           </button>
 
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="btn btn-secondary btn-sm" style={{ height: '40px' }}>
+            <button type="button" onClick={clearFilters} className="btn btn-secondary btn-sm" style={{ minHeight: '44px' }}>
               Clear
             </button>
           )}
         </div>
 
-        {/* Expandable Advanced Filters */}
+        {/* Type Pills */}
+        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.65rem' }}>
+          {['all', 'expense', 'income'].map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setSelectedType(t)}
+              className={`btn btn-sm ${selectedType === t ? 'btn-primary' : 'btn-secondary'}`}
+              style={{
+                flex: 1,
+                minHeight: '38px',
+                textTransform: 'capitalize'
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Collapsible Advanced Filters */}
         {showFilters && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '0.75rem',
-            padding: '1rem',
-            background: 'var(--bg-card-subtle)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-light)',
-            animation: 'fadeIn 0.2s ease-out'
-          }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: '0.65rem',
+              marginTop: '0.75rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--border-light)'
+            }}
+          >
             <div>
-              <label className="form-label" style={{ fontSize: '0.75rem' }}>Category</label>
+              <label className="form-label" style={{ fontSize: '0.74rem' }}>Category</label>
               <select
                 className="form-control"
-                style={{ height: '38px' }}
+                style={{ minHeight: '40px' }}
                 value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
+                onChange={(e) => setSelectedCategory(e.target.value)}
               >
                 <option value="">All Categories</option>
-                {categories.map(c => (
+                {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.75rem' }}>Account</label>
+              <label className="form-label" style={{ fontSize: '0.74rem' }}>Account</label>
               <select
                 className="form-control"
-                style={{ height: '38px' }}
+                style={{ minHeight: '40px' }}
                 value={selectedAccount}
-                onChange={e => setSelectedAccount(e.target.value)}
+                onChange={(e) => setSelectedAccount(e.target.value)}
               >
                 <option value="">All Accounts</option>
-                {accounts.map(a => (
+                {accounts.map((a) => (
                   <option key={a.accountId} value={a.accountId}>{a.accountName}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.75rem' }}>From Date</label>
+              <label className="form-label" style={{ fontSize: '0.74rem' }}>From</label>
               <input
                 type="date"
                 className="form-control"
-                style={{ height: '38px' }}
+                style={{ minHeight: '40px' }}
                 value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
+                onChange={(e) => setDateFrom(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.75rem' }}>To Date</label>
+              <label className="form-label" style={{ fontSize: '0.74rem' }}>To</label>
               <input
                 type="date"
                 className="form-control"
-                style={{ height: '38px' }}
+                style={{ minHeight: '40px' }}
                 value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
+                onChange={(e) => setDateTo(e.target.value)}
               />
             </div>
           </div>
         )}
+      </div>
 
-        {/* Transaction List or Empty State */}
-        {filtered.length === 0 ? (
-          <div style={{ marginTop: '1.25rem' }}>
-            <EmptyState
-              icon={ReceiptText}
-              title={hasActiveFilters || searchTerm ? 'No Matching Transactions' : 'No Transactions Recorded Yet'}
-              description={
-                hasActiveFilters || searchTerm
-                  ? 'We could not find any transactions matching your filter criteria. Try clearing search filters.'
-                  : 'Start tracking your student spending, allowance, or campus earnings to build insights.'
-              }
-              actionText="+ Add Transaction"
-              onAction={onOpenAddTransaction}
-              secondaryActionText={hasActiveFilters || searchTerm ? 'Clear Filters' : null}
-              onSecondaryAction={clearFilters}
-            />
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="table-container desktop-table">
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Title &amp; Notes</th>
-                    <th>Category</th>
-                    <th>Account</th>
-                    <th>Type</th>
-                    <th style={{ textAlign: 'right' }}>Amount (RM)</th>
-                    <th style={{ textAlign: 'center' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(t => {
-                    const cat = categories.find(c => c.id === t.categoryId);
-                    const acc = accounts.find(a => a.accountId === t.accountId);
-                    const isIncome = t.type === 'income';
-                    return (
-                      <tr key={t.id}>
-                        <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {t.date}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span>{t.title}</span>
-                            {t.isDemo && (
-                              <span style={{
-                                fontSize: '0.62rem',
-                                padding: '0.1rem 0.35rem',
-                                borderRadius: '3px',
-                                background: 'rgba(167, 139, 250, 0.2)',
-                                color: '#C084FC',
-                                fontWeight: 700
-                              }}>
-                                Sample
-                              </span>
-                            )}
-                            {t.walletReceiptId && (
+      {/* Grouped Transaction List */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={ReceiptText}
+          title={hasActiveFilters || searchTerm ? 'No matching transactions' : 'No transactions yet'}
+          description={
+            hasActiveFilters || searchTerm
+              ? 'Try adjusting or clearing your filters.'
+              : 'Add your first income or expense.'
+          }
+          actionText="Add Transaction"
+          onAction={onOpenAddTransaction}
+          secondaryActionText={hasActiveFilters || searchTerm ? 'Clear Filters' : null}
+          onSecondaryAction={clearFilters}
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {groupedTransactions.map((group) => (
+            <section key={group.dateKey}>
+              <h3
+                style={{
+                  margin: '0 0 0.45rem 0.2rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                {group.label}
+              </h3>
+
+              <div className="card" style={{ padding: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {group.items.map((t) => {
+                  const cat = categories.find((c) => c.id === t.categoryId);
+                  const isIncome = t.type === 'income';
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.7rem',
+                        padding: '0.65rem 0.7rem',
+                        borderRadius: 'var(--radius-md, 10px)',
+                        minHeight: '56px'
+                      }}
+                    >
+                      {/* Icon */}
+                      <div
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          background: isIncome ? 'var(--income-bg)' : 'var(--expense-bg)',
+                          color: isIncome ? 'var(--income)' : 'var(--expense)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        {isIncome ? <ArrowUpRight size={17} /> : <ArrowDownRight size={17} />}
+                      </div>
+
+                      {/* Name + Subline (Date · Category) */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                fontSize: '0.9rem',
+                                color: 'var(--text-main)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {t.title}
+                            </span>
+                            {t.isRecurring && <Repeat size={12} color="var(--primary)" style={{ flexShrink: 0 }} title="Recurring" />}
+                          </div>
+
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              fontSize: '0.92rem',
+                              color: isIncome ? 'var(--income)' : 'var(--expense)',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                          >
+                            {isIncome ? '+' : '-'}{formatRM(t.amount)}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '2px' }}>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.date} · {cat ? cat.name : t.category || 'Other'}
+                          </span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                            {t.walletReceiptId && openWalletReceiptById && (
                               <button
                                 type="button"
-                                className="wallet-tracker-receipt-link"
                                 onClick={() => openWalletReceiptById(t.walletReceiptId)}
-                                title="View KampusKash Demo Wallet Receipt"
+                                className="btn btn-secondary btn-icon"
+                                style={{ width: '32px', height: '32px' }}
+                                title="View Receipt"
+                                aria-label="View Wallet Receipt"
                               >
-                                <Wallet size={11} />
-                                <span>View Wallet Receipt</span>
+                                <Wallet size={13} />
                               </button>
                             )}
-                            {t.isRecurring && (
-                              <span className="badge badge-recurring" title="Recurring Monthly">
-                                <Repeat size={12} /> Recurring
-                              </span>
+                            {onEditTransaction && (
+                              <button
+                                type="button"
+                                onClick={() => onEditTransaction(t)}
+                                className="btn btn-secondary btn-icon"
+                                style={{ width: '32px', height: '32px' }}
+                                title="Edit"
+                                aria-label={`Edit ${t.title}`}
+                              >
+                                <Edit3 size={13} />
+                              </button>
                             )}
-                          </div>
-                          {t.note && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '0.15rem' }}>
-                              {t.note}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          {cat ? (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              fontSize: '0.82rem',
-                              fontWeight: 500
-                            }}>
-                              <span style={{
-                                width: '8px',
-                                height: '8px',
-                                borderRadius: '50%',
-                                backgroundColor: cat.color,
-                                flexShrink: 0
-                              }} />
-                              {cat.name}
-                            </span>
-                          ) : t.category ? (
-                            <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>
-                              {t.category}
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-light)', fontSize: '0.82rem' }}>Uncategorized</span>
-                          )}
-                        </td>
-                        <td>
-                          {acc ? (
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                              {acc.accountName}
-                            </span>
-                          ) : t.paymentMethod ? (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              {t.paymentMethod}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`badge ${isIncome ? 'badge-income' : 'badge-expense'}`}>
-                            {isIncome ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                            {t.type}
-                          </span>
-                        </td>
-                        <td style={{
-                          textAlign: 'right',
-                          fontWeight: 700,
-                          fontSize: '0.95rem',
-                          color: isIncome ? 'var(--income)' : 'var(--expense)',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {isIncome ? '+' : '-'} RM {Number(t.amount).toFixed(2)}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button
-                              onClick={() => onEditTransaction(t)}
-                              className="btn btn-secondary btn-icon"
-                              style={{ width: '32px', height: '32px' }}
-                              title="Edit"
-                              aria-label={`Edit ${t.title}`}
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            <button
+                              type="button"
                               onClick={() => setDeleteTarget(t)}
                               className="btn btn-danger btn-icon"
                               style={{ width: '32px', height: '32px' }}
                               title="Delete"
                               aria-label={`Delete ${t.title}`}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={13} />
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card List */}
-            <div className="mobile-tx-list">
-              {filtered.map(t => {
-                const cat = categories.find(c => c.id === t.categoryId);
-                const acc = accounts.find(a => a.accountId === t.accountId);
-                const isIncome = t.type === 'income';
-                return (
-                  <div key={t.id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.85rem',
-                    background: 'var(--bg-card-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    marginBottom: '0.5rem',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        <span>{t.title}</span>
-                        {t.isDemo && (
-                          <span style={{
-                            fontSize: '0.62rem',
-                            padding: '0.1rem 0.35rem',
-                            borderRadius: '3px',
-                            background: 'rgba(167, 139, 250, 0.2)',
-                            color: '#C084FC',
-                            fontWeight: 700
-                          }}>
-                            Sample
-                          </span>
-                        )}
-                        {t.walletReceiptId && (
-                          <button
-                            type="button"
-                            className="wallet-tracker-receipt-link"
-                            onClick={() => openWalletReceiptById(t.walletReceiptId)}
-                          >
-                            <Wallet size={11} />
-                            <span>Receipt</span>
-                          </button>
-                        )}
-                        {t.isRecurring && <Repeat size={12} color="var(--primary)" />}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        {t.date} · {cat ? cat.name : (t.category || 'Uncategorized')}
-                        {acc ? ` · ${acc.accountName}` : ''}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', marginLeft: '0.5rem' }}>
-                      <div style={{ fontWeight: 700, color: isIncome ? 'var(--income)' : 'var(--expense)', fontSize: '0.95rem' }}>
-                        {isIncome ? '+' : '-'}RM {Number(t.amount).toFixed(2)}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.35rem', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => onEditTransaction(t)}
-                          className="btn btn-secondary btn-icon mobile-action-btn"
-                          aria-label={`Edit ${t.title}`}
-                          title="Edit transaction"
-                        >
-                          <Edit3 size={15} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(t)}
-                          className="btn btn-danger btn-icon mobile-action-btn"
-                          aria-label={`Delete ${t.title}`}
-                          title="Delete transaction"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
 
-      {/* Styled Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={Boolean(deleteTarget)}
         title="Delete Transaction"
-        message={`Are you sure you want to delete "${deleteTarget?.title}"? This will adjust your balances accordingly.`}
-        confirmText="Delete Transaction"
+        message={`Are you sure you want to delete "${deleteTarget?.title || 'this transaction'}"?`}
+        confirmText="Delete"
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      <style>{`
-        .desktop-table { display: block; }
-        .mobile-tx-list { display: none; }
-        .wallet-tracker-receipt-link {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.14rem 0.5rem;
-          border-radius: 999px;
-          border: 1px solid var(--primary);
-          background: var(--primary-light);
-          color: var(--accent-fg);
-          font-size: 0.7rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-        .wallet-tracker-receipt-link:hover {
-          background: var(--primary);
-          color: #FFFFFF;
-        }
-        @media (max-width: 768px) {
-          .desktop-table { display: none; }
-          .mobile-tx-list { display: block; }
-          .mobile-action-btn {
-            min-width: 44px !important;
-            min-height: 44px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

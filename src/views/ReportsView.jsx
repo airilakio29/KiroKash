@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import PieChart from '../components/PieChart';
 import { getMonthlyAggregates, getSpendingByAccount } from '../services/transactionService';
+import { formatRM } from '../utils/formatCurrency';
 import { ReportsSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import {
@@ -106,17 +107,14 @@ export default function ReportsView() {
 
   return (
     <div className="view-fade-in">
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h3 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-          Reports & Analytics
-        </h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Your complete financial overview with insights and breakdowns.
-        </p>
+      <div style={{ marginBottom: '1rem' }}>
+        <h2 style={{ fontFamily: 'Plus Jakarta Sans', fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+          Reports
+        </h2>
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid-metrics" style={{ marginBottom: '1.75rem' }}>
+      <div className="grid-metrics" style={{ marginBottom: '1.5rem' }}>
         <div className="card metric-card">
           <div className="metric-icon-box income">
             <TrendingUp size={24} />
@@ -124,7 +122,7 @@ export default function ReportsView() {
           <div className="metric-info">
             <div className="metric-label">Total Income</div>
             <div className="metric-value" style={{ color: 'var(--income)' }}>
-              RM {totalIncome.toFixed(2)}
+              {formatRM(totalIncome)}
             </div>
           </div>
         </div>
@@ -136,7 +134,7 @@ export default function ReportsView() {
           <div className="metric-info">
             <div className="metric-label">Total Expenses</div>
             <div className="metric-value" style={{ color: 'var(--expense)' }}>
-              RM {totalExpense.toFixed(2)}
+              {formatRM(totalExpense)}
             </div>
           </div>
         </div>
@@ -148,7 +146,7 @@ export default function ReportsView() {
           <div className="metric-info">
             <div className="metric-label">Net Cash Flow</div>
             <div className="metric-value" style={{ color: netCashFlow >= 0 ? 'var(--income)' : 'var(--expense)' }}>
-              {netCashFlow >= 0 ? '+' : ''}RM {netCashFlow.toFixed(2)}
+              {formatRM(netCashFlow, { showSign: true })}
             </div>
           </div>
         </div>
@@ -158,12 +156,12 @@ export default function ReportsView() {
             <PiggyBank size={24} />
           </div>
           <div className="metric-info">
-            <div className="metric-label">Savings Progress</div>
+            <div className="metric-label">Savings</div>
             <div className="metric-value" style={{ color: 'var(--primary)' }}>
-              RM {totalSavedInGoals.toFixed(2)}
+              {formatRM(totalSavedInGoals)}
             </div>
             <div className="metric-sub">
-              {savingsGoals.length} goal{savingsGoals.length !== 1 ? 's' : ''} active
+              {savingsGoals.length} goal{savingsGoals.length !== 1 ? 's' : ''}
             </div>
           </div>
         </div>

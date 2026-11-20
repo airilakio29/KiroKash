@@ -1067,14 +1067,13 @@ export default function MessagesView() {
                                     <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                                         No conversations yet
                                     </div>
-                                    <p style={{ fontSize: '0.82rem', margin: '6px 0 14px' }}>
-                                        Start a real-time chat with any of your KampusKash Connect friends.
-                                    </p>
                                     <button
                                         type="button"
                                         onClick={() => setNewChatModalOpen(true)}
                                         style={{
-                                            padding: '8px 14px',
+                                            marginTop: 12,
+                                            padding: '0 16px',
+                                            minHeight: 44,
                                             borderRadius: 10,
                                             border: 'none',
                                             background: 'var(--accent-primary)',

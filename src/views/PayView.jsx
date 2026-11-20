@@ -12,6 +12,7 @@ import {
   DEMO_TOPUP_SOURCES
 } from '../config/appConstants';
 import { KAMPUSKASH_ACCOUNT_ID, KAMPUSKASH_ACCOUNT_TYPE } from '../services/accountService';
+import { formatRM } from '../utils/formatCurrency';
 import UserAvatar from '../components/UserAvatar';
 import DemoP2PWalletPanel from '../components/wallet/DemoP2PWalletPanel';
 import PayPageHeader from '../components/wallet/PayPageHeader';
@@ -2040,24 +2041,27 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
       {/* ============================================================== */}
       {!activeSubroute && (
         <div className="pay-overview-content">
-          {/* Balance Header Hero */}
+          {/* Clean Balance Header Hero with single "Demo money" pill */}
           <div className="card pay-balance-hero-card">
-            <div className="pay-hero-top-row">
-              <div className="pay-brand-badge">
-                <img src="/kiro-logo.png" alt="KampusKash" className="pay-brand-logo-img" />
-                <span>{PAY_SECTION_NAME}</span>
-              </div>
-              <div className="pay-demo-badge-pill">
-                <ShieldCheck size={12} />
-                <span>{DEMO_WALLET_BADGE_TEXT}</span>
-              </div>
-            </div>
-
             <div className="pay-hero-balance-row">
               <div>
-                <div className="pay-hero-balance-label">Available Demo Balance</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                  <span className="pay-hero-balance-label" style={{ margin: 0 }}>Balance</span>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      padding: '0.12rem 0.5rem',
+                      borderRadius: '999px',
+                      background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+                      color: 'var(--primary)'
+                    }}
+                  >
+                    Demo money
+                  </span>
+                </div>
                 <div className="pay-hero-balance-amount">
-                  RM {Number(wallet?.balance ?? 100).toFixed(2)}
+                  {formatRM(wallet?.balance ?? 100)}
                 </div>
               </div>
 
@@ -2066,104 +2070,115 @@ export default function PayView({ subroute = null, onNavigateSubroute, onNavigat
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={handleOpenAddMoney}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', minHeight: '44px' }}
                 >
-                  <PlusCircle size={14} /> Add money
+                  <PlusCircle size={15} /> Add money
                 </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => onNavigateSubroute ? onNavigateSubroute('history') : null}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', minHeight: '44px' }}
                 >
-                  <History size={14} /> History
+                  <History size={15} /> History
                 </button>
               </div>
             </div>
-
-            {!firstUseNoticeSeen && (
-              <div className="pay-first-use-banner">
-                <Sparkles size={16} color="var(--primary)" />
-                <p>
-                  <strong>Welcome to KampusKash Pay:</strong> Experience instant simulated QR payments, transfers between campus students, and 50/50 bill splits without using real funds.
-                </p>
-                <button
-                  type="button"
-                  className="btn-icon-subtle"
-                  onClick={dismissFirstUseNotice}
-                  title="Dismiss notice"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* Quick Action Tiles (Top 4 Big Cards) */}
-          <div className="pay-tiles-grid">
-            <div
+          {/* 4 Big Action Buttons with Icons & One-Word Labels */}
+          <div
+            className="pay-tiles-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: '0.65rem',
+              marginBottom: '1rem'
+            }}
+          >
+            <button
+              type="button"
               className="card pay-action-tile"
               onClick={() => onNavigateSubroute ? onNavigateSubroute('scan') : null}
-              role="button"
-              tabIndex={0}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 0.4rem',
+                minHeight: '84px',
+                cursor: 'pointer'
+              }}
             >
               <div className="pay-tile-icon-box scan">
-                <QrCode size={26} />
+                <QrCode size={22} />
               </div>
-              <div className="pay-tile-info">
-                <h3>Scan QR</h3>
-                <p>Pay via camera, photo, or code</p>
-              </div>
-              <ChevronRight size={18} className="pay-tile-chevron" />
-            </div>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)' }}>Scan</span>
+            </button>
 
-            <div
+            <button
+              type="button"
               className="card pay-action-tile"
               onClick={() => onNavigateSubroute ? onNavigateSubroute('my-qr') : null}
-              role="button"
-              tabIndex={0}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 0.4rem',
+                minHeight: '84px',
+                cursor: 'pointer'
+              }}
             >
               <div className="pay-tile-icon-box myqr">
-                <Sun size={26} />
+                <Sun size={22} />
               </div>
-              <div className="pay-tile-info">
-                <h3>My QR</h3>
-                <p>Receive money &amp; personal code</p>
-              </div>
-              <ChevronRight size={18} className="pay-tile-chevron" />
-            </div>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)' }}>My QR</span>
+            </button>
 
-            <div
+            <button
+              type="button"
               className="card pay-action-tile"
               onClick={() => onNavigateSubroute ? onNavigateSubroute('transfer') : null}
-              role="button"
-              tabIndex={0}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 0.4rem',
+                minHeight: '84px',
+                cursor: 'pointer'
+              }}
             >
               <div className="pay-tile-icon-box transfer">
-                <Send size={26} />
+                <Send size={22} />
               </div>
-              <div className="pay-tile-info">
-                <h3>Transfer</h3>
-                <p>Send to students &amp; friends</p>
-              </div>
-              <ChevronRight size={18} className="pay-tile-chevron" />
-            </div>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)' }}>Transfer</span>
+            </button>
 
-            <div
+            <button
+              type="button"
               className="card pay-action-tile"
               onClick={() => onNavigateSubroute ? onNavigateSubroute('request') : null}
-              role="button"
-              tabIndex={0}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 0.4rem',
+                minHeight: '84px',
+                cursor: 'pointer'
+              }}
             >
               <div className="pay-tile-icon-box request">
-                <HandCoins size={26} />
+                <HandCoins size={22} />
               </div>
-              <div className="pay-tile-info">
-                <h3>Request</h3>
-                <p>Request money or split bill 50/50</p>
-              </div>
-              <ChevronRight size={18} className="pay-tile-chevron" />
-            </div>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)' }}>Request</span>
+            </button>
           </div>
 
           {/* Phase 3: KampusKash Connect Demo P2P Wallet Panel (Strictly Isolated Social P2P Ledger) */}
