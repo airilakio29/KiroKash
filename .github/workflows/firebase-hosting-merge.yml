@@ -1,0 +1,61 @@
+# Builds the app and deploys it to Firebase Hosting (live channel) on every push to main.
+#
+# Required GitHub repository secrets (Settings -> Secrets and variables -> Actions):
+#   FIREBASE_SERVICE_ACCOUNT_KAMPUSKASH_82B7C
+#       Service account JSON with Firebase Hosting deploy rights.
+#       Created automatically by `npx firebase init hosting:github`.
+#   VITE_ENV
+#       The VITE_* lines from your local .env (Firebase web config, CARTO key).
+#       These values end up in the public bundle anyway; do NOT put GROQ_API_KEY
+#       or GEMINI_API_KEY here.
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting-live
+  cancel-in-progress: false
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Write .env for the Vite build
+        env:
+          VITE_ENV: ${{ secrets.VITE_ENV }}
+        run: |
+          if ! printf '%s\n' "$VITE_ENV" | grep -q '^VITE_FIREBASE_API_KEY='; then
+            echo "::error::Secret VITE_ENV is missing or has no VITE_FIREBASE_API_KEY line. Refusing to deploy a build without Firebase config."
+            exit 1
+          fi
+          # Strip Windows line endings in case the secret was pasted from a Windows .env
+          printf '%s\n' "$VITE_ENV" | tr -d '\r' | grep '^VITE_' > .env
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KAMPUSKASH_82B7C }}
+          channelId: live
+          projectId: kampuskash-82b7c
